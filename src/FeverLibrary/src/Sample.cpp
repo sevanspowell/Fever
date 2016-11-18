@@ -13,10 +13,15 @@
 /// credit to the author ... for ...
 ///
 //===----------------------------------------------------------------------===//
+#include <GL/glew.h>
+
 namespace fvr {
 namespace sample {
 
-int getThree() { return 3; }
+int getThree() {
+    glewInit();
+    return 3;
+}
 
 // Use arithmetic to return four.
 int getFour(int *const myFour) { return (5 - 1); }

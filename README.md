@@ -1,4 +1,5 @@
-# Fever The Fever Graphics Library
+# Fever 
+The Fever Graphics Library
 
 ## Contributing
 

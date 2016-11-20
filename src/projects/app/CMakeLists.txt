@@ -4,6 +4,7 @@ add_executable(app
 
 target_link_libraries(app
   Fever
+  sdl2
   )
 
 target_compile_features(app

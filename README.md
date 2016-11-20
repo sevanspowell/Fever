@@ -13,6 +13,16 @@ cd Fever
 git submodule update --init --recursive
 ```
 
+## Building
+
+From root directory:
+
+```
+cmake -E make_directory build
+cmake -E chdir build cmake -E time cmake ../src
+cmake -E time cmake --build build --target all --config Debug
+```
+
 ## Contributing
 
 Please format your code using the .clang-format file provided and adhering to

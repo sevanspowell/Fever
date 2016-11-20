@@ -13,6 +13,11 @@ cd Fever
 git submodule update --init --recursive
 ```
 
+## Dependencies
+
+- SDL2
+- GLEW
+
 ## Building
 
 From root directory:

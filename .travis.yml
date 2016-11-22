@@ -1,8 +1,11 @@
 language: c
-addons:
+ddons:
   apt:
+    sources:
+      - george-edison55-precise-backports # cmake 3.2.3 / doxygen 1.8.3
     packages:
-    - cmake
+      - cmake
+      - cmake-data
 script:
     - cmake -E make_directory build
     - cmake -E chdir build cmake -E time cmake ../src

@@ -1,4 +1,8 @@
 language: c
+addons:
+  apt:
+    packages:
+    - cmake
 script:
     - cmake -E make_directory build
     - cmake -E chdir build cmake -E time cmake ../src

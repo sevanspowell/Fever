@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.2 FATAL_ERROR)
 
-project(FeverGraphicsLibrary VERSION 0.0.1 LANGUAGES CXX)
+project(FeverGraphicsLibrary VERSION 0.0.1 LANGUAGES C CXX)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../cmake/modules")
 
@@ -16,10 +16,6 @@ set_property(TARGET glew PROPERTY
 ######### SDL2 ########## 
 find_package(SDL2 REQUIRED)
 add_library(sdl2 SHARED IMPORTED)
-# message("SDL2 INCLUDE DIR: " ${SDL2_INCLUDE_DIR})
-# message("SDL2 LIBRARY: " ${SDL2_LIBRARY})
-# set(SDL2_LIBRARY "/usr/local/lib/libSDL2.dylib")
-message("SDL2 LIBRARY: " ${SDL2_LIBRARY})
 set_property(TARGET sdl2 PROPERTY
   INTERFACE_INCLUDE_DIRECTORIES ${SDL2_INCLUDE_DIR})
 set_property(TARGET sdl2 PROPERTY
@@ -28,4 +24,4 @@ set_property(TARGET sdl2 PROPERTY
 enable_testing()
 add_subdirectory(libs/googletest)
 add_subdirectory(FeverLibrary)
-add_subdirectory(projects)
+add_subdirectory(projects/app)

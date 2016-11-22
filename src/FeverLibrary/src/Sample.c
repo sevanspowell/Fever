@@ -1,4 +1,4 @@
-//===-- Sample.cpp - Sample class implementation ----------------*- C++ -*-===//
+//===-- Sample.c - Sample class implementation --------------------*- C -*-===//
 //
 //                     The Fever Graphics Library
 //
@@ -15,16 +15,10 @@
 //===----------------------------------------------------------------------===//
 #include <GL/glew.h>
 
-namespace fvr {
-namespace sample {
-
-int getThree() {
+int fvr_sample_getThree() {
     glewInit();
     return 3;
 }
 
 // Use arithmetic to return four.
-int getFour(int *const myFour) { return (5 - 1); }
-
-} /// end namespace sample
-} /// end namespace fvr
+int fvr_sample_getFour(int *const myFour) { return (5 - 1); }

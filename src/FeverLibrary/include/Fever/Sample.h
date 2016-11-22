@@ -14,13 +14,10 @@
 /// More detail...
 ///
 //===----------------------------------------------------------------------===//
-namespace fvr {
-namespace sample {
-
 /// \name Functions that return numbers
 /// @{
 /// Gets the number 'three' from the module.
-int getThree();
+int fvr_sample_getThree();
 
 /// Gets the number 'four' from the module.
 ///
@@ -36,9 +33,5 @@ int getThree();
 /// \param myFour Function puts the number 'four' into this parameter.
 ///
 /// \returns number 'four'.
-int getFour(int *const myFour);
+int fvr_sample_getFour(int *const myFour);
 /// @}
-
-// More functions ...
-} /// end namespace sample
-} /// end namespace fvr

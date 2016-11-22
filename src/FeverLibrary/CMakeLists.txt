@@ -1,9 +1,9 @@
 ################################# Fever ########################################
 cmake_minimum_required(VERSION 3.2 FATAL_ERROR)
-project(FeverLibrary VERSION 0.0.1 LANGUAGES CXX)
+project(FeverLibrary VERSION 0.0.1 LANGUAGES C CXX)
 
 add_library(Fever
-  src/Sample.cpp
+  src/Sample.c
   )
 
 target_include_directories(Fever
@@ -13,6 +13,8 @@ target_include_directories(Fever
   PRIVATE
   src
   )
+
+set_property(TARGET Fever PROPERTY C_STANDARD 90)
 
 # target_compile_features(Fever
 #   )

@@ -46,14 +46,14 @@ int main(void) {
     SDL_Event event;
 
     // Grab events from platform
-    bool shouldQuit = false;
+    int shouldQuit = 0;
     while (!shouldQuit) {
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
-                case SDL_QUIT: {
-                    shouldQuit = true;
-                    break;
-                }
+            case SDL_QUIT: {
+                shouldQuit = 1;
+                break;
+            }
             }
         }
 
@@ -63,8 +63,8 @@ int main(void) {
 
     SDL_DestroyWindow(window);
 
-    printf("Get three: %d\n", fvr::sample::getThree());
-    printf("Get four: %d\n", fvr::sample::getFour(nullptr));
+    printf("Get three: %d\n", fvr_sample_getThree());
+    printf("Get four: %d\n", fvr_sample_getFour(NULL));
 
     return 0;
 }

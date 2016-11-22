@@ -3,10 +3,12 @@ addons:
   apt:
     sources:
       - george-edison55-precise-backports # cmake 3.2.3 / doxygen 1.8.3
+      - zoogie/sdl2-snapshots # SDL2
     packages:
       - cmake
       - cmake-data
       - libglew-dev
+      - libsdl2-dev
 script:
     - cmake -E make_directory build
     - cmake -E chdir build cmake -E time cmake ../src

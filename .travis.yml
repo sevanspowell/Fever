@@ -1,0 +1,10 @@
+language: c
+script:
+    - cmake -E make_directory build
+    - cmake -E chdir build cmake -E time cmake ../src
+    - cmake -E time cmake --build build --target all --config Debug --clean-first
+    - build/FeverLibrary/FeverTest
+    - build/projects/app/app
+compiler:
+    - clang
+    - gcc

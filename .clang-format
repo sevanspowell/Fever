@@ -1,8 +1,10 @@
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
+AlignOperands: true
+AlignTrailingComments: true
 BasedOnStyle: LLVM
+ColumnLimit: 80
 IndentWidth: 4
+PointerBindsToType: false
 TabWidth: 4
 UseTab: Never
-ColumnLimit: 80
----
-Language: Cpp
-PointerBindsToType: false

@@ -3,6 +3,9 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_syswm.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 #include <Fever/Sample.h>
 
 int main(void) {

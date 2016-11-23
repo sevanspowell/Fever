@@ -21,7 +21,14 @@ set_property(TARGET sdl2 PROPERTY
 set_property(TARGET sdl2 PROPERTY
   IMPORTED_LOCATION ${SDL2_LIBRARY})
 
+######### STB Image ########### 
+set(STBI_BASE_DIR "libs/stb_image")
+find_package(STBImage REQUIRED)
+add_library(stbImage SHARED IMPORTED)
+set_property(TARGET stbImage PROPERTY
+  INTERFACE_INCLUDE_DIRECTORIES ${STBI_INCLUDE_DIRS})
+
 enable_testing()
-add_subdirectory(libs/googletest)
+add_subdirectory(libs/googletest EXCLUDE_FROM_ALL)
 add_subdirectory(FeverLibrary)
 add_subdirectory(projects/app)

@@ -14,6 +14,7 @@ target_include_directories(Fever
   src
   )
 
+set_property(TARGET Fever PROPERTY C_STANDARD_REQUIRED ON)
 set_property(TARGET Fever PROPERTY C_STANDARD 90)
 
 # target_compile_features(Fever

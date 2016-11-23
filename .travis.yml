@@ -1,5 +1,4 @@
 language: c
-sudo: required
 addons:
   apt:
     sources:
@@ -9,12 +8,17 @@ addons:
       - cmake-data
       - libglew-dev
 
-before_install:
-    - sudo apt-add-repository --yes ppa:zoogie/sdl2-snapshots # libsdl2
-
 install:
-    - sudo apt-get update -qq
-    - sudo apt-get install -q -y libsdl2-dev
+  - cd ~
+  - mkdir sdl2install
+  - export SDL2DIR="`pwd`/sdl2install"
+
+  - wget https://www.libsdl.org/release/SDL2-2.0.3.tar.gz
+  - tar xzf SDL2-2.0.3.tar.gz
+  - cd SDL2-2.0.3
+  - ./configure --prefix=$SDL2DIR
+  - make
+  - make install
 
 script:
     - cmake -E make_directory build

@@ -1,26 +1,30 @@
 language: c
-sudo: true 
+sudo: true
 
 addons:
   apt:
     sources:
-      - george-edison55-precise-backports # cmake 3.2.3 / doxygen 1.8.3
+    - george-edison55-precise-backports
     packages:
-      - cmake
-      - cmake-data
-      - libglew-dev
+    - cmake
+    - cmake-data
+    - libglew-dev
 
 before_install:
-   - sudo apt-add-repository -y ppa:zoogie/sdl2-snapshots
-   - sudo apt-get update -qq
-   - sudo apt-get install -q -y libsdl2-dev
+- sudo apt-add-repository -y ppa:zoogie/sdl2-snapshots
+- sudo apt-get update -qq
+- sudo apt-get install -q -y libsdl2-dev
 
 script:
-    - cmake -E make_directory build
-    - cmake -E chdir build cmake -E time cmake ../src
-    - cmake -E time cmake --build build --target all --config Debug --clean-first
-    - build/FeverLibrary/FeverTest
+- cmake -E make_directory build
+- cmake -E chdir build cmake -E time cmake ../src
+- cmake -E time cmake --build build --target all --config Debug --clean-first
+- build/FeverLibrary/FeverTest
 
 compiler:
-    - clang
-    - gcc
+- clang
+- gcc
+
+notifications:
+  slack:
+    secure: lOSL2SSoN/hSDaNGuQ/kf557uqOR0G5QT1/TjznxJg+ZGUA+v2YpQu/FWMQ71cpwiv81ZOSBWHqCHrBHuOQpWj215Rl2c0D3Gqs0wkrW9febTAZDddmzMspHl11DUPlZAwj8g7B/3ujXEZiMbcIREzTd85ySVBlgu5C3WpUvD3hU1VKsBvPgRBTM9pn82xrN2/2FDE4aEAEWEgwHtOTTqAaatvQf+XKk70kkA3fPq5qTecs5pfVOWYfS4c3goZ8KLMYIB4lFrB0jZJuhOJVrqgAGhKHCvDpRt2qqtyVgNDKpi+yjTe/I7vcu9py/NoKeBaPAfoKkp/TPljVf29z5bId6CzycVP+VEqRxu1IID2ZpnOUt14Be0X09J9hZ+cDbFaKM1OQxDlAdbxT6DgaXq1iPUZtJN0FR5pUeVwtQn+fBzr+A179+6V7eG2mzVcR5oxUxwBmvbPkTbIPaWq8aEjtlSIJvsrKms0J8h2YhtKfPDM8IU31ay5yRqjjTd9JJ4WxIfzHgQWTYYCZ1pWVF3H+kO52C59LDVpic+NqtlZgO+oMX84TyChbP4usWqXt5c4Cdub6un/Q9mSPVMg6oxk0lN73E+Bx6Kn6mw7iU7dMFCfQDfrFJXLE+y9KTxNwij/t9xnPviHEtPqrhtKX0RZfldwwWseoG1PDp+TuxUNc=

@@ -1,6 +1,6 @@
 <a name="top"></a>
 
-<p align="center"><img src="https://dl.dropboxusercontent.com/u/38237647/FEVER.png" alt="Fever"/></p>
+<p align="center"><img src="docs/banner.png" alt="Fever"/></p>
 ***
 <p align="center">
 <a href="http://spacemacs.org"><img src="https://cdn.rawgit.com/syl20bnr/spacemacs/442d025779da2f62fc86c2082703697714db6514/assets/spacemacs-badge.svg" alt="Made with Spacemacs"></a>
@@ -10,6 +10,17 @@
 ***
 
 The Fever Graphics Library
+
+<!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-generate-toc again -->
+**Table of Contents**
+
+- [-](#-)
+- [Dependencies](#dependencies)
+- [Building](#building)
+- [Contributing](#contributing)
+
+<!-- markdown-toc end -->
+
 
 ## Cloning
 

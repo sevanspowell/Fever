@@ -3,9 +3,9 @@
 <p align="center"><img src="docs/banner.png" alt="Fever"/></p>
 ***
 <p align="center">
+<a href="http://www.twitter.com/sevanspowell"><img src="http://i.imgur.com/tXSoThF.png" alt="Twitter" align="left"></a>
 <a href="http://spacemacs.org"><img src="https://cdn.rawgit.com/syl20bnr/spacemacs/442d025779da2f62fc86c2082703697714db6514/assets/spacemacs-badge.svg" alt="Made with Spacemacs"></a>
 <a href="https://travis-ci.com/sevanspowell/Fever"><img src="https://travis-ci.com/sevanspowell/Fever.svg?token=JnRKqMsbJh9FxmkLU49o&branch=master" alt="Build Status"></a>
-<a href="http://www.twitter.com/sevanspowell"><img src="http://i.imgur.com/tXSoThF.png" alt="Twitter" align="right"></a>
 </p>
 ***
 

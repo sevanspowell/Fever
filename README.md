@@ -9,8 +9,6 @@
 </p>
 ***
 
-# Fever 
-
 The Fever Graphics Library
 
 ## Cloning

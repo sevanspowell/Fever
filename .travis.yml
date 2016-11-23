@@ -19,6 +19,7 @@ install:
   - ./configure --prefix=$SDL2DIR
   - make
   - make install
+  - cd $TRAVIS_BUILD_DIR
 
 script:
     - cmake -E make_directory build

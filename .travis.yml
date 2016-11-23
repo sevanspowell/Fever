@@ -1,4 +1,6 @@
 language: c
+sudo: true
+
 addons:
   apt:
     sources:
@@ -8,18 +10,13 @@ addons:
       - cmake-data
       - libglew-dev
 
-install:
-  - cd ~
-  - mkdir sdl2install
-  - export SDL2DIR="`pwd`/sdl2install"
+before_install:
+    - sudo apt-add-repository --yes ppa:zoogie/sdl2-snapshots # libsdl2
+    - export PATH=~/usr/bin:$PATH
 
-  - wget https://www.libsdl.org/release/SDL2-2.0.3.tar.gz
-  - tar xzf SDL2-2.0.3.tar.gz
-  - cd SDL2-2.0.3
-  - ./configure --prefix=$SDL2DIR
-  - make
-  - make install
-  - cd $TRAVIS_BUILD_DIR
+install:
+    - sudo apt-get update -qq
+    - sudo apt-get install -q -y libsdl2-dev
 
 script:
     - cmake -E make_directory build

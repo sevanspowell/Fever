@@ -124,11 +124,13 @@ ENDIF(MINGW)
 
 IF(SDL2_LIBRARY_TEMP)
 	# For SDL2main
-	IF(NOT SDL2_BUILDING_LIBRARY)
-		IF(SDL2MAIN_LIBRARY)
-			SET(SDL2_LIBRARY_TEMP ${SDL2MAIN_LIBRARY} ${SDL2_LIBRARY_TEMP})
-		ENDIF(SDL2MAIN_LIBRARY)
-	ENDIF(NOT SDL2_BUILDING_LIBRARY)
+  # EDITED BY Samuel Evans-Powell: linking more than one thing breaks build if
+  # used with the CMake workflow I'm using
+	# IF(NOT SDL2_BUILDING_LIBRARY)
+	# 	IF(SDL2MAIN_LIBRARY)
+	# 		SET(SDL2_LIBRARY_TEMP ${SDL2MAIN_LIBRARY} ${SDL2_LIBRARY_TEMP})
+	# 	ENDIF(SDL2MAIN_LIBRARY)
+	# ENDIF(NOT SDL2_BUILDING_LIBRARY)
 
 	# For OS X, SDL2 uses Cocoa as a backend so it must link to Cocoa.
 	# CMake doesn't display the -framework Cocoa string in the UI even
@@ -146,9 +148,11 @@ IF(SDL2_LIBRARY_TEMP)
 	# For threads, as mentioned Apple doesn't need this.
 	# In fact, there seems to be a problem if I used the Threads package
 	# and try using this line, so I'm just skipping it entirely for OS X.
-	IF(NOT APPLE)
-		SET(SDL2_LIBRARY_TEMP ${SDL2_LIBRARY_TEMP} ${CMAKE_THREAD_LIBS_INIT})
-	ENDIF(NOT APPLE)
+  # EDITED BY Samuel Evans-Powell: -lpthreads breaks build if used with the
+  # CMake workflow I'm using
+	# IF(NOT APPLE)
+	# 	SET(SDL2_LIBRARY_TEMP ${SDL2_LIBRARY_TEMP} ${CMAKE_THREAD_LIBS_INIT})
+	# ENDIF(NOT APPLE)
 
 	# For MinGW library
 	IF(MINGW)

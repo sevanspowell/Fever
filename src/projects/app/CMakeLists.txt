@@ -3,7 +3,7 @@ add_executable(app
   )
 
 target_link_libraries(app
-  Fever
-  sdl2
-  stbImage
+  PRIVATE Fever
+  PRIVATE sdl2
+  PRIVATE stb
   )

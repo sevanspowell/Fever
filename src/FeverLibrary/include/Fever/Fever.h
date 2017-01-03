@@ -1,4 +1,4 @@
-/*===-- Fever/Fever.h - Fever Graphics Library API ------------------*- C -*-===
+/*===-- Fever/fever.h - Fever Graphics Library API ------------------*- C -*-===
  *
  *                     The Fever Graphics Library
  *
@@ -6,228 +6,352 @@
  *===----------------------------------------------------------------------===*/
 /**
  * \file
- * This file contains the API for the Fever Graphics Library
- *
- * How do I draw?
- * To draw something, you need to use the 'fvr_submit' call to submit a
- * RenderPass object, a RenderPipelineState object and a DrawCommand object.
- *
- * RenderPass
- * The RenderPass object is used to specify which color attachments, depth
- * attachment and stencil attachment you wish to store the results of a draw
- * into.
- *
- * RenderPipelineState
- * The RenderCommand object ... (as below?)
- *
- * DrawCommand
- * The DrawCommand object ...
+ * This file contains the public API for the Fever Graphics Library.
  *
  * Buffers
- * Buffers come in three types: Vertex, Index and Constant buffers. Vertex
- * buffers are used for uploading vertex data to the GPU, index buffers are used
- * for describing in what order to access elements of the vertex buffer, and
- * constant buffers are used for uploading uniforms (essentially arbitrary data)
- * to the shader.
+ * A generic store for data to be placed on the graphics card.
  *
- * Argument Tables
- * All 'at' arguments specify the position to bind that resource in one of the
- * argument tables. There are two argument tables; one for textures (the
- * 'Texture Argument Table') and one for buffers (the 'Buffer Argument Table').
+ * - data: data contained in the buffer
+ * - datasize: size of the data in the buffer
+ * - type: type of the buffer
  *
- * Render Pipeline State
- * The render pipeline state object holds all the state associated with a draw
- * call. You are required to describe the pixel format of each color attachment
- * you plan to use in a render pass. There are a fixed number of color
- * attachments given by FVR_MAX_COLOR_ATTACHMENTS. You are also required to
- * describe the depth and stencil attachment pixel formats.
+ * Buffer Layout Descriptors
+ * Used to describe the data layout of a buffer.
  *
- * Setting all the pipeline state up in advance is cumbersome, and these
- * properties cannot be changed dynamically, but imposing this limitation allows
- * the implementations of this backend to optimize the rendering process.
- *
- * The following functions may be declared as macros.
-//===----------------------------------------------------------------------===*/
-#define FVR_MAX_COLOR_ATTACHMENTS 8
+ * - stepFunction: How often new data is fetched from the buffer.
+ * - stepRate: interval at which data is fetched from the buffer.
+ * - stride: distance (in bytes) between data items in the buffer.
+ //===----------------------------------------------------------------------===*/
 
-typedef void FvrBuffer;
-typedef void FvrShader;
-typedef void FvrTexture;
-typedef void FvrRenderPipelineState;
-typedef void FvrDrawCommand;
+#include "fever_private.h"
 
-/** GPU Buffer types */
-enum FvrBufferType {
-    FvrBufferTypeVertex,
-    FvrBufferTypeIndex,
-    FvrBufferTypeConstant
-};
+/* Colour */
+typedef struct fvr_color_t { fvr_color_private_t private; } fvr_color_t;
 
-/** Shader types */
-enum FvrShaderType { FvrShaderTypeVertex, FvrShaderTypeFragment };
+/* Buffers */
+typedef struct fvr_buffer_t { fvr_buffer_private_t private; } fvr_buffer_t;
 
-/** Texture types */
-enum FvrTextureType {
-    FvrTextureType1D,
-    FvrTextureType2D,
-    FvrTextureType3D,
-    FvrTextureTypeCubeMap
-};
-enum FvrTextureUsage {
-    FvrTextureUsageShaderRead,
-    FvrTextureUsageShaderWrite,
-    FvrTextureUsageRenderTarget
-};
-enum FvrTexturePixelFormat {};
-enum FvrWindingOrder {
-    FvrWindingOrderClockwise,
-    FvrWindingOrderCounterClockwise
-};
-enum FvrCullMode {
-    FvrCullModeNone,
-    FvrCullModeFrontFacing,
-    FvrCullModeBackFacing
-};
-enum FvrPrimitiveType {
-    FvrPrimitiveTypeTriangle,
-    FvrPrimitiveTypeLine,
-};
+extern void fvr_buffer_create(fvr_buffer_t *const buffer,
+                              fvr_bufferType_t bufferType,
+                              const void *const data, size_t dataSize);
 
-FvrBuffer *const fvr_buffer_create();
-void fvr_buffer_setData(FvrBuffer *const buffer, const void *const data,
-                        size_t dataSize);
-void fvr_buffer_setType(FvrBuffer *const buffer, FvrBufferType type);
-void fvr_buffer_destroy(FvrBuffer *const buffer);
+extern void fvr_buffer_setData(fvr_buffer_t *const buffer,
+                               const void *const data, size_t dataSize);
+extern const void *fvr_buffer_getData(const fvr_buffer_t *const buffer);
 
-FvrShader *const fvr_shader_create();
-void fvr_shader_setData(FvrShader *const shader, const void *const data,
-                        size_t dataSize);
-void fvr_shader_setType(FvrShader *const shader, FvrShaderType type);
-void fvr_shader_destroy(FvrShader *const shader);
+extern void fvr_buffer_setDataSize(fvr_buffer_t *const buffer, size_t dataSize);
+extern size_t fvr_buffer_getDataSize(const fvr_buffer_t *const buffer);
 
-typedef struct FvrRegion { unsigned int originX; } FvrRegion;
+extern void fvr_buffer_setType(fvr_buffer_t *const buffer,
+                               fvr_bufferType_t bufferType);
+extern fvr_bufferType_t fvr_buffer_getType(const fvr_buffer_t *const buffer);
 
-FvrTexture *const fvr_texture_create();
-void fvr_texture_setType(FvrTexture *const texture, FvrTextureType type);
-void fvr_texture_setWidth(FvrTexture *const texture, unsigned int width);
-void fvr_texture_setHeight(FvrTexture *const texture, unsigned int height);
-void fvr_texture_setDepth(FvrTexture *const texture, unsigned int depth);
-void fvr_texture_setPixelFormat(FvrTexture *const texture,
-                                FvrTexturePixelFormat pixelFormat);
-/* void fvr_texture_setData2D(FvrTexture *const texture, const void *const data,
- */
-/*                            size_t dataSize); */
-void fvr_texture_destroy(FvrTexture *const texture);
+extern void fvr_buffer_destroy(fvr_buffer_t *const buffer);
 
-FvrRenderPipelineState *const fvr_renderPipelineState_create();
-void fvr_renderPipelineState_setVertexBuffer(
-    FvrRenderPipelineState *const renderPipelineState,
-    const FvrBuffer *const buffer, size_t offset, uint32_t at);
-void fvr_renderPipelineState_setWindingOrder(
-    FvrRenderPipelineState *const renderPipelineState,
-    FvrWindingOrder windingOrder);
-void fvr_renderPipelineState_setCullMode(
-    FvrRenderPipelineState *const renderPipelineState, FvrCullMode cullMode);
-void fvr_renderPipelineState_setViewport(uint32_t originX, uint32_t originY,
-                                         uint32_t width, uint32_t height);
-void fvr_renderPipelineState_setTexture(
-    FvrRenderPipelineState *const renderPipelineState,
-    const FvrTexture *const texture, uint32_t at);
-void fvr_renderPipelineState_setSamplerState(
-    FvrRenderPipelineSate *const renderPipelineState,
-    const FvrSamplerState *const samplerState);
-void fvr_renderPipelineState_setVertexShader(
-    FvrRenderPipelineState *const renderPipelineState,
-    const FvrShader *const vertexShader);
-void fvr_renderPipelineState_setFragmentShader(
-    FvrRenderPipelineState *const renderPipelineState,
-    const FvrShader *const fragmentShader);
-void fvr_renderPipelineState_setPixelFormatColorAttachment(
-    FvrRenderPipelineState *const renderPipelineState, uint32_t colorAttachment,
-    FvrPixelFormat pixelFormat);
-void fvr_renderPipelineState_setPixelFormatDepthAttachment(
-    FvrRenderPipelineState *const renderPipelineState,
-    FvrPixelFormat pixelFormat);
-void fvr_renderPipelineState_setPixelFormatStencilAttachment(
-    FvrRenderPipelineState *const renderPipelineState,
-    FvrPixelFormat pixelFormat);
-void fvr_renderPipelineState_destroy(
-    FvrRenderPipelineState *const renderPipelineState);
+/* Buffer Layout Descriptors */
+typedef struct fvr_bufferLayoutDescriptor_t {
+    fvr_bufferLayoutDescriptor_private_t private;
+} fvr_bufferLayoutDescriptor_t;
 
-FvrDrawCommand *const fvr_drawCommand_create();
-void fvr_drawCommand_setDrawCallIndexedPrimitives(
-    FvrDrawCommand *const drawCommand, FvrPrimitiveType primitiveType,
-    size_t num, FvrIndexType indexType, const FvrBuffer *const indexBuffer,
-    size_t indexBufferOffset);
-void fvr_drawCommand_destroy(FvrDrawCommand *const drawCommand);
+extern void fvr_bufferLayoutDescriptor_create(
+    fvr_bufferLayoutDescriptor_t *const bufferLayoutDescriptor);
 
-typedef struct FvrColor {
-    FvrColor() : r(0.0f), g(0.0f), b(0.0f), a(0.0f) {}
+extern void fvr_bufferLayoutDescriptor_setstepFunction(
+    fvr_bufferLayoutDescriptor_t *const bufferLayoutDescriptor,
+    fvr_vertexStepFunction_t stepFunction);
+extern fvr_vertexStepFunction_t fvr_bufferLayoutDescriptor_getStepFunction(
+    const fvr_bufferLayoutDescriptor_t *const bufferLayoutDescriptor);
 
-    float r;
-    float g;
-    float b;
-    float a;
-} FvrColor;
+extern void fvr_bufferLayoutDescriptor_setsteprate(
+    fvr_bufferLayoutDescriptor_t *const bufferLayoutDescriptor,
+    unsigned int stepRate);
+extern unsigned int fvr_bufferLayoutDescriptor_getStepRate(
+    const fvr_bufferLayoutDescriptor_t *const bufferLayoutDescriptor);
 
-enum FvrAttachmentType {
-    FvrAttachmentTypeColor,
-    FvrAttachmentTypeDepth,
-    FvrAttachmentTypeStencil,
-};
+extern void fvr_bufferLayoutDescriptor_setStride(
+    fvr_bufferLayoutDescriptor_t *const bufferLayoutDescriptor,
+    unsigned int stride);
+extern unsigned int fvr_bufferLayoutDescriptor_getStride(
+    const fvr_bufferLayoutDescriptor_t *const bufferLayoutDescriptor);
 
-typedef void FvrAttachmentDescriptor;
-extern FvrAttachmentDescriptor *
-fvr_attachmentDescriptor_create(FvrAttachmentType attachmentType);
-fvr_attachmentDescriptor_setTexture(FvrTexture)
+extern void fvr_bufferLayoutDescriptor_destroy(
+    fvr_bufferLayoutDescriptor_t *const bufferLayoutDescriptor);
+
+/* Shaders */
+typedef struct fvr_shader_t { fvr_shader_private_t private; } fvr_shader_t;
+
+/* Maybe use descriptor to create shader object, instead of making user use
+ * gets/sets
+ * e.g. struct shaderDescriptor { shaderType, data, datasize }*/
+extern void fvr_shader_create(fvr_shader_t *const shader,
+                              fvr_shaderType_t shaderType,
+                              const void *const data, size_t dataSize);
+
+extern void fvr_shader_setData(fvr_shader_t *const shader,
+                               const void *const data, size_t dataSize);
+extern const void *fvr_shader_getData(const fvr_shader_t *const shader);
+
+extern void fvr_shader_setDataSize(fvr_shader_t *const shader, size_t dataSize);
+extern size_t fvr_shader_getDataSize(const fvr_shader_t *const shader);
+
+extern void fvr_shader_setType(fvr_shader_t *const shader,
+                               fvr_shaderType_t shaderType);
+extern fvr_shaderType_t fvr_shader_getType(const fvr_shader_t *const shader);
+
+extern void fvr_shader_destroy(fvr_shader_t *const shader);
+
+/* Texture Descriptors */
+
+typedef struct fvr_textureDescriptor_t {
+    fvr_textureDescriptor_private_t private;
+} fvr_textureDescriptor_t;
+
 extern void
-fvr_attachmentDescriptor_destroy(FvrAttachmentDescriptor *attachmentDescriptor);
+fvr_textureDescriptor_create(fvr_textureDescriptor_t *const textureDescriptor);
 
-class FvrRenderPassAttachmentDescriptor {};
+extern void
+fvr_textureDescriptor_setType(fvr_textureDescriptor_t *const textureDescriptor,
+                              fvr_textureType_t textureType);
+extern fvr_textureType_t fvr_textureDescriptor_getType(
+    const fvr_textureDescriptor_t *const textureDescriptor);
 
-class FvrRenderPassColorAttachmentDescriptor
-    : public FvrRenderPassAttachmentDescriptor {
-  public:
-    FvrRenderPassColorAttachmentDescriptor() : clearColor(FvrColor()) {}
+extern void fvr_textureDescriptor_setFormat(
+    fvr_textureDescriptor_t *const textureDescriptor,
+    fvr_textureFormat_t format);
+extern fvr_textureFormat_t fvr_textureDescriptor_getFormat(
+    const fvr_textureDescriptor_t *const textureDescriptor);
 
-    FvrColor clearColor;
-};
+extern void
+fvr_textureDescriptor_setUsage(fvr_textureDescriptor_t *const textureDescriptor,
+                               fvr_textureUsage_t usage);
+extern fvr_textureUsage_t fvr_textureDescriptor_getUsage(
+    const fvr_textureDescriptor_t *const textureDescriptor);
 
-class FvrRenderPassDepthAttachmentDescriptor
-    : public FvrRenderPassAttachmentDescriptor {
-  public:
-    FvrRenderPassDepthAttachmentDescriptor() : clearDepth(1.0f) {}
+extern void
+fvr_textureDescriptor_setWidth(fvr_textureDescriptor_t *const textureDescriptor,
+                               unsigned int width);
+extern unsigned int fvr_textureDescriptor_getWidth(
+    const fvr_textureDescriptor_t *const textureDescriptor);
 
-    float clearDepth;
-};
+extern void fvr_textureDescriptor_setHeight(
+    fvr_textureDescriptor_t *const textureDescriptor, unsigned int height);
+extern unsigned int fvr_textureDescriptor_getHeight(
+    const fvr_textureDescriptor_t *const textureDescriptor);
 
-class FvrRenderPassStencilAttachmentDescriptor
-    : public FvrRenderPassAttachmentDescriptor {
-  public:
-    FvrRenderPassStencilAttachmentDescriptor() : clearStencil(0) {}
+extern void
+fvr_textureDescriptor_setDepth(fvr_textureDescriptor_t *const textureDescriptor,
+                               unsigned int depth);
+extern unsigned int fvr_textureDescriptor_getDepth(
+    const fvr_textureDescriptor_t *const textureDescriptor);
 
-    uint32_t clearStencil;
-};
+extern void fvr_textureDescriptor_setNumMipmaps(
+    fvr_textureDescriptor_t *const textureDescriptor, unsigned int numMipmaps);
+extern unsigned int fvr_textureDescriptor_getNumMipmaps(
+    const fvr_textureDescriptor_t *const textureDescriptor);
 
-FvrRenderPass *const fvr_renderPass_create();
-/* Use this instead? */
-/* FvrRenderPass *const */
-/* fvr_renderPass_create(const FvrColorAttachment *const colorAttachments, */
-/*                       int numColorAttachments, */
-/*                       const FvrDepthAttachment *const depthAttachment, */
-/*                       const FvrStencilAttachment *const stencilAttachment);
- */
-void fvr_renderPass_colorAttachment_setClearColor(
-    FvrRenderPass *const renderPass, uint32_t colorAttachment,
-    FvrColor clearColor);
-void fvr_renderPass_depthAttachment_setClearDepth(
-    FvrRenderPass *const renderPass, float clearDepth);
-void fvr_renderPass_stencilAttachment_setClearStencil(
-    FvrRenderPass *const renderPass, uint32_t clearStencil);
-void fvr_renderPass_destroy(FvrRenderPass *const renderPass);
+extern void
+fvr_textureDescriptor_destroy(fvr_textureDescriptor_t *const textureDescriptor);
 
-/* Debug api
-#ifdef DEBUG
-#include <FeverDebugInternal.h>
-#endif
-*/
+/* Textures */
+typedef struct fvr_texture_t { fvr_texture_private_t private; } fvr_texture_t;
+
+extern void
+fvr_texture_create(fvr_texture_t *const texture,
+                   const fvr_textureDescriptor_t *const textureDescriptor);
+
+extern void fvr_texture_setType(fvr_texture_t *const texture,
+                                fvr_textureType_t textureType);
+extern fvr_textureType_t
+fvr_texture_getType(const fvr_texture_t *const texture);
+
+extern void fvr_texture_setFormat(fvr_texture_t *const texture,
+                                  fvr_textureFormat_t format);
+extern fvr_textureFormat_t
+fvr_texture_getFormat(const fvr_texture_t *const texture);
+
+extern void fvr_texture_setUsage(fvr_texture_t *const texture,
+                                 fvr_textureUsage_t usage);
+extern fvr_textureUsage_t
+fvr_texture_getUsage(const fvr_texture_t *const texture);
+
+extern void fvr_texture_setWidth(fvr_texture_t *const texture,
+                                 unsigned int width);
+extern unsigned int fvr_texture_getWidth(const fvr_texture_t *const texture);
+
+extern void fvr_texture_setHeight(fvr_texture_t *const texture,
+                                  unsigned int height);
+extern unsigned int fvr_texture_getHeight(const fvr_texture_t *const texture);
+
+extern void fvr_texture_setDepth(fvr_texture_t *const texture,
+                                 unsigned int depth);
+extern unsigned int fvr_texture_getDepth(const fvr_texture_t *const texture);
+
+extern void fvr_texture_setNumMipmaps(fvr_texture_t *const texture,
+                                      unsigned int numMipmaps);
+extern unsigned int
+fvr_texture_getNumMipmaps(const fvr_texture_t *const texture);
+
+extern void fvr_texture_destroy(fvr_texture_t *const texture);
+
+/* Render Pipeline Descriptor */
+
+typedef struct fvr_renderPipelineDescriptor_t {
+    fvr_renderPipelineDescriptor_private_t private;
+} fvr_renderPipelineDescriptor_t;
+
+extern void fvr_renderPipelineDescriptor_create(
+    fvr_renderPipelineDescriptor_t *const renderPipelineDescriptor);
+
+extern void fvr_renderPipelineDescriptor_setVertexShader(
+    fvr_renderPipelineDescriptor_t *const renderPipelineDescriptor,
+    const fvr_shader_t *const vertexShader);
+extern const fvr_shader_t *fvr_renderPipelineDescriptor_getVertexShader(
+    const fvr_renderPipelineDescriptor_t *const renderPipelineDescriptor);
+
+extern void fvr_renderPipelineDescriptor_setFragmentShader(
+    fvr_renderPipelineDescriptor_t *const renderPipelineDescriptor,
+    const fvr_shader_t *const fragmentShader);
+extern const fvr_shader_t *fvr_renderPipelineDescriptor_getFragmentShader(
+    const fvr_renderPipelineDescriptor_t *const renderPipelineDescriptor);
+
+extern void fvr_renderPipelineDescriptor_setColorAttachmentTextureFormat(
+    fvr_renderPipelineDescriptor_t *const renderPipelineDescriptor,
+    unsigned int index, fvr_textureFormat_t textureFormat);
+extern fvr_textureFormat_t
+fvr_renderPipelineDescriptor_getColorAttachmentTextureFormat(
+    fvr_renderPipelineDescriptor_t *const renderPipelineDescriptor,
+    unsigned int index);
+
+extern void fvr_renderPipelineDescriptor_setDepthAttachmentTextureFormat(
+    fvr_renderPipelineDescriptor_t *const renderPipelineDescriptor,
+    fvr_textureFormat_t textureFormat);
+extern fvr_textureFormat_t
+fvr_renderPipelineDescriptor_getDepthAttachmentTextureFormat(
+    const fvr_renderPipelineDescriptor_t *const renderPipelineDescriptor);
+
+extern void fvr_renderPipelineDescriptor_setStencilAttachmentTextureFormat(
+    fvr_renderPipelineDescriptor_t *const renderPipelineDescriptor,
+    fvr_textureFormat_t textureFormat);
+extern fvr_textureFormat_t
+fvr_renderPipelineDescriptor_getStencilAttachmentTextureFormat(
+    const fvr_renderPipelineDescriptor_t *const renderPipelineDescriptor);
+
+extern void fvr_renderPipelineDescriptor_destroy(
+    fvr_renderPipelineDescriptor_t *const renderPipelineDescriptor);
+
+/* Render Pipeline State */
+typedef struct fvr_renderPipelineState_t {
+    fvr_renderPipelineState_private_t private;
+} fvr_renderPipelineState_t;
+
+extern void fvr_renderPipelineState_create(
+    fvr_renderPipelineState_t *const renderPipelineState,
+    const fvr_renderPipelineDescriptor_t *const renderPipelineDescriptor);
+
+extern void fvr_renderPipelineState_destroy(
+    fvr_renderPipelineState_t *const renderPipelineState);
+
+/* Render Pass Descriptor */
+typedef struct fvr_renderPassDescriptor_t {
+    fvr_renderPassDescriptor_private_t private;
+} fvr_renderPassDescriptor_t;
+
+extern void fvr_renderPassDescriptor_create(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor);
+
+extern void fvr_renderPassDescriptor_setColorAttachmentTexture(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor, unsigned int index,
+    const fvr_texture_t *const texture);
+extern const fvr_texture_t *fvr_renderPassDescriptor_getColorAttachmentTexture(
+    const fvr_renderPassDescriptor_t *const renderPassDescriptor,
+    unsigned int index);
+
+extern void fvr_renderPassDescriptor_setColorAttachmentMipmapLevel(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor, unsigned int index,
+    int mipmapLevel);
+extern int fvr_renderPassDescriptor_getColorAttachmentMipmapLevel(
+    const fvr_renderPassDescriptor_t *const renderPassDescriptor,
+    unsigned int index);
+
+extern void fvr_renderPassDescriptor_setColorAttachmentLoadAction(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor, unsigned int index,
+    fvr_loadAction_t loadAction);
+extern fvr_loadAction_t fvr_renderPassDescriptor_getColorAttachmentLoadAction(
+    const fvr_renderPassDescriptor_t *const renderPassDescriptor,
+    unsigned int index);
+
+extern void fvr_renderPassDescriptor_setColorAttachmentStoreAction(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor, unsigned int index,
+    fvr_storeAction_t storeAction);
+extern fvr_storeAction_t fvr_renderPassDescriptor_getColorAttachmentStoreAction(
+    const fvr_renderPassDescriptor_t *const renderPassDescriptor,
+    unsigned int index);
+
+extern void fvr_renderPassDescriptor_setColorAttachmentClearColor(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor, unsigned int index,
+    const fvr_color_t *const clearColor);
+extern const fvr_color_t *fvr_renderPassDescriptor_getColorAttachmentClearColor(
+    const fvr_renderPassDescriptor_t *const renderPassDescriptor,
+    unsigned int index);
+
+extern void fvr_renderPassDescriptor_setDepthAttachmentTexture(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor,
+    const fvr_texture_t *const texture);
+extern const fvr_texture_t *fvr_renderPassDescriptor_getDepthAttachmentTexture(
+    const fvr_renderPassDescriptor_t *const renderPassDescriptor);
+
+extern void fvr_renderPassDescriptor_setDepthAttachmentMipmapLevel(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor, int mipmapLevel);
+extern int fvr_renderPassDescriptor_getDepthAttachmentMipmapLevel(
+    const fvr_renderPassDescriptor_t *const renderPassDescriptor);
+
+extern void fvr_renderPassDescriptor_setDepthAttachmentLoadAction(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor,
+    fvr_loadAction_t loadAction);
+extern fvr_loadAction_t fvr_renderPassDescriptor_getDepthAttachmentLoadAction(
+    const fvr_renderPassDescriptor_t *const renderPassDescriptor);
+
+extern void fvr_renderPassDescriptor_setDepthAttachmentStoreAction(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor,
+    fvr_storeAction_t storeAction);
+extern fvr_storeAction_t fvr_renderPassDescriptor_getDepthAttachmentStoreAction(
+    const fvr_renderPassDescriptor_t *const renderPassDescriptor);
+
+extern void fvr_renderPassDescriptor_setDepthAttachmentClearDepth(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor, float clearDepth);
+extern float fvr_renderPassDescriptor_getDepthAttachmentClearDepth(
+    const fvr_renderPassDescriptor_t *const renderPassDescriptor);
+
+extern void fvr_renderPassDescriptor_setStencilAttachmentTexture(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor,
+    const fvr_texture_t *const texture);
+extern const fvr_texture_t *
+fvr_renderPassDescriptor_getStencilAttachmentTexture(
+    const fvr_renderPassDescriptor_t *const renderPassDescriptor);
+
+extern void fvr_renderPassDescriptor_setStencilAttachmentMipmapLevel(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor, int mipmapLevel);
+extern int fvr_renderPassDescriptor_getStencilAttachmentMipmapLevel(
+    const fvr_renderPassDescriptor_t *const renderPassDescriptor);
+
+extern void fvr_renderPassDescriptor_setStencilAttachmentLoadAction(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor,
+    fvr_loadAction_t loadAction);
+extern fvr_loadAction_t fvr_renderPassDescriptor_getStencilAttachmentLoadAction(
+    const fvr_renderPassDescriptor_t *const renderPassDescriptor);
+
+extern void fvr_renderPassDescriptor_setStencilAttachmentStoreAction(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor,
+    fvr_storeAction_t storeAction);
+extern fvr_storeAction_t
+fvr_renderPassDescriptor_getStencilAttachmentStoreAction(
+    const fvr_renderPassDescriptor_t *const renderPassDescriptor);
+
+extern void fvr_renderPassDescriptor_setStencilAttachmentClearStencil(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor,
+    unsigned int clearStencil);
+extern unsigned int fvr_renderPassDescriptor_getStencilAttachmentClearStencil(
+    const fvr_renderPassDescriptor_t *const renderPassDescriptor);
+
+extern void fvr_renderPassDescriptor_destroy(
+    fvr_renderPassDescriptor_t *const renderPassDescriptor);

@@ -21,15 +21,17 @@ typedef enum FvBufferType {
 typedef enum FvShaderStage {
     FV_SHADER_STAGE_VERTEX,
     FV_SHADER_STAGE_FRAGMENT,
+    FV_SHADER_STAGE_COMPUTE,
+    FV_SHADER_STAGE_GEOMETRY,
 } FvShaderStage;
 
-typedef enum FvTextureFormat {
-    FV_TEXTURE_FORMAT_INVALID,
-    FV_TEXTURE_FORMAT_RGBA8UNORM,
-    FV_TEXTURE_FORMAT_RGBA16FLOAT,
-    FV_TEXTURE_FORMAT_DEPTH32FLOAT_STENCIL8,
-    FV_TEXTURE_FORMAT_BGRA8UNORM
-} FvTextureFormat;
+typedef enum FvPixelFormat {
+    FV_PIXEL_FORMAT_INVALID,
+    FV_PIXEL_FORMAT_RGBA8UNORM,
+    FV_PIXEL_FORMAT_RGBA16FLOAT,
+    FV_PIXEL_FORMAT_DEPTH32FLOAT_STENCIL8,
+    FV_PIXEL_FORMAT_BGRA8UNORM
+} FvPixelFormat;
 
 typedef enum FvTextureUsage {
     FV_TEXTURE_USAGE_UNKNOWN,
@@ -79,3 +81,63 @@ typedef enum FvStencilOp {
        value would go below 0 */
     FV_STENCIL_OP_DECREMENT_WRAP
 } FvStencilOp;
+
+typedef enum FvLoadOp {
+    /** The contents of an attachment will be undefined after loading */
+    FV_LOAD_OP_DONT_CARE,
+    /** The existing contents of an attachment are preserved after loading */
+    FV_LOAD_OP_LOAD,
+    /** The contents of an attachment will be cleared to a given value after
+       loading */
+    FV_LOAD_OP_CLEAR
+} FvLoadOp;
+
+typedef enum FvStoreOp {
+    /** After rendering, attachment is left in undefined state */
+    FV_STORE_OP_DONT_CARE,
+    /** Results of render pass are stored in attachment */
+    FV_STORE_OP_STORE
+} FvStoreOp;
+
+typedef enum FvBlendFactor {
+    FV_BLEND_FACTOR_ZERO,
+    FV_BLEND_FACTOR_ONE,
+    FV_BLEND_FACTOR_SOURCE_COLOR,
+    FV_BLEND_FACTOR_ONE_MINUS_SOURCE_COLOR,
+    FV_BLEND_FACTOR_SOURCE_ALPHA,
+    FV_BLEND_FACTOR_ONE_MINUS_SOURCE_ALPHA,
+    FV_BLEND_FACTOR_DST_COLOR,
+    FV_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
+    FV_BLEND_FACTOR_DST_ALPHA,
+    FV_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
+    FV_BLEND_FACTOR_SOURCE_ALPHA_SATURATED,
+    FV_BLEND_FACTOR_BLEND_COLOR,
+    FV_BLEND_FACTOR_ONE_MINUS_BLEND_COLOR,
+    FV_BLEND_FACTOR_BLEND_ALPHA,
+    FV_BLEND_FACTOR_ONE_MINUS_BLEND_ALPHA,
+    FV_BLEND_FACTOR_SOURCE1_COLOR,
+    FV_BLEND_FACTOR_ONE_MINUS_SOURCE1_COLOR,
+    FV_BLEND_FACTOR_SOURCE1_ALPHA,
+    FV_BLEND_FACTOR_ONE_MINUS_SOURCE1_ALPHA
+} FvBlendFactor;
+
+typedef enum FvBlendOp {
+    /** Add parts of both src and dst pixel values */
+    FV_BLEND_OP_ADD,
+    /** Subtract part of dst pixel value from src */
+    FV_BLEND_OP_SUBTRACT,
+    /** Subtract part of src pixel value from dst */
+    FV_BLEND_OP_REVERSE_SUBTRACT,
+    /** Choose the minimum of the src and dst pixel values */
+    FV_BLEND_OP_MIN,
+    /** Choose the maximum of the src and dst pixel values */
+    FV_BLEND_OP_MAX
+} FvBlendOp;
+
+typedef enum FvColorComponentFlags {
+    FV_COLOR_COMPONENT_R = 1 << 0,
+    FV_COLOR_COMPONENT_G = 1 << 1,
+    FV_COLOR_COMPONENT_B = 1 << 2,
+    FV_COLOR_COMPONENT_A = 1 << 3
+} FvColorComponentFlags;
+

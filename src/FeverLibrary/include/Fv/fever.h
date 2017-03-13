@@ -53,14 +53,10 @@ extern void fvBufferDestroy(FvBuffer buffer);
 
 /** Structure specifying creation parameters for a shader. */
 typedef struct FvShaderCreateInfo {
-    /** Stage of the render pipeline this shader should be used for. */
-    FvShaderStage stage;
     /** Shader data */
     const void *data;
     /** Size of the shader data in bytes. */
     size_t size;
-    /** Name of the function that is the entry point for the shader. */
-    const char *entryFunctionName;
 } FvShaderCreateInfo;
 
 /** Opaque handle to shader object. */
@@ -77,7 +73,7 @@ FV_DEFINE_HANDLE(FvTexture);
 /** Structure specifying creation parameters for a texture. */
 typedef struct FvTextureCreateInfo {
     /** Format of each pixel in the texture */
-    FvTextureFormat format;
+    FvPixelFormat format;
     /** Width of the texture */
     uint32_t width;
     /** Height of the texture */
@@ -136,3 +132,97 @@ void fvDepthStencilStateCreate(FvDepthStencilState *depthStencilState,
                                const FvDepthStencilStateCreateInfo *createInfo);
 
 void fvDepthStencilStateDestroy(FvDepthStencilState depthStencilState);
+
+/* typedef union FvAttachmentDescriptor { */
+/*     FvLoadOp loadOp; */
+/*     FvStoreOp storeOp; */
+/* } FvAttachmentDescriptor; */
+
+typedef struct FvColorAttachmentDescriptor {
+    /** Format of color attachment's texture */
+    FvPixelFormat format;
+    /** True if blending is enabled, false otherwise. If disabled, source
+     * fragment's color for this attachment is not modified. */
+    bool enableBlending;
+    /** Source blend factor to be used by color blend operation */
+    FvBlendFactor srcColorBlendFactor;
+    /** Destination blend factor to be used by color blend operation */
+    FvBlendFactor dstColorBlendFactor;
+    /** Blend operation to use for color data */
+    FvBlendOp colorBlendOp;
+    /** Source blend factor to be used by alpha blend operation */
+    FvBlendFactor srcAlphaBlendFactor;
+    /** Destination blend factor to be used by alpha blend operation */
+    FvBlendFactor dstAlphaBlendFactor;
+    /** Blend operation to use for alpha data */
+    FvBlendOp alphaBlendOp;
+    /** Bitmask which restricts the color components that may be written to */
+    FvColorComponentFlags colorWriteMask;
+} FvColorAttachmentDescriptor;
+
+typedef struct FvShaderStageDescriptor {
+    /** Stage of the shader pipeline */
+    FvShaderStage stage;
+    /** Name of function that is the entry point for this shader stage */
+    const char *entryFunctionName;
+    /** Shader code bundle to use */
+    FvShader shader;
+} FvShaderStageDescriptor;
+
+/** The 'interface' for a render pipeline */
+typedef struct FvRenderPipelineDescriptor {
+    /** Array of color attachments */
+    const FvColorAttachmentDescriptor *colorAttachmentDescriptors;
+    /** Depth attachment pixel format */
+    FvPixelFormat depthAttachmentFormat;
+    /** Stencil attachment pixel format */
+    FvPixelFormat stencilAttachmentFormat;
+    /** For multisampling - number of samples for each fragment */
+    uint32_t numSamples;
+    /** Information regarding the programmable parts of the graphics pipeline */
+    const FvShaderStageDescriptor *shaderStages;
+} FvRenderPipelineDescriptor;
+
+typedef struct FvRenderPassColorAttachment {
+    /** Color to clear this attachment to */
+    FvClearColor clearColor;
+    /** Texture object associated with this attachment */
+    FvTexture *texture;
+    /** Operation to perform on this attachment at start of rendering pass */
+    FvLoadOp loadOp;
+    /** Operation to perform on this attachment at end of rendering pass */
+    FvStoreOp storeOp;
+} FvRenderPassColorAttachment;
+
+typedef struct FvRenderPassDepthAttachment {
+    /** Depth value to clear this attachment to */
+    float clearDepth;
+    /** Texture object associated with this attachment */
+    FvTexture *texture;
+    /** Operation to perform on this attachment at start of rendering pass */
+    FvLoadOp loadOp;
+    /** Operation to perform on this attachment at end of rendering pass */
+    FvStoreOp storeOp;
+} FvRenderPassDepthAttachment;
+
+typedef struct FvRenderPassStencilAttachment {
+    /** Stencil value to clear this attachment to */
+    uint32_t clearDepth;
+    /** Texture object associated with this attachment */
+    FvTexture *texture;
+    /** Operation to perform on this attachment at start of rendering pass */
+    FvLoadOp loadOp;
+    /** Operation to perform on this attachment at end of rendering pass */
+    FvStoreOp storeOp;
+} FvRenderPassStencilAttachment;
+
+/** What a render pipeline operates on */
+/** Render attachment descriptor ??? */
+typedef struct FvRenderPassDescriptor {
+    /** Array of color attachments */
+    const FvRenderPassColorAttachment **colorAttachments;
+    /** Depth attachment */
+    const FvRenderPassDepthAttachment *depthAttachment;
+    /** Stencil attachment */
+    const FvRenderPassStencilAttachment *stencilAttachment;
+} FvRenderPassDescriptor;

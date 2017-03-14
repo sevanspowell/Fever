@@ -1,4 +1,4 @@
-/*===-- Fever/fever_constants.h - Fever Graphics Library Constants --*- C -*-===
+/*===-- Fever/FeverConstants.h - Fever Graphics Library Constants --*- C -*-===
  *
  *                     The Fever Graphics Library
  *
@@ -197,6 +197,11 @@ typedef enum FvPipelineStage {
 } FvPipelineStage;
 
 typedef enum FvAccessFlags {
-    FV_ACCESS_FLAGS_COLOR_ATTACHMENT_READ = 1 << 0,
+    FV_ACCESS_FLAGS_COLOR_ATTACHMENT_READ  = 1 << 0,
     FV_ACCESS_FLAGS_COLOR_ATTACHMENT_WRITE = 1 << 1,
 } FvAccessFlags;
+
+typedef enum FvResult {
+    FV_SUCCESS = 1 << 0,
+    FV_FAILURE = 1 << 1
+} FvResult;

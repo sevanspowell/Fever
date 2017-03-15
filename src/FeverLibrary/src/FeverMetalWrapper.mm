@@ -24,12 +24,18 @@ FvResult MetalWrapper::init(const FvInitInfo *initInfo) {
     metalLayer.device = device;
 
     // Create a command queue
-    commandQueue = device.newCommandQueue();
+    commandQueue = [device newCommandQueue];
 
     // Check for nil command queue
+    if (commandQueue == nil) {
+        return FV_RESULT_FAILURE;
+    }
 
     return FV_RESULT_SUCCESS;
 }
 
-void MetalWrapper::shutdown() {}
+void MetalWrapper::shutdown() {
+    MTL_RELEASE(commandQueue);
+    MTL_RELEASE(device);
+}
 }

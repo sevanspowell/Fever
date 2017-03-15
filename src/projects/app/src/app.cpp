@@ -13,6 +13,7 @@
  *===----------------------------------------------------------------------===*/
 #include <functional>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 
 #include <SDL2/SDL.h>
@@ -22,6 +23,11 @@
 #include <stb_image.h>
 
 #include <Fever/Fever.h>
+#include <Fever/FeverPlatform.h>
+
+#if FV_PLATFORM_OSX
+#include "osx.h"
+#endif
 
 /// For automatically freeing Fever resources
 template <typename T> class FDeleter {
@@ -112,24 +118,36 @@ class HelloTriangleApplication {
         window = SDL_CreateWindow("Test bed", SDL_WINDOWPOS_CENTERED,
                                   SDL_WINDOWPOS_CENTERED, 800, 600, flags);
 
+        if (window == nullptr) {
+            std::stringstream err;
+            err << "Could not create window: " << SDL_GetError();
+            throw std::runtime_error(err.str());
+        }
+
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
                             SDL_GL_CONTEXT_PROFILE_CORE);
-
-        SDL_GL_CreateContext(window);
-
-        SDL_SysWMinfo wmInfo;
-        SDL_VERSION(&wmInfo.version);
-
-        if (!SDL_GetWindowWMInfo(window, &wmInfo)) {
-            throw std::runtime_error("SDL2 could not get window wm info.");
-        }
     }
 
     void initFever() {
-        if (fvInit() != FV_SUCCESS) {
+        SDL_SysWMinfo windowInfo;
+        SDL_VERSION(&windowInfo.version);
+        if (!SDL_GetWindowWMInfo(window, &windowInfo)) {
+            throw std::runtime_error("Failed to get SDL2 window info.");
+        }
+
+#if FV_PLATFORM_OSX
+        if (getOSXSurface(surface.replace(), windowInfo) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to get OSX surface.");
+        }
+#endif
+
+        FvInitInfo initInfo;
+        initInfo.surface = surface;
+
+        if (fvInit(&initInfo) != FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to initialize Fever library.");
         }
     }
@@ -163,6 +181,7 @@ class HelloTriangleApplication {
     }
 
     SDL_Window *window;
+    FDeleter<FvSurface> surface{fvDestroySurface};
 };
 
 int main(void) {

@@ -28,6 +28,14 @@ add_library(stb INTERFACE)
 set_property(TARGET stb PROPERTY
   INTERFACE_INCLUDE_DIRECTORIES ${STB_INCLUDE_DIRS})
 
+######### Metal ########## 
+if (APPLE)
+  find_library(METAL_LIBRARY Metal)
+  find_library(QUARTZCORE_FRAMEWORK QuartzCore)
+  find_library(COREFOUNDATION_LIBRARY CoreFoundation )
+  find_library(COCOA_LIBRARY Cocoa)
+endif (APPLE)
+
 enable_testing()
 add_subdirectory(libs/googletest EXCLUDE_FROM_ALL)
 add_subdirectory(FeverLibrary)

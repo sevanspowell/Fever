@@ -7,6 +7,7 @@ set_property(TARGET Fever PROPERTY CXX_STANDARD 11)
 
 add_executable(app
   src/app.cpp
+  src/osx.mm
   )
 
 target_link_libraries(app

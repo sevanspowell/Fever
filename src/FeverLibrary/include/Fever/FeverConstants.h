@@ -12,7 +12,9 @@
  * Heavily based off the Vulkan (https://www.khronos.org/vulkan/) and Metal
  * (https://developer.apple.com/metal/) APIs.
  *
- *===---------------------------------------------------------------------===*/
+ *===----------------------------------------------------------------------===*/
+#pragma once
+
 typedef enum FvBufferType {
     FV_BUFFER_TYPE_VERTEX,
     FV_BUFFER_TYPE_INDEX,
@@ -202,6 +204,6 @@ typedef enum FvAccessFlags {
 } FvAccessFlags;
 
 typedef enum FvResult {
-    FV_SUCCESS = 1 << 0,
-    FV_FAILURE = 1 << 1
+    FV_RESULT_SUCCESS = 1 << 0,
+    FV_RESULT_FAILURE = 1 << 1
 } FvResult;

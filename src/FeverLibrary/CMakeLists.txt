@@ -4,6 +4,7 @@ project(FeverLibrary VERSION 0.0.1 LANGUAGES C CXX)
 
 add_library(Fever
   src/FeverMetalBackend.mm
+  src/FeverMetalWrapper.mm
   )
 
 target_include_directories(Fever
@@ -22,6 +23,10 @@ set_property(TARGET Fever PROPERTY C_STANDARD 99)
 
 target_link_libraries(Fever
   glew
+  ${METAL_LIBRARY}
+  ${QUARTZCORE_FRAMEWORK}
+  ${COREFOUNDATION_LIBRARY}
+  ${COCOA_LIBRARY}
   )
 
 install(TARGETS Fever EXPORT FeverConfig
@@ -43,7 +48,6 @@ add_executable(FeverTest
   )
 
 target_link_libraries(FeverTest
-  Fever
   gtest
   )
 

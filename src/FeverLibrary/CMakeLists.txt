@@ -5,6 +5,7 @@ project(FeverLibrary VERSION 0.0.1 LANGUAGES C CXX)
 add_library(Fever
   src/FeverMetalBackend.mm
   src/FeverMetalWrapper.mm
+  src/Handle.cpp
   )
 
 target_include_directories(Fever
@@ -48,6 +49,7 @@ add_executable(FeverTest
   )
 
 target_link_libraries(FeverTest
+  Fever
   gtest
   )
 

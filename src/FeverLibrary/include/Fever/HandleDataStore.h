@@ -1,8 +1,18 @@
+/*===-- Fever/Handle.h - Handle data container --------------------*- C++ -*-===
+ *
+ *                     The Fever Graphics Library
+ *
+ * This file is distributed under the MIT License. See LICENSE.txt for details.
+ *===----------------------------------------------------------------------===*/
 /**
+ * \file
+ * \brief Container for data referred to by handle.
+ *
  * This code was only slightly modified from this source:
  * http://bitsquid.blogspot.com.au/2014/08/building-data-oriented-entity-system.html?m=1
  * (Niklas Frykholm).
- */
+ *
+ *===----------------------------------------------------------------------===*/
 #pragma once
 
 #include <queue>

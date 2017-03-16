@@ -16,4 +16,6 @@ unsigned int Handle::getGeneration() const {
     // Bitwise AND id with gen mask to get gen bits only
     return (id & HANDLE_GENERATION_MASK) >> HANDLE_INDEX_BITS;
 }
+
+bool Handle::operator==(const Handle &other) const { return (id == other.id); }
 }

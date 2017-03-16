@@ -35,12 +35,18 @@ class Handle {
      * @return     unsigned int, index part of Handle id.
      */
     unsigned int getIndex() const;
+
     /**
      * Get the generation part of the Handle id.
      *
      * @return     unsigned int, generation part of Handle id.
      */
     unsigned int getGeneration() const;
+
+    /**
+     * Equality operator.
+     */
+    bool operator==(const Handle &other) const;
 
     /** Number of bits making up index */
     static const uint8_t HANDLE_INDEX_BITS = 24;

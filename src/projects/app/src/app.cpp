@@ -11,10 +11,12 @@
  * Based off code provided by 'Alexander Overvoorde' on his 'Vulkan Tutorial'
  * website (https://vulkan-tutorial.com).
  *===----------------------------------------------------------------------===*/
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <vector>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_syswm.h>
@@ -132,6 +134,7 @@ class HelloTriangleApplication {
     }
 
     void initFever() {
+        // Create surface
         SDL_SysWMinfo windowInfo;
         SDL_VERSION(&windowInfo.version);
         if (!SDL_GetWindowWMInfo(window, &windowInfo)) {
@@ -144,12 +147,45 @@ class HelloTriangleApplication {
         }
 #endif
 
+        // Initialize fever
         FvInitInfo initInfo;
         initInfo.surface = surface;
 
         if (fvInit(&initInfo) != FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to initialize Fever library.");
         }
+
+        createGraphicsPipeline();
+    }
+
+    void createGraphicsPipeline() {
+        std::vector<char> shaderCode =
+            readFile("src/projects/app/assets/hello.metal");
+
+        FDeleter<FvShaderModule> shaderModule{fvShaderModuleDestroy};
+
+        FvShaderModuleCreateInfo shaderModuleCreateInfo = {};
+        shaderModuleCreateInfo.data = (void *)shaderCode.data();
+        shaderModuleCreateInfo.size = shaderCode.size();
+
+        if (fvShaderModuleCreate(shaderModule.replace(),
+                                 &shaderModuleCreateInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create shader module!");
+        }
+
+        FvPipelineShaderStageDescription vertShaderStageInfo = {};
+        vertShaderStageInfo.stage             = FV_SHADER_STAGE_VERTEX;
+        vertShaderStageInfo.entryFunctionName = "vertFunc";
+        vertShaderStageInfo.shaderModule      = shaderModule;
+
+        FvPipelineShaderStageDescription fragShaderStageInfo = {};
+        fragShaderStageInfo.stage             = FV_SHADER_STAGE_FRAGMENT;
+        fragShaderStageInfo.entryFunctionName = "fragFunc";
+        fragShaderStageInfo.shaderModule      = shaderModule;
+
+        FvPipelineShaderStageDescription shaderStages[] = {vertShaderStageInfo,
+                                                           fragShaderStageInfo};
     }
 
     void shutdownFever() { fvShutdown(); }
@@ -178,6 +214,26 @@ class HelloTriangleApplication {
         window = nullptr;
 
         shutdownFever();
+    }
+
+    static std::vector<char> readFile(const std::string &filename) {
+        std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+        if (!file.is_open()) {
+            std::stringstream err;
+            err << "Failed to open file: " << filename << ".";
+            throw std::runtime_error(err.str());
+        }
+
+        size_t fileSize = (size_t)file.tellg();
+        std::vector<char> buffer(fileSize);
+
+        file.seekg(0);
+        file.read(buffer.data(), fileSize);
+
+        file.close();
+
+        return buffer;
     }
 
     SDL_Window *window;

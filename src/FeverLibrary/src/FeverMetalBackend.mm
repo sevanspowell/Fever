@@ -41,6 +41,21 @@ void fvShutdown() {
     }
 }
 
+FvResult fvShaderModuleCreate(FvShaderModule *shaderModule,
+                              const FvShaderModuleCreateInfo *createInfo) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->shaderModuleCreate(shaderModule, createInfo);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+void fvShaderModuleDestroy(FvShaderModule shaderModule) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->shaderModuleDestroy(shaderModule);
+    }
+}
+
 FvResult fvCreateCocoaSurface(FvSurface *surface,
                               const FvCocoaSurfaceCreateInfo *createInfo) {
 

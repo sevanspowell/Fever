@@ -35,7 +35,58 @@ FvResult MetalWrapper::init(const FvInitInfo *initInfo) {
 }
 
 void MetalWrapper::shutdown() {
-    MTL_RELEASE(commandQueue);
-    MTL_RELEASE(device);
+    FV_MTL_RELEASE(commandQueue);
+    FV_MTL_RELEASE(device);
+}
+
+FvResult
+MetalWrapper::shaderModuleCreate(FvShaderModule *shaderModule,
+                                 const FvShaderModuleCreateInfo *createInfo) {
+    FvResult result = FV_RESULT_FAILURE;
+
+    if (shaderModule != nullptr && createInfo != nullptr) {
+        MTLCompileOptions *options = [MTLCompileOptions new];
+
+        NSError *error;
+        id<MTLLibrary> library =
+            [device newLibraryWithSource:@((const char *)createInfo->data)
+                                 options:options
+                                   error:&error];
+
+        if (error == nil) {
+            const Handle *handle = libraries.add(library);
+
+            if (handle != nullptr) {
+                *shaderModule = (FvShaderModule)handle;
+
+                result = FV_RESULT_SUCCESS;
+            }
+        } else {
+            NSString *errString = [NSString
+                stringWithFormat:@"%@",
+                                 [[error userInfo]
+                                     objectForKey:@"NSLocalizedDescription"]];
+
+            printf("%s\n",
+                   [errString cStringUsingEncoding:NSUTF8StringEncoding]);
+        }
+    }
+
+    return result;
+}
+
+void MetalWrapper::shaderModuleDestroy(FvShaderModule shaderModule) {
+    const Handle *handle = (const Handle *)shaderModule;
+
+    if (handle != nullptr) {
+        // Destroy library
+        id<MTLLibrary> *lib = libraries.get(*handle);
+        if (lib != nullptr) {
+            *lib = nil;
+        }
+
+        // Remove from handle manager
+        libraries.remove(*handle);
+    }
 }
 }

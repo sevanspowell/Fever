@@ -55,21 +55,22 @@
 
 /* extern void fvBufferDestroy(FvBuffer buffer); */
 
-/* /\** Structure specifying creation parameters for a shader. *\/ */
-/* typedef struct FvShaderCreateInfo { */
-/*     /\** Shader data *\/ */
-/*     const void *data; */
-/*     /\** Size of the shader data in bytes. *\/ */
-/*     size_t size; */
-/* } FvShaderCreateInfo; */
+/** Opaque handle to shader object. */
+FV_DEFINE_HANDLE(FvShaderModule);
 
-/* /\** Opaque handle to shader object. *\/ */
-/* FV_DEFINE_HANDLE(FvShader); */
+/** Structure specifying creation parameters for a shader. */
+typedef struct FvShaderModuleCreateInfo {
+    /** Shader data */
+    const void *data;
+    /** Size of the shader data in bytes. */
+    size_t size;
+} FvShaderModuleCreateInfo;
 
-/* extern void fvShaderCreate(FvShader *shader, */
-/*                            const FvShaderCreateInfo *createInfo); */
+extern FvResult
+fvShaderModuleCreate(FvShaderModule *shaderModule,
+                     const FvShaderModuleCreateInfo *createInfo);
 
-/* extern void fvShaderDestroy(FvShader shader); */
+extern void fvShaderModuleDestroy(FvShaderModule shaderModule);
 
 /* /\** Opaque handle to texture object. *\/ */
 /* FV_DEFINE_HANDLE(FvTexture); */
@@ -170,15 +171,14 @@
 /*     const FvColorBlendAttachmentState *attachments; */
 /* } FvPipelineColorBlendStateDescription; */
 
-/* typedef struct FvPipelineShaderStageDescription { */
-/*     /\** Stage of the shader pipeline *\/ */
-/*     FvShaderStage stage; */
-/*     /\** Name of function that is the entry point for this shader stage *\/
- */
-/*     const char *entryFunctionName; */
-/*     /\** Shader code bundle to use *\/ */
-/*     FvShader shader; */
-/* } FvPipelineShaderStageDescription; */
+typedef struct FvPipelineShaderStageDescription {
+    /** Stage of the shader pipeline */
+    FvShaderStage stage;
+    /** Name of function that is the entry point for this shader stage */
+    const char *entryFunctionName;
+    /** Shader code bundle to use */
+    FvShaderModule shaderModule;
+} FvPipelineShaderStageDescription;
 
 /* /\** Region of the framebuffer the output will be rendered to *\/ */
 /* typedef struct FvViewport { */

@@ -6,6 +6,7 @@
 #import <QuartzCore/CAMetalLayer.h>
 
 #include <Fever/Fever.h>
+#include <Fever/PersistentHandleDataStore.h>
 
 namespace fv {
 // // clang-format off
@@ -26,7 +27,7 @@ namespace fv {
 //     };
 
 // clang-format off
-#define MTL_RELEASE(obj)                                                       \
+#define FV_MTL_RELEASE(obj)                                                    \
     do {                                                                       \
         [obj release];                                                         \
         obj = nil;                                                             \
@@ -55,15 +56,26 @@ namespace fv {
 
 class MetalWrapper {
   public:
-    MetalWrapper() : metalLayer(NULL), device(nil), commandQueue(nil) {}
+    static const uint32_t MAX_NUM_LIBRARIES = 64;
+
+    MetalWrapper()
+        : metalLayer(NULL), device(nil), commandQueue(nil),
+          libraries(MAX_NUM_LIBRARIES) {}
 
     FvResult init(const FvInitInfo *initInfo);
 
     void shutdown();
 
+    FvResult shaderModuleCreate(FvShaderModule *shaderModule,
+                                const FvShaderModuleCreateInfo *createInfo);
+
+    void shaderModuleDestroy(FvShaderModule shaderModule);
+
   private:
     CAMetalLayer *metalLayer;
     id<MTLDevice> device;
     id<MTLCommandQueue> commandQueue;
+
+    PersistentHandleDataStore<id<MTLLibrary>> libraries;
 };
 }

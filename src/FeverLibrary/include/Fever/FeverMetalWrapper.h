@@ -76,6 +76,12 @@ class MetalWrapper {
 
     void shutdown();
 
+    FvResult
+    graphicsPipelineCreate(FvGraphicsPipeline *graphicsPipeline,
+                           const FvGraphicsPipelineCreateInfo *createInfo);
+
+    void graphicsPipelineDestroy(FvGraphicsPipeline graphicsPipeline);
+
     FvResult renderPassCreate(FvRenderPass *renderPass,
                               const FvRenderPassCreateInfo *createInfo);
 

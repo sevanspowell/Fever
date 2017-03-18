@@ -41,8 +41,25 @@ void fvShutdown() {
     }
 }
 
+FvResult
+fvGraphicsPipelineCreate(FvGraphicsPipeline *graphicsPipeline,
+                         const FvGraphicsPipelineCreateInfo *createInfo) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->graphicsPipelineCreate(graphicsPipeline,
+                                                    createInfo);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+void fvGraphicsPipelineDestroy(FvGraphicsPipeline graphicsPipeline) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->graphicsPipelineDestroy(graphicsPipeline);
+    }
+}
+
 FvResult fvRenderPassCreate(FvRenderPass *renderPass,
-                        const FvRenderPassCreateInfo *createInfo) {
+                            const FvRenderPassCreateInfo *createInfo) {
     if (metalWrapper != nullptr) {
         return metalWrapper->renderPassCreate(renderPass, createInfo);
     } else {

@@ -376,37 +376,39 @@ extern FvResult fvRenderPassCreate(FvRenderPass *renderPass,
 
 extern void fvRenderPassDestroy(FvRenderPass renderPass);
 
-/* FV_DEFINE_HANDLE(FvGraphicsPipeline); */
+FV_DEFINE_HANDLE(FvGraphicsPipeline);
 
-/* typedef struct FvGraphicsPipelineCreateInfo { */
-/*     /\** Number of shader stages *\/ */
-/*     uint32_t stageCount; */
-/*     /\** Array of shader stages, number in array must match 'stageCount'
- * field *\/ */
-/*     const FvPipelineShaderStageDescription *stages; */
-/*     /\** Vertex input descriptor *\/ */
-/*     const FvPipelineVertexInputDescription *vertexInputDescription; */
-/*     /\** Input assembly descriptor *\/ */
-/*     const FvPipelineInputAssemblyDescription *inputAssemblyDescription; */
-/*     /\* Viewport descriptor *\/ */
-/*     const FvPipelineViewportDescription *viewportDescription; */
-/*     /\** Rasterizer state descriptor *\/ */
-/*     const FvPipelineRasterizerDescription *rasterizerDescription; */
-/*     /\** Color blending state descriptor *\/ */
-/*     const FvPipelineColorBlendStateDescription *colorBlendStateDescription;
- */
-/*     /\** Depth stencil state descriptor *\/ */
-/*     const FvPipelineDepthStencilStateDescription *depthStencilDescription; */
-/*     /\** Pipeline layout - shader constants *\/ */
-/*     FvPipelineLayout layout; */
-/* } FvGraphicsPipelineCreateInfo; */
+typedef struct FvGraphicsPipelineCreateInfo {
+    /** Number of shader stages */
+    uint32_t stageCount;
+    /** Array of shader stages, number in array must match 'stageCount'
+field */
+    const FvPipelineShaderStageDescription *stages;
+    /** Vertex input descriptor */
+    const FvPipelineVertexInputDescription *vertexInputDescription;
+    /** Input assembly descriptor */
+    const FvPipelineInputAssemblyDescription *inputAssemblyDescription;
+    /* Viewport descriptor */
+    const FvPipelineViewportDescription *viewportDescription;
+    /** Rasterizer state descriptor */
+    const FvPipelineRasterizerDescription *rasterizerDescription;
+    /** Color blending state descriptor */
+    const FvPipelineColorBlendStateDescription *colorBlendStateDescription;
+    /** Depth stencil state descriptor */
+    const FvPipelineDepthStencilStateDescription *depthStencilDescription;
+    /** Pipeline layout - shader constants */
+    FvPipelineLayout layout;
+    /** Render pass */
+    FvRenderPass renderPass;
+    /** Index of subpass in render pass to use */
+    uint32_t subpass;
+} FvGraphicsPipelineCreateInfo;
 
-/* extern void */
-/* fvGraphicsPipelineCreate(FvGraphicsPipeline *graphicsPipeline, */
-/*                          const FvGraphicsPipelineCreateInfo *createInfo); */
+extern FvResult 
+fvGraphicsPipelineCreate(FvGraphicsPipeline *graphicsPipeline,
+                         const FvGraphicsPipelineCreateInfo *createInfo);
 
-/* extern void fvGraphicsPipelineDestroy(FvGraphicsPipeline graphicsPipeline);
- */
+extern void fvGraphicsPipelineDestroy(FvGraphicsPipeline graphicsPipeline);
 
 /* FV_DEFINE_HANDLE(FvTextureView); */
 

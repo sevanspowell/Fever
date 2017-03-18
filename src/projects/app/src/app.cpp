@@ -271,6 +271,24 @@ class HelloTriangleApplication {
                                    &pipelineLayoutInfo) != FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to create pipeline layout!");
         }
+
+        FvGraphicsPipelineCreateInfo pipelineInfo = {};
+        pipelineInfo.stageCount                   = 2;
+        pipelineInfo.stages                       = shaderStages;
+        pipelineInfo.vertexInputDescription       = &vertexInputInfo;
+        pipelineInfo.inputAssemblyDescription     = &inputAssembly;
+        pipelineInfo.viewportDescription          = &viewportState;
+        pipelineInfo.rasterizerDescription        = &rasterizer;
+        pipelineInfo.colorBlendStateDescription   = &colorBlending;
+        pipelineInfo.depthStencilDescription      = nullptr;
+        pipelineInfo.layout                       = pipelineLayout;
+        pipelineInfo.renderPass                   = renderPass;
+        pipelineInfo.subpass                      = 0;
+
+        if (fvGraphicsPipelineCreate(graphicsPipeline.replace(),
+                                     &pipelineInfo) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create graphics pipeline!");
+        }
     }
 
     void shutdownFever() { fvShutdown(); }
@@ -325,6 +343,7 @@ class HelloTriangleApplication {
     FDeleter<FvSurface> surface{fvDestroySurface};
     FDeleter<FvPipelineLayout> pipelineLayout{fvPipelineLayoutDestroy};
     FDeleter<FvRenderPass> renderPass{fvRenderPassDestroy};
+    FDeleter<FvGraphicsPipeline> graphicsPipeline{fvGraphicsPipelineDestroy};
 };
 
 int main(void) {

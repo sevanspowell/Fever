@@ -39,13 +39,16 @@ void MetalWrapper::shutdown() {
     FV_MTL_RELEASE(device);
 }
 
-FvResult MetalWrapper::pipelineLayoutCreate(
-    FvPipelineLayout *layout, const FvPipelineLayoutCreateInfo *createInfo) {
-    // TODO: Unused at this point
-    return FV_RESULT_SUCCESS;
+FvResult MetalWrapper::graphicsPipelineCreate(
+    FvGraphicsPipeline *graphicsPipeline,
+    const FvGraphicsPipelineCreateInfo *createInfo) {
+    FvResult result = FV_RESULT_FAILURE;
+
+    return result;
 }
 
-void MetalWrapper::pipelineLayoutDestroy(FvPipelineLayout layout) {}
+void MetalWrapper::graphicsPipelineDestroy(
+    FvGraphicsPipeline graphicsPipeline) {}
 
 FvResult
 MetalWrapper::renderPassCreate(FvRenderPass *renderPass,
@@ -145,6 +148,14 @@ void MetalWrapper::renderPassDestroy(FvRenderPass renderPass) {
         renderPasses.remove(*handle);
     }
 }
+
+FvResult MetalWrapper::pipelineLayoutCreate(
+    FvPipelineLayout *layout, const FvPipelineLayoutCreateInfo *createInfo) {
+    // TODO: Unused at this point
+    return FV_RESULT_SUCCESS;
+}
+
+void MetalWrapper::pipelineLayoutDestroy(FvPipelineLayout layout) {}
 
 FvResult
 MetalWrapper::shaderModuleCreate(FvShaderModule *shaderModule,

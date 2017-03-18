@@ -41,6 +41,32 @@ void fvShutdown() {
     }
 }
 
+FvResult fvRenderPassCreate(FvRenderPass *renderPass,
+                        const FvRenderPassCreateInfo *createInfo) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->renderPassCreate(renderPass, createInfo);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+void fvRenderPassDestroy(FvRenderPass renderPass) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->renderPassDestroy(renderPass);
+    }
+}
+
+FvResult fvPipelineLayoutCreate(FvPipelineLayout *layout,
+                                const FvPipelineLayoutCreateInfo *createInfo) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->pipelineLayoutCreate(layout, createInfo);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+void fvPipelineLayoutDestroy(FvPipelineLayout layout) {}
+
 FvResult fvShaderModuleCreate(FvShaderModule *shaderModule,
                               const FvShaderModuleCreateInfo *createInfo) {
     if (metalWrapper != nullptr) {

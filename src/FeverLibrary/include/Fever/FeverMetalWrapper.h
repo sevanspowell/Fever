@@ -54,17 +54,37 @@ namespace fv {
 //     mtl::CommandQueue commandQueue;
 // };
 
+struct SubpassWrapper {
+    MTLRenderPassDescriptor *mtlRenderPass;
+    MTLRenderPipelineDescriptor *mtlPipelineDescriptor;
+};
+
+struct RenderPassWrapper {
+    std::vector<SubpassWrapper> subpasses;
+};
+
 class MetalWrapper {
   public:
-    static const uint32_t MAX_NUM_LIBRARIES = 64;
+    static const uint32_t MAX_NUM_LIBRARIES     = 64;
+    static const uint32_t MAX_NUM_RENDER_PASSES = 64;
 
     MetalWrapper()
         : metalLayer(NULL), device(nil), commandQueue(nil),
-          libraries(MAX_NUM_LIBRARIES) {}
+          libraries(MAX_NUM_LIBRARIES), renderPasses(MAX_NUM_RENDER_PASSES) {}
 
     FvResult init(const FvInitInfo *initInfo);
 
     void shutdown();
+
+    FvResult renderPassCreate(FvRenderPass *renderPass,
+                              const FvRenderPassCreateInfo *createInfo);
+
+    void renderPassDestroy(FvRenderPass renderPass);
+
+    FvResult pipelineLayoutCreate(FvPipelineLayout *layout,
+                                  const FvPipelineLayoutCreateInfo *createInfo);
+
+    void pipelineLayoutDestroy(FvPipelineLayout layout);
 
     FvResult shaderModuleCreate(FvShaderModule *shaderModule,
                                 const FvShaderModuleCreateInfo *createInfo);
@@ -72,10 +92,17 @@ class MetalWrapper {
     void shaderModuleDestroy(FvShaderModule shaderModule);
 
   private:
+    static MTLLoadAction toMtlLoadAction(FvLoadOp loadOp);
+
+    static MTLStoreAction toMtlStoreAction(FvStoreOp storeOp);
+
+    static MTLPixelFormat toMtlPixelFormat(FvFormat format);
+
     CAMetalLayer *metalLayer;
     id<MTLDevice> device;
     id<MTLCommandQueue> commandQueue;
 
     PersistentHandleDataStore<id<MTLLibrary>> libraries;
+    PersistentHandleDataStore<RenderPassWrapper> renderPasses;
 };
 }

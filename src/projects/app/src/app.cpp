@@ -97,6 +97,9 @@ class HelloTriangleApplication {
     }
 
   private:
+    const uint32_t WINDOW_WIDTH  = 800;
+    const uint32_t WINDOW_HEIGHT = 600;
+
     void initWindow() {
         // Initialize SDL2
         SDL_InitSubSystem(SDL_INIT_VIDEO);
@@ -155,7 +158,38 @@ class HelloTriangleApplication {
             throw std::runtime_error("Failed to initialize Fever library.");
         }
 
+        createRenderPass();
         createGraphicsPipeline();
+    }
+
+    void createRenderPass() {
+        FvAttachmentDescription colorAttachment = {};
+        colorAttachment.format                  = FV_FORMAT_BGRA8UNORM;
+        colorAttachment.samples                 = FV_SAMPLE_COUNT_1;
+        colorAttachment.loadOp                  = FV_LOAD_OP_CLEAR;
+        colorAttachment.storeOp                 = FV_STORE_OP_STORE;
+        colorAttachment.stencilLoadOp           = FV_LOAD_OP_DONT_CARE;
+        colorAttachment.stencilStoreOp          = FV_STORE_OP_DONT_CARE;
+
+        FvAttachmentReference colorAttachmentRef = {};
+        colorAttachmentRef.attachment            = 0;
+
+        FvSubpassDescription subpass = {};
+        subpass.inputAttachmentCount = 0;
+        subpass.inputAttachments     = nullptr;
+        subpass.colorAttachmentCount = 1;
+        subpass.colorAttachments     = &colorAttachmentRef;
+
+        FvRenderPassCreateInfo renderPassInfo = {};
+        renderPassInfo.attachmentCount        = 1;
+        renderPassInfo.attachments            = &colorAttachment;
+        renderPassInfo.subpassCount           = 1;
+        renderPassInfo.subpasses              = &subpass;
+
+        if (fvRenderPassCreate(renderPass.replace(), &renderPassInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create render pass!");
+        }
     }
 
     void createGraphicsPipeline() {
@@ -186,6 +220,57 @@ class HelloTriangleApplication {
 
         FvPipelineShaderStageDescription shaderStages[] = {vertShaderStageInfo,
                                                            fragShaderStageInfo};
+
+        FvPipelineVertexInputDescription vertexInputInfo = {};
+        vertexInputInfo.vertexBindingDescriptionCount    = 0;
+        vertexInputInfo.vertexBindingDescriptions        = nullptr;
+        vertexInputInfo.vertexAttributeDescriptionCount  = 0;
+        vertexInputInfo.vertexAttributeDescriptions      = nullptr;
+
+        FvPipelineInputAssemblyDescription inputAssembly = {};
+        inputAssembly.primitiveType          = FV_PRIMITIVE_TYPE_TRIANGLE_LIST;
+        inputAssembly.primitiveRestartEnable = false;
+
+        FvViewport viewport = {};
+        viewport.x          = 0.0f;
+        viewport.y          = 0.0f;
+        viewport.width      = (float)WINDOW_WIDTH;
+        viewport.height     = (float)WINDOW_HEIGHT;
+        viewport.minDepth   = 0.0f;
+        viewport.maxDepth   = 1.0f;
+
+        FvRect2D scissor = {};
+        scissor.offset   = {0, 0};
+        scissor.extent   = {WINDOW_WIDTH, WINDOW_HEIGHT};
+
+        FvPipelineViewportDescription viewportState = {};
+        viewportState.viewport                      = viewport;
+        viewportState.scissor                       = scissor;
+
+        FvPipelineRasterizerDescription rasterizer = {};
+        rasterizer.depthClampEnable                = false;
+        rasterizer.rasterizerDiscardEnable         = false;
+        rasterizer.cullMode                        = FV_CULL_MODE_BACK;
+        rasterizer.frontFacing                     = FV_WINDING_ORDER_CLOCKWISE;
+
+        FvColorBlendAttachmentState colorBlendAttachment = {};
+        colorBlendAttachment.blendEnable                 = false;
+        colorBlendAttachment.colorWriteMask = (FvColorComponentFlags)(
+            FV_COLOR_COMPONENT_R | FV_COLOR_COMPONENT_G | FV_COLOR_COMPONENT_B |
+            FV_COLOR_COMPONENT_A);
+
+        FvPipelineColorBlendStateDescription colorBlending = {};
+        colorBlending.attachmentCount                      = 1;
+        colorBlending.attachments = &colorBlendAttachment;
+
+        FvPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+        pipelineLayoutInfo.setLayoutCount             = 0;
+        pipelineLayoutInfo.pushConstantRangeCount     = 0;
+
+        if (fvPipelineLayoutCreate(pipelineLayout.replace(),
+                                   &pipelineLayoutInfo) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create pipeline layout!");
+        }
     }
 
     void shutdownFever() { fvShutdown(); }
@@ -238,6 +323,8 @@ class HelloTriangleApplication {
 
     SDL_Window *window;
     FDeleter<FvSurface> surface{fvDestroySurface};
+    FDeleter<FvPipelineLayout> pipelineLayout{fvPipelineLayoutDestroy};
+    FDeleter<FvRenderPass> renderPass{fvRenderPassDestroy};
 };
 
 int main(void) {

@@ -98,78 +98,68 @@ extern void fvShaderModuleDestroy(FvShaderModule shaderModule);
 
 /* extern void fvTextureDestroy(FvTexture texture); */
 
-/* /\** Opaque handle to depth stencil state object. *\/ */
+/** Opaque handle to depth stencil state object. */
 /* FV_DEFINE_HANDLE(FvDepthStencilState); */
 
-/* typedef struct FvStencilOperationState { */
-/*     /\** Operation performed to update the values in the stencil attachment
- * when */
-/*      * the stencil test fails *\/ */
-/*     FvStencilOp stencilFailOp; */
-/*     /\** Operation performed to update the values in the stencil attachment
- * when */
-/*      * the stencil test passes, but the depth test fails *\/ */
-/*     FvStencilOp depthFailOp; */
-/*     /\** Operation performed to update the values in the stencil attachment
- * when */
-/*      * both the depth and stencil tests pass *\/ */
-/*     FvStencilOp depthStencilPassOp; */
-/*     /\** Comparison function used between the masked reference value and a
- * masked */
-/*      * value in the stencil attachment to determine pass/fail of stencil test
- * *\/ */
-/*     FvCompareFunc stencilCompareFunc; */
-/*     /\** Bit mask dictating which bits the stencil comparison test can read
- * *\/ */
-/*     uint32_t readMask; */
-/*     /\** Bit mask dictating which bits the stencil comparison test can write
- * *\/ */
-/*     uint32_t writeMask; */
-/* } FvStencilOperationState; */
+typedef struct FvStencilOperationState {
+    /** Operation performed to update the values in the stencil attachment when
+     * the stencil test fails */
+    FvStencilOp stencilFailOp;
+    /** Operation performed to update the values in the stencil attachment when
+     * the stencil test passes, but the depth test fails */
+    FvStencilOp depthFailOp;
+    /** Operation performed to update the values in the stencil attachment when
+     * both the depth and stencil tests pass */
+    FvStencilOp depthStencilPassOp;
+    /** Comparison function used between the masked reference value and a masked
+     * value in the stencil attachment to determine pass/fail of stencil test */
+    FvCompareFunc stencilCompareFunc;
+    /** Bit mask dictating which bits the stencil comparison test can read */
+    uint32_t readMask;
+    /** Bit mask dictating which bits the stencil comparison test can write */
+    uint32_t writeMask;
+} FvStencilOperationState;
 
-/* typedef struct FvPipelineDepthStencilStateDescription { */
-/*     /\** Comparison function used to compare fragment's depth value and depth
- */
-/*      * value in the attachment, deciding whether or not to discard the
- * fragment. */
-/*      *\/ */
-/*     FvCompareFunc depthCompareFunc; */
-/*     /\** True if depth writing to attachment is enabled, false otherwise. *\/
- */
-/*     bool depthWriteEnable; */
-/*     /\** Stencil descriptor for back-facing primitives. *\/ */
-/*     FvStencilOperationState backFaceStencil; */
-/*     /\** Stencil descriptor for front-facing primitives. *\/ */
-/*     FvStencilOperationState frontFaceStencil; */
-/* } FvPipelineDepthStencilStateDescription; */
+typedef struct FvPipelineDepthStencilStateDescription {
+    /** Comparison function used to compare fragment's depth value and depth
+     * value in the attachment, deciding whether or not to discard the fragment.
+     */
+    FvCompareFunc depthCompareFunc;
+    /** True if depth writing to attachment is enabled, false otherwise. */
+    bool depthWriteEnable;
+    /** Stencil descriptor for back-facing primitives. */
+    FvStencilOperationState backFaceStencil;
+    /** Stencil descriptor for front-facing primitives. */
+    FvStencilOperationState frontFaceStencil;
+} FvPipelineDepthStencilStateDescription;
 
-/* typedef struct FvColorBlendAttachmentState { */
-/*     /\** True if blending is enabled, false otherwise. If disabled, source */
-/*      * fragment's color for this attachment is not modified. *\/ */
-/*     bool blendEnable; */
-/*     /\** Source blend factor to be used by color blend operation *\/ */
-/*     FvBlendFactor srcColorBlendFactor; */
-/*     /\** Destination blend factor to be used by color blend operation *\/ */
-/*     FvBlendFactor dstColorBlendFactor; */
-/*     /\** Blend operation to use for color data *\/ */
-/*     FvBlendOp colorBlendOp; */
-/*     /\** Source blend factor to be used by alpha blend operation *\/ */
-/*     FvBlendFactor srcAlphaBlendFactor; */
-/*     /\** Destination blend factor to be used by alpha blend operation *\/ */
-/*     FvBlendFactor dstAlphaBlendFactor; */
-/*     /\** Blend operation to use for alpha data *\/ */
-/*     FvBlendOp alphaBlendOp; */
-/*     /\** Bitmask which restricts the color components that may be written to
- * *\/ */
-/*     FvColorComponentFlags colorWriteMask; */
-/* } FvColorBlendAttachmentState; */
+typedef struct FvColorBlendAttachmentState {
+    /** True if blending is enabled, false otherwise. If disabled, source
+     * fragment's color for this attachment is not modified. */
+    bool blendEnable;
+    /** Source blend factor to be used by color blend operation */
+    FvBlendFactor srcColorBlendFactor;
+    /** Destination blend factor to be used by color blend operation */
+    FvBlendFactor dstColorBlendFactor;
+    /** Blend operation to use for color data */
+    FvBlendOp colorBlendOp;
+    /** Source blend factor to be used by alpha blend operation */
+    FvBlendFactor srcAlphaBlendFactor;
+    /** Destination blend factor to be used by alpha blend operation */
+    FvBlendFactor dstAlphaBlendFactor;
+    /** Blend operation to use for alpha data */
+    FvBlendOp alphaBlendOp;
+    /** Bitmask which restricts the color components that may be written to
+*/
+    FvColorComponentFlags colorWriteMask;
+} FvColorBlendAttachmentState;
 
-/* typedef struct FvPipelineColorBlendStateDescription { */
-/*     /\* Number of color blend attachment states *\/ */
-/*     uint32_t attachmentCount; */
-/*     /\** Array of color blend attachments *\/ */
-/*     const FvColorBlendAttachmentState *attachments; */
-/* } FvPipelineColorBlendStateDescription; */
+typedef struct FvPipelineColorBlendStateDescription {
+    /* Number of color blend attachment states */
+    uint32_t attachmentCount;
+    /** Array of color blend attachments */
+    const FvColorBlendAttachmentState *attachments;
+} FvPipelineColorBlendStateDescription;
 
 typedef struct FvPipelineShaderStageDescription {
     /** Stage of the shader pipeline */
@@ -180,221 +170,211 @@ typedef struct FvPipelineShaderStageDescription {
     FvShaderModule shaderModule;
 } FvPipelineShaderStageDescription;
 
-/* /\** Region of the framebuffer the output will be rendered to *\/ */
-/* typedef struct FvViewport { */
-/*     /\** Viewport's upper left corner *\/ */
-/*     float x, y; */
-/*     /\** Viewport's width and height *\/ */
-/*     float width, height; */
-/*     /\** Depth range of the viewport [0, 1] *\/ */
-/*     float minDepth, maxDepth; */
-/* } FvViewport; */
+/** Region of the framebuffer the output will be rendered to */
+typedef struct FvViewport {
+    /** Viewport's upper left corner */
+    float x, y;
+    /** Viewport's width and height */
+    float width, height;
+    /** Depth range of the viewport [0, 1] */
+    float minDepth, maxDepth;
+} FvViewport;
 
-/* typedef struct FvOffset2D { */
-/*     int32_t x; */
-/*     int32_t y; */
-/* } FvOffset2D; */
+typedef struct FvOffset2D {
+    int32_t x;
+    int32_t y;
+} FvOffset2D;
 
-/* typedef struct FvExtent2D { */
-/*     uint32_t width; */
-/*     uint32_t height; */
-/* } FvExtent2D; */
+typedef struct FvExtent2D {
+    uint32_t width;
+    uint32_t height;
+} FvExtent2D;
 
-/* typedef struct FvRect2D { */
-/*     FvOffset2D offset; */
-/*     FvExtent2D extent; */
-/* } FvRect2D; */
+typedef struct FvRect2D {
+    FvOffset2D offset;
+    FvExtent2D extent;
+} FvRect2D;
 
-/* /\** Describes viewport to render through *\/ */
-/* typedef struct FvPipelineViewportDescription { */
-/*     FvViewport viewport; */
-/*     FvRect2D scissor; */
-/* } FvPipelineViewportDescription; */
+/** Describes viewport to render through */
+typedef struct FvPipelineViewportDescription {
+    FvViewport viewport;
+    FvRect2D scissor;
+} FvPipelineViewportDescription;
 
-/* /\** Rasterizer turns geometry into fragments, this struct is used to
- * configure */
-/*  * it *\/ */
-/* /\** NOTE: FvPipelineConfig ??? *\/ */
-/* typedef struct FvPipelineRasterizerDescription { */
-/*     /\** Clamp fragments beyond near and far planes instead of discarding
- * them *\/ */
-/*     bool depthClampEnable; */
-/*     /\** If true, geometry never passes through rasterizer stage *\/ */
-/*     bool rasterizerDiscardEnable; */
-/*     /\** Cull front or back faces or none *\/ */
-/*     FvCullMode cullMode; */
-/*     /\** Winding order of front-facing primitives *\/ */
-/*     FvWindingOrder frontFacing; */
-/* } FvPipelineRasterizerDescription; */
+/** Rasterizer turns geometry into fragments, this struct is used to
+configure
+ * it */
+/** NOTE: FvPipelineConfig ??? */
+typedef struct FvPipelineRasterizerDescription {
+    /** Clamp fragments beyond near and far planes instead of discarding
+them */
+    bool depthClampEnable;
+    /** If true, geometry never passes through rasterizer stage */
+    bool rasterizerDiscardEnable;
+    /** Cull front or back faces or none */
+    FvCullMode cullMode;
+    /** Winding order of front-facing primitives */
+    FvWindingOrder frontFacing;
+} FvPipelineRasterizerDescription;
 
-/* /\** Describes what kind of geometry will be drawn *\/ */
-/* typedef struct FvPipelineInputAssemblyDescription { */
-/*     /\** Primitive type *\/ */
-/*     FvPrimitiveType primitiveType; */
-/*     /\** If true the assembly is restarted if a special index value is */
-/*      * encountered (0xFFFFFFFF when index type is 32-bit uint or 0xFFFF when
- */
-/*      * index type is 16-bit uint). Is not allowed for 'list' primitive types.
- * *\/ */
-/*     bool primitiveRestartEnable; */
-/* } FvPipelineInputAssemblyDescription; */
+/** Describes what kind of geometry will be drawn */
+typedef struct FvPipelineInputAssemblyDescription {
+    /** Primitive type */
+    FvPrimitiveType primitiveType;
+    /** If true the assembly is restarted if a special index value is
+     * encountered (0xFFFFFFFF when index type is 32-bit uint or 0xFFFF when
+     * index type is 16-bit uint). Is not allowed for 'list' primitive types.
+*/
+    bool primitiveRestartEnable;
+} FvPipelineInputAssemblyDescription;
 
-/* /\** Describes at what rate to load vertex data from memory *\/ */
-/* typedef struct FvVertexInputBindingDescription { */
-/*     /\** Index of binding in array of bindings *\/ */
-/*     uint32_t binding; */
-/*     /\** Number of bytes from one entry to next *\/ */
-/*     uint32_t stride; */
-/*     /\** When to move to next data entry *\/ */
-/*     FvVertexInputRate inputRate; */
-/* } FvVertexInputBindingDescription; */
+/** Describes at what rate to load vertex data from memory */
+typedef struct FvVertexInputBindingDescription {
+    /** Index of binding in array of bindings */
+    uint32_t binding;
+    /** Number of bytes from one entry to next */
+    uint32_t stride;
+    /** When to move to next data entry */
+    FvVertexInputRate inputRate;
+} FvVertexInputBindingDescription;
 
-/* /\** Describes how to extract a vertex attribute from vertex data *\/ */
-/* typedef struct FvVertexInputAttributeDescription { */
-/*     /\** Shader binding location for attribute *\/ */
-/*     uint32_t location; */
-/*     /\** Index of binding in array of bindings *\/ */
-/*     uint32_t binding; */
-/*     /\** Format of the vertext attribute (number of color channels of format
- */
-/*      * should match number of components in shader data type) *\/ */
-/*     FvFormat format; */
-/*     /\** Number of bytes from start of per-vertex data to begin reading from
- * *\/ */
-/*     uint32_t offset; */
-/* } FvVertexInputAttributeDescription; */
+/** Describes how to extract a vertex attribute from vertex data */
+typedef struct FvVertexInputAttributeDescription {
+    /** Shader binding location for attribute */
+    uint32_t location;
+    /** Index of binding in array of bindings */
+    uint32_t binding;
+    /** Format of the vertext attribute (number of color channels of format
+     * should match number of components in shader data type) */
+    FvFormat format;
+    /** Number of bytes from start of per-vertex data to begin reading from
+*/
+    uint32_t offset;
+} FvVertexInputAttributeDescription;
 
-/* typedef struct FvPipelineVertexInputDescription { */
-/*     /\** Number of vertex binding descriptions *\/ */
-/*     uint32_t vertexBindingDescriptionCount; */
-/*     /\** Array of vertex binding descriptions (number in array should match
- */
-/*      * 'vertexBindingDescriptionCount' field). *\/ */
-/*     const FvVertexInputBindingDescription *vertexBindingDescriptions; */
-/*     /\** Number of vertex attribute descriptions *\/ */
-/*     uint32_t vertexAttributeDescriptionCount; */
-/*     /\** Array of vertex attribute descriptions (number in array should match
- */
-/*      * 'vertexAttributeDescriptionCount' field). *\/ */
-/*     const FvVertexInputAttributeDescription *vertexAttributeDescriptions; */
-/* } FvPipelineVertexInputDescription; */
+typedef struct FvPipelineVertexInputDescription {
+    /** Number of vertex binding descriptions */
+    uint32_t vertexBindingDescriptionCount;
+    /** Array of vertex binding descriptions (number in array should match
+     * 'vertexBindingDescriptionCount' field). */
+    const FvVertexInputBindingDescription *vertexBindingDescriptions;
+    /** Number of vertex attribute descriptions */
+    uint32_t vertexAttributeDescriptionCount;
+    /** Array of vertex attribute descriptions (number in array should match
+     * 'vertexAttributeDescriptionCount' field). */
+    const FvVertexInputAttributeDescription *vertexAttributeDescriptions;
+} FvPipelineVertexInputDescription;
 
-/* FV_DEFINE_HANDLE(FvPipelineLayout); */
-/* FV_DEFINE_HANDLE(FvDescriptorSetLayout); */
+FV_DEFINE_HANDLE(FvPipelineLayout);
+FV_DEFINE_HANDLE(FvDescriptorSetLayout);
 
-/* typedef struct FvPushConstantRange { */
-/*     /\** Bitmask of shader stages that access this range of push constants
- * *\/ */
-/*     FvShaderStage stageFlags; */
-/*     /\** Start offset of range (must be multiple of 4) *\/ */
-/*     uint32_t offset; */
-/*     /\** Size of range (must be multiple of 4) *\/ */
-/*     uint32_t size; */
-/* } FvPushConstantRange; */
+typedef struct FvPushConstantRange {
+    /** Bitmask of shader stages that access this range of push constants */
+    FvShaderStage stageFlags;
+    /** Start offset of range (must be multiple of 4) */
+    uint32_t offset;
+    /** Size of range (must be multiple of 4) */
+    uint32_t size;
+} FvPushConstantRange;
 
-/* /\** Used to specify uniform values in shader. Describes complete set of */
-/*     resources that can be accessed by a pipline. *\/ */
-/* typedef struct FvPipelineLayoutCreateInfo { */
-/*     /\** Number of set layouts *\/ */
-/*     uint32_t setLayoutCount; */
-/*     /\** Array of descriptor set layouts *\/ */
-/*     FvDescriptorSetLayout *setLayouts; */
-/*     /\** Number of push constant ranges *\/ */
-/*     uint32_t pushConstantRangeCount; */
-/*     /\** Array of push constant ranges *\/ */
-/*     const FvPushConstantRange *pushConstantRanges; */
-/* } FvPipelineLayoutCreateInfo; */
+/** Used to specify uniform values in shader. Describes complete set of
+    resources that can be accessed by a pipline. */
+typedef struct FvPipelineLayoutCreateInfo {
+    /** Number of set layouts */
+    uint32_t setLayoutCount;
+    /** Array of descriptor set layouts */
+    FvDescriptorSetLayout *setLayouts;
+    /** Number of push constant ranges */
+    uint32_t pushConstantRangeCount;
+    /** Array of push constant ranges */
+    const FvPushConstantRange *pushConstantRanges;
+} FvPipelineLayoutCreateInfo;
 
-/* extern void */
-/* fvPipelineLayoutCreate(FvPipelineLayout *layout, */
-/*                        const FvPipelineLayoutCreateInfo *createInfo); */
+extern FvResult
+fvPipelineLayoutCreate(FvPipelineLayout *layout,
+                       const FvPipelineLayoutCreateInfo *createInfo);
 
-/* extern void fvPipelineLayoutDestroy(FvPipelineLayout layout); */
+extern void fvPipelineLayoutDestroy(FvPipelineLayout layout);
 
-/* FV_DEFINE_HANDLE(FvRenderPass); */
+FV_DEFINE_HANDLE(FvRenderPass);
 
-/* typedef struct FvAttachmentDescription { */
-/*     /\** Format of this image to be used as attachment *\/ */
-/*     FvFormat format; */
-/*     /\** Number of samples of image *\/ */
-/*     FvSampleCount samples; */
-/*     /\** Operation to perform on this attachment at start of rendering pass
- * *\/ */
-/*     FvLoadOp loadOp; */
-/*     /\** Operation to perform on this attachment at end of rendering pass *\/
- */
-/*     FvStoreOp storeOp; */
-/*     /\** Operation to perform on this attachment at start of rendering pass
- * *\/ */
-/*     FvLoadOp stencilLoadOp; */
-/*     /\** Operation to perform on this attachment at end of rendering pass *\/
- */
-/*     FvStoreOp stencilStoreOp; */
-/* } FvAttachmentDescription; */
+typedef struct FvAttachmentDescription {
+    /** Format of this image to be used as attachment */
+    FvFormat format;
+    /** Number of samples of image */
+    FvSampleCount samples;
+    /** Operation to perform on this attachment at start of rendering pass */
+    FvLoadOp loadOp;
+    /** Operation to perform on this attachment at end of rendering pass */
+    FvStoreOp storeOp;
+    /** Operation to perform on this attachment at start of rendering pass */
+    FvLoadOp stencilLoadOp;
+    /** Operation to perform on this attachment at end of rendering pass */
+    FvStoreOp stencilStoreOp;
+} FvAttachmentDescription;
 
-/* typedef struct FvAttachmentReference { */
-/*     /\** Index of attachment of render pass. Corresponds to index of
- * attachment */
-/*         in FvRenderPassCreateInfo struct. *\/ */
-/*     uint32_t attachment; */
-/* } FvAttachmentReference; */
+typedef struct FvAttachmentReference {
+    /** Index of attachment of render pass. Corresponds to index of attachment
+     * in FvRenderPassCreateInfo struct. */
+    uint32_t attachment;
+} FvAttachmentReference;
 
-/* typedef struct FvSubpassDescription { */
-/*     /\** Number of input attachments in this subpass *\/ */
-/*     uint32_t inputAttachmentCount; */
-/*     /\** Array of input attachments *\/ */
-/*     const FvAttachmentReference *inputAttachments; */
-/*     /\** Number of color attachment outputs *\/ */
-/*     uint32_t colorAttachmentCount; */
-/*     /\** Array of color attachment output references *\/ */
-/*     const FvAttachmentReference *colorAttachments; */
-/*     /\** Pointer to a single depth stencil attachment reference *\/ */
-/*     const FvAttachmentReference *depthStencilAttachment; */
-/*     /\** Number of preserved attachments *\/ */
-/*     uint32_t preservereAttachmentCount; */
-/*     /\** Array of indices specifying which attachments are not used by the */
-/*     subpass but whose contents must be preserved. Corresponds to index of */
-/*     attachment in FvRenderPassCreateInfo struct. *\/ */
-/*     const uint32_t *preserveAttachments; */
-/* } FvSubpassDescription; */
+typedef struct FvSubpassDescription {
+    /** Number of input attachments in this subpass */
+    uint32_t inputAttachmentCount;
+    /** Array of input attachments */
+    const FvAttachmentReference *inputAttachments;
+    /** Number of color attachment outputs */
+    uint32_t colorAttachmentCount;
+    /** Array of color attachment output references */
+    const FvAttachmentReference *colorAttachments;
+    /** Pointer to a single depth stencil attachment reference */
+    const FvAttachmentReference *depthStencilAttachment;
+    /** Number of preserved attachments */
+    uint32_t preservereAttachmentCount;
+    /** Array of indices specifying which attachments are not used by the
+    subpass but whose contents must be preserved. Corresponds to index of
+    attachment in FvRenderPassCreateInfo struct. */
+    const uint32_t *preserveAttachments;
+} FvSubpassDescription;
 
-/* #define FV_SUBPASS_EXTERNAL 0xFFFFFFFF */
+#define FV_SUBPASS_EXTERNAL 0xFFFFFFFF
 
-/* typedef struct FvSubpassDependency { */
-/*     /\** Index of first subpass in dependency or FV_SUBPASS_EXTERNAL *\/ */
-/*     uint32_t srcSubpass; */
-/*     /\** Index of second subpass in dependency or FV_SUBPASS_EXTERNAL *\/ */
-/*     uint32_t dstSubpass; */
-/*     /\** Stage of the pipeline that first subpass should wait on *\/ */
-/*     FvPipelineStage srcStageMask; */
-/*     /\** Bitmask of allowed access of first subpass *\/ */
-/*     FvAccessFlags srcAccessMask; */
-/*     /\** Stage of the pipeline that second subpass should wait on *\/ */
-/*     FvPipelineStage dstStageMask; */
-/*     /\** Bitmask of allowed access of second subpass *\/ */
-/*     FvAccessFlags dstAccessMask; */
-/* } FvSubpassDependency; */
+typedef struct FvSubpassDependency {
+    /** Index of first subpass in dependency or FV_SUBPASS_EXTERNAL */
+    uint32_t srcSubpass;
+    /** Index of second subpass in dependency or FV_SUBPASS_EXTERNAL */
+    uint32_t dstSubpass;
+    /** Stage of the pipeline that first subpass should wait on */
+    FvPipelineStage srcStageMask;
+    /** Bitmask of allowed access of first subpass */
+    FvAccessFlags srcAccessMask;
+    /** Stage of the pipeline that second subpass should wait on */
+    FvPipelineStage dstStageMask;
+    /** Bitmask of allowed access of second subpass */
+    FvAccessFlags dstAccessMask;
+} FvSubpassDependency;
 
-/* typedef struct FvRenderPassCreateInfo { */
-/*     /\** Number of attachments *\/ */
-/*     uint32_t attachmentCount; */
-/*     /\** Array of render attachments *\/ */
-/*     const FvAttachmentDescription *attachments; */
-/*     /\** Number of subpasses, each render pass must have atleast one subpass
- * *\/ */
-/*     uint32_t subpassCount; */
-/*     /\** Array of subpasses *\/ */
-/*     const FvSubpassDescription *subpasses; */
-/*     /\** Number of dependencies *\/ */
-/*     uint32_t dependencyCount; */
-/*     /\** Array of subpass dependencies *\/ */
-/*     const FvSubpassDependency *dependencies; */
-/* } FvRenderPassCreateInfo; */
+typedef struct FvRenderPassCreateInfo {
+    /** Number of attachments */
+    uint32_t attachmentCount;
+    /** Array of render attachments */
+    const FvAttachmentDescription *attachments;
+    /** Number of subpasses, each render pass must have atleast one subpass
+*/
+    uint32_t subpassCount;
+    /** Array of subpasses */
+    const FvSubpassDescription *subpasses;
+    /** Number of dependencies */
+    uint32_t dependencyCount;
+    /** Array of subpass dependencies */
+    const FvSubpassDependency *dependencies;
+} FvRenderPassCreateInfo;
 
-/* extern void fvRenderPassCreate(FvRenderPass *renderPass, */
-/*                                const FvRenderPassCreateInfo *createInfo); */
+extern FvResult fvRenderPassCreate(FvRenderPass *renderPass,
+                                   const FvRenderPassCreateInfo *createInfo);
 
-/* extern void fvRenderPassDestroy(FvRenderPass renderPass); */
+extern void fvRenderPassDestroy(FvRenderPass renderPass);
 
 /* FV_DEFINE_HANDLE(FvGraphicsPipeline); */
 

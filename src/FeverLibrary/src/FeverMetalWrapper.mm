@@ -170,8 +170,64 @@ FvResult MetalWrapper::graphicsPipelineCreate(
 
                 // Create depth stencil states from DepthStencilDescription
                 if (createInfo->depthStencilDescription != nullptr) {
+                    FvPipelineDepthStencilStateDescription depthStencilDesc =
+                        *createInfo->depthStencilDescription;
+
+                    MTLDepthStencilDescriptor *mtlDepthStencilDesc =
+                        [[MTLDepthStencilDescriptor alloc] init];
+                    mtlDepthStencilDesc.depthCompareFunction =
+                        toMtlCompareFunction(depthStencilDesc.depthCompareFunc);
+                    mtlDepthStencilDesc.depthWriteEnabled =
+                        toObjCBool(depthStencilDesc.depthWriteEnable);
+
+                    mtlDepthStencilDesc.backFaceStencil
+                        .stencilFailureOperation = toMtlStencilOperation(
+                        depthStencilDesc.backFaceStencil.stencilFailOp);
+                    mtlDepthStencilDesc.backFaceStencil.depthFailureOperation =
+                        toMtlStencilOperation(
+                            depthStencilDesc.backFaceStencil.depthFailOp);
+                    mtlDepthStencilDesc.backFaceStencil
+                        .depthStencilPassOperation = toMtlStencilOperation(
+                        depthStencilDesc.backFaceStencil.depthStencilPassOp);
+                    mtlDepthStencilDesc.backFaceStencil.stencilCompareFunction =
+                        toMtlCompareFunction(depthStencilDesc.backFaceStencil
+                                                 .stencilCompareFunc);
+                    mtlDepthStencilDesc.backFaceStencil.readMask =
+                        depthStencilDesc.backFaceStencil.readMask;
+                    mtlDepthStencilDesc.backFaceStencil.writeMask =
+                        depthStencilDesc.backFaceStencil.writeMask;
+
+                    mtlDepthStencilDesc.frontFaceStencil
+                        .stencilFailureOperation = toMtlStencilOperation(
+                        depthStencilDesc.frontFaceStencil.stencilFailOp);
+                    mtlDepthStencilDesc.frontFaceStencil.depthFailureOperation =
+                        toMtlStencilOperation(
+                            depthStencilDesc.frontFaceStencil.depthFailOp);
+                    mtlDepthStencilDesc.frontFaceStencil
+                        .depthStencilPassOperation = toMtlStencilOperation(
+                        depthStencilDesc.frontFaceStencil.depthStencilPassOp);
+                    mtlDepthStencilDesc.frontFaceStencil
+                        .stencilCompareFunction = toMtlCompareFunction(
+                        depthStencilDesc.frontFaceStencil.stencilCompareFunc);
+                    mtlDepthStencilDesc.frontFaceStencil.readMask =
+                        depthStencilDesc.frontFaceStencil.readMask;
+                    mtlDepthStencilDesc.frontFaceStencil.writeMask =
+                        depthStencilDesc.frontFaceStencil.writeMask;
+
+                    id<MTLDepthStencilState> depthStencilState = [device
+                        newDepthStencilStateWithDescriptor:mtlDepthStencilDesc];
+
+                    if (mtlRenderPipelineState != nil) {
+                        graphicsPipelineWrapper.depthStencilState =
+                            depthStencilState;
+                    } else {
+                        printf("Failed to create depth stencil state.\n");
+
+                        result = FV_RESULT_FAILURE;
+                    }
                 }
 
+                // Fill out rasterizer info
                 if (createInfo->rasterizerDescription != nullptr) {
                     FvPipelineRasterizerDescription rasterizer =
                         *createInfo->rasterizerDescription;
@@ -182,7 +238,37 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                         toMtlWindingOrder(rasterizer.frontFacing);
                     graphicsPipelineWrapper.depthClipMode =
                         rasterizer.depthClampEnable ? MTLDepthClipModeClamp
-                                                   : MTLDepthClipModeClip;
+                                                    : MTLDepthClipModeClip;
+                } else {
+                    result = FV_RESULT_FAILURE;
+                }
+
+                // Fill out viewport and scissor info
+                if (createInfo->viewportDescription != nullptr) {
+                    FvPipelineViewportDescription viewportDescription =
+                        *createInfo->viewportDescription;
+
+                    graphicsPipelineWrapper.viewport.originX =
+                        viewportDescription.viewport.x;
+                    graphicsPipelineWrapper.viewport.originY =
+                        viewportDescription.viewport.y;
+                    graphicsPipelineWrapper.viewport.width =
+                        viewportDescription.viewport.width;
+                    graphicsPipelineWrapper.viewport.height =
+                        viewportDescription.viewport.height;
+                    graphicsPipelineWrapper.viewport.znear =
+                        viewportDescription.viewport.minDepth;
+                    graphicsPipelineWrapper.viewport.zfar =
+                        viewportDescription.viewport.maxDepth;
+
+                    graphicsPipelineWrapper.scissor.x =
+                        viewportDescription.scissor.offset.x;
+                    graphicsPipelineWrapper.scissor.y =
+                        viewportDescription.scissor.offset.y;
+                    graphicsPipelineWrapper.scissor.width =
+                        viewportDescription.scissor.extent.width;
+                    graphicsPipelineWrapper.scissor.height =
+                        viewportDescription.scissor.extent.height;
                 } else {
                     result = FV_RESULT_FAILURE;
                 }
@@ -573,5 +659,76 @@ MTLCullMode MetalWrapper::toMtlCullMode(FvCullMode cull) {
     }
 
     return cullMode;
+}
+
+MTLStencilOperation MetalWrapper::toMtlStencilOperation(FvStencilOp stencil) {
+    MTLStencilOperation stencilOperation = MTLStencilOperationKeep;
+
+    switch (stencil) {
+    case FV_STENCIL_OP_KEEP:
+        stencilOperation = MTLStencilOperationKeep;
+        break;
+    case FV_STENCIL_OP_ZERO:
+        stencilOperation = MTLStencilOperationZero;
+        break;
+    case FV_STENCIL_OP_REPLACE:
+        stencilOperation = MTLStencilOperationReplace;
+        break;
+    case FV_STENCIL_OP_INCREMENT_CLAMP:
+        stencilOperation = MTLStencilOperationIncrementClamp;
+        break;
+    case FV_STENCIL_OP_DECREMENT_CLAMP:
+        stencilOperation = MTLStencilOperationDecrementClamp;
+        break;
+    case FV_STENCIL_OP_INVERT:
+        stencilOperation = MTLStencilOperationInvert;
+        break;
+    case FV_STENCIL_OP_INCREMENT_WRAP:
+        stencilOperation = MTLStencilOperationIncrementWrap;
+        break;
+    case FV_STENCIL_OP_DECREMENT_WRAP:
+        stencilOperation = MTLStencilOperationDecrementWrap;
+        break;
+    default:
+        break;
+    }
+
+    return stencilOperation;
+}
+
+MTLCompareFunction MetalWrapper::toMtlCompareFunction(FvCompareFunc compare) {
+    MTLCompareFunction compareFunction = MTLCompareFunctionAlways;
+
+    switch (compare) {
+
+    case FV_COMPARE_FUNC_NEVER:
+        compareFunction = MTLCompareFunctionNever;
+        break;
+    case FV_COMPARE_FUNC_LESS:
+        compareFunction = MTLCompareFunctionLess;
+        break;
+    case FV_COMPARE_FUNC_EQUAL:
+        compareFunction = MTLCompareFunctionEqual;
+        break;
+    case FV_COMPARE_FUNC_LESS_EQUAL:
+        compareFunction = MTLCompareFunctionLessEqual;
+        break;
+    case FV_COMPARE_FUNC_NOT_EQUAL:
+        compareFunction = MTLCompareFunctionNotEqual;
+        break;
+    case FV_COMPARE_FUNC_GREATER:
+        compareFunction = MTLCompareFunctionGreater;
+        break;
+    case FV_COMPARE_FUNC_GREATER_EQUAL:
+        compareFunction = MTLCompareFunctionGreaterEqual;
+        break;
+    case FV_COMPARE_FUNC_ALWAYS:
+        compareFunction = MTLCompareFunctionAlways;
+        break;
+    default:
+        break;
+    }
+
+    return compareFunction;
 }
 }

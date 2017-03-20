@@ -247,8 +247,7 @@ typedef struct FvVertexInputAttributeDescription {
     /** Format of the vertext attribute (number of color channels of format
      * should match number of components in shader data type) */
     FvFormat format;
-    /** Number of bytes from start of per-vertex data to begin reading from
-*/
+    /** Number of bytes from start of per-vertex data to begin reading from */
     uint32_t offset;
 } FvVertexInputAttributeDescription;
 

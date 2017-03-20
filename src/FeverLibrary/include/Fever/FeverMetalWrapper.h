@@ -70,6 +70,8 @@ struct GraphicsPipelineWrapper {
     MTLDepthClipMode depthClipMode;
     id<MTLDepthStencilState> depthStencilState;
     id<MTLRenderPipelineState> renderPipelineState;
+    MTLViewport viewport;
+    MTLScissorRect scissor;
 };
 
 class MetalWrapper {
@@ -124,6 +126,10 @@ class MetalWrapper {
     static MTLWinding toMtlWindingOrder(FvWindingOrder winding);
 
     static MTLCullMode toMtlCullMode(FvCullMode cull);
+
+    static MTLStencilOperation toMtlStencilOperation(FvStencilOp stencil);
+
+    static MTLCompareFunction toMtlCompareFunction(FvCompareFunc compare);
 
     CAMetalLayer *metalLayer;
     id<MTLDevice> device;

@@ -42,7 +42,8 @@ void MetalWrapper::shutdown() {
 FvResult MetalWrapper::graphicsPipelineCreate(
     FvGraphicsPipeline *graphicsPipeline,
     const FvGraphicsPipelineCreateInfo *createInfo) {
-    // TODO: Clean up, deal with optional fields early
+    // TODO: Clean up, put into separate functions deal with optional fields
+    // early
     FvResult result = FV_RESULT_FAILURE;
 
     if (graphicsPipeline != nullptr && createInfo != nullptr) {
@@ -298,7 +299,21 @@ FvResult MetalWrapper::graphicsPipelineCreate(
 }
 
 void MetalWrapper::graphicsPipelineDestroy(
-    FvGraphicsPipeline graphicsPipeline) {}
+    FvGraphicsPipeline graphicsPipeline) {
+    const Handle *handle = (const Handle *)graphicsPipeline;
+
+    if (handle != nullptr) {
+        GraphicsPipelineWrapper *pipeline = graphicsPipelines.get(*handle);
+
+        // Destroy pipeline
+        if (pipeline != nullptr) {
+            pipeline->depthStencilState = nil;
+            pipeline->renderPipelineState = nil;
+        }
+
+        graphicsPipelines.remove(*handle);
+    }
+}
 
 FvResult
 MetalWrapper::renderPassCreate(FvRenderPass *renderPass,

@@ -195,6 +195,7 @@ class HelloTriangleApplication {
     void createGraphicsPipeline() {
         std::vector<char> shaderCode =
             readFile("src/projects/app/assets/hello.metal");
+        shaderCode.push_back('\0');
 
         FDeleter<FvShaderModule> shaderModule{fvShaderModuleDestroy};
 
@@ -249,7 +250,7 @@ class HelloTriangleApplication {
 
         FvPipelineRasterizerDescription rasterizer = {};
         rasterizer.depthClampEnable                = false;
-        rasterizer.rasterizerDiscardEnable         = false;
+        /* rasterizer.rasterizerDiscardEnable         = false; */
         rasterizer.cullMode                        = FV_CULL_MODE_BACK;
         rasterizer.frontFacing                     = FV_WINDING_ORDER_CLOCKWISE;
 

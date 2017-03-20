@@ -63,14 +63,25 @@ struct RenderPassWrapper {
     std::vector<SubpassWrapper> subpasses;
 };
 
+struct GraphicsPipelineWrapper {
+    MTLRenderPassDescriptor *renderPass;
+    MTLCullMode cullMode;
+    MTLWinding windingOrder;
+    MTLDepthClipMode depthClipMode;
+    id<MTLDepthStencilState> depthStencilState;
+    id<MTLRenderPipelineState> renderPipelineState;
+};
+
 class MetalWrapper {
   public:
-    static const uint32_t MAX_NUM_LIBRARIES     = 64;
-    static const uint32_t MAX_NUM_RENDER_PASSES = 64;
+    static const uint32_t MAX_NUM_LIBRARIES          = 64;
+    static const uint32_t MAX_NUM_RENDER_PASSES      = 64;
+    static const uint32_t MAX_NUM_GRAPHICS_PIPELINES = 64;
 
     MetalWrapper()
         : metalLayer(NULL), device(nil), commandQueue(nil),
-          libraries(MAX_NUM_LIBRARIES), renderPasses(MAX_NUM_RENDER_PASSES) {}
+          libraries(MAX_NUM_LIBRARIES), renderPasses(MAX_NUM_RENDER_PASSES),
+          graphicsPipelines(MAX_NUM_GRAPHICS_PIPELINES) {}
 
     FvResult init(const FvInitInfo *initInfo);
 
@@ -104,11 +115,22 @@ class MetalWrapper {
 
     static MTLPixelFormat toMtlPixelFormat(FvFormat format);
 
+    static MTLBlendFactor toMtlBlendFactor(FvBlendFactor factor);
+
+    static MTLBlendOperation toMtlBlendOperation(FvBlendOp op);
+
+    static BOOL toObjCBool(bool b);
+
+    static MTLWinding toMtlWindingOrder(FvWindingOrder winding);
+
+    static MTLCullMode toMtlCullMode(FvCullMode cull);
+
     CAMetalLayer *metalLayer;
     id<MTLDevice> device;
     id<MTLCommandQueue> commandQueue;
 
     PersistentHandleDataStore<id<MTLLibrary>> libraries;
     PersistentHandleDataStore<RenderPassWrapper> renderPasses;
+    PersistentHandleDataStore<GraphicsPipelineWrapper> graphicsPipelines;
 };
 }

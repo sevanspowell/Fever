@@ -210,7 +210,7 @@ typedef struct FvPipelineRasterizerDescription {
 them */
     bool depthClampEnable;
     /** If true, geometry never passes through rasterizer stage */
-    bool rasterizerDiscardEnable;
+    /* bool rasterizerDiscardEnable; */
     /** Cull front or back faces or none */
     FvCullMode cullMode;
     /** Winding order of front-facing primitives */

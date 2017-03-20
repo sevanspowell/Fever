@@ -42,7 +42,171 @@ void MetalWrapper::shutdown() {
 FvResult MetalWrapper::graphicsPipelineCreate(
     FvGraphicsPipeline *graphicsPipeline,
     const FvGraphicsPipelineCreateInfo *createInfo) {
+    // TODO: Clean up, deal with optional fields early
     FvResult result = FV_RESULT_FAILURE;
+
+    if (graphicsPipeline != nullptr && createInfo != nullptr) {
+        // Create GraphicsPipelineWrapper
+        GraphicsPipelineWrapper graphicsPipelineWrapper;
+        graphicsPipelineWrapper.renderPass          = NULL;
+        graphicsPipelineWrapper.cullMode            = MTLCullModeNone;
+        graphicsPipelineWrapper.windingOrder        = MTLWindingClockwise;
+        graphicsPipelineWrapper.depthClipMode       = MTLDepthClipModeClip;
+        graphicsPipelineWrapper.depthStencilState   = nil;
+        graphicsPipelineWrapper.renderPipelineState = nil;
+
+        // Get subpass to use from render pass and index
+        Handle *renderPassHandle = (Handle *)createInfo->renderPass;
+
+        if (renderPassHandle != nullptr) {
+            RenderPassWrapper *renderPassWrapper =
+                renderPasses.get(*renderPassHandle);
+
+            if (renderPassWrapper != nullptr) {
+                SubpassWrapper subpassWrapper =
+                    renderPassWrapper->subpasses[createInfo->subpass];
+
+                // Fill out shader functions for Metal pipeline descriptor
+                MTLRenderPipelineDescriptor *mtlPipelineDescriptor =
+                    subpassWrapper.mtlPipelineDescriptor;
+
+                if (createInfo->stages != nullptr) {
+                    // Loop thru shader stages and assign functions to
+                    // mtlPipelineDescriptor
+                    for (uint32_t i = 0; i < createInfo->stageCount; ++i) {
+                        FvPipelineShaderStageDescription shaderStage =
+                            createInfo->stages[i];
+
+                        Handle *shaderModuleHandle =
+                            (Handle *)shaderStage.shaderModule;
+                        if (shaderModuleHandle != nullptr) {
+                            id<MTLLibrary> *library =
+                                libraries.get(*shaderModuleHandle);
+
+                            if (library != nullptr) {
+                                id<MTLFunction> func = [*library
+                                    newFunctionWithName:
+                                        @(shaderStage.entryFunctionName)];
+
+                                if (func != nil) {
+                                    switch (shaderStage.stage) {
+                                    case FV_SHADER_STAGE_VERTEX:
+                                        mtlPipelineDescriptor.vertexFunction =
+                                            func;
+                                        result = FV_RESULT_SUCCESS;
+                                        break;
+                                    case FV_SHADER_STAGE_FRAGMENT:
+                                        mtlPipelineDescriptor.fragmentFunction =
+                                            func;
+                                        result = FV_RESULT_SUCCESS;
+                                        break;
+                                    default:
+                                        break;
+                                    }
+                                } else {
+                                    printf("Failed to find function with name "
+                                           "'%s' in shader module.\n",
+                                           shaderStage.entryFunctionName);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Create color blend states for ColorBlendAttachmentState
+                if (createInfo->colorBlendStateDescription != nullptr &&
+                    createInfo->colorBlendStateDescription->attachments !=
+                        nullptr) {
+                    FvPipelineColorBlendStateDescription colorBlendState =
+                        *createInfo->colorBlendStateDescription;
+
+                    // Loop through color attachments and set color blend states
+                    for (uint32_t i = 0; i < colorBlendState.attachmentCount;
+                         ++i) {
+                        mtlPipelineDescriptor.colorAttachments[i]
+                            .blendingEnabled = toObjCBool(
+                            colorBlendState.attachments[i].blendEnable);
+                        mtlPipelineDescriptor.colorAttachments[i]
+                            .sourceRGBBlendFactor = toMtlBlendFactor(
+                            colorBlendState.attachments[i].srcColorBlendFactor);
+                        mtlPipelineDescriptor.colorAttachments[i]
+                            .destinationRGBBlendFactor = toMtlBlendFactor(
+                            colorBlendState.attachments[i].dstColorBlendFactor);
+                        mtlPipelineDescriptor.colorAttachments[i]
+                            .rgbBlendOperation = toMtlBlendOperation(
+                            colorBlendState.attachments[i].colorBlendOp);
+                        mtlPipelineDescriptor.colorAttachments[i]
+                            .sourceAlphaBlendFactor = toMtlBlendFactor(
+                            colorBlendState.attachments[i].srcAlphaBlendFactor);
+                        mtlPipelineDescriptor.colorAttachments[i]
+                            .destinationAlphaBlendFactor = toMtlBlendFactor(
+                            colorBlendState.attachments[i].dstAlphaBlendFactor);
+                        mtlPipelineDescriptor.colorAttachments[i]
+                            .alphaBlendOperation = toMtlBlendOperation(
+                            colorBlendState.attachments[i].alphaBlendOp);
+                    }
+                }
+
+                // We've now done all the work required to make a
+                // MTLRenderPipelineState object:
+                NSError *err                                      = nil;
+                id<MTLRenderPipelineState> mtlRenderPipelineState = [device
+                    newRenderPipelineStateWithDescriptor:mtlPipelineDescriptor
+                                                   error:&err];
+
+                if (mtlRenderPipelineState != nil) {
+                    graphicsPipelineWrapper.renderPipelineState =
+                        mtlRenderPipelineState;
+                } else {
+                    NSString *errString =
+                        [NSString stringWithFormat:@"%@", err];
+
+                    printf(
+                        "Failed to create render pipeline state: %s\n",
+                        [errString cStringUsingEncoding:NSUTF8StringEncoding]);
+
+                    result = FV_RESULT_FAILURE;
+                }
+
+                // Create depth stencil states from DepthStencilDescription
+                if (createInfo->depthStencilDescription != nullptr) {
+                }
+
+                if (createInfo->rasterizerDescription != nullptr) {
+                    FvPipelineRasterizerDescription rasterizer =
+                        *createInfo->rasterizerDescription;
+
+                    graphicsPipelineWrapper.cullMode =
+                        toMtlCullMode(rasterizer.cullMode);
+                    graphicsPipelineWrapper.windingOrder =
+                        toMtlWindingOrder(rasterizer.frontFacing);
+                    graphicsPipelineWrapper.depthClipMode =
+                        rasterizer.depthClampEnable ? MTLDepthClipModeClamp
+                                                   : MTLDepthClipModeClip;
+                } else {
+                    result = FV_RESULT_FAILURE;
+                }
+            }
+        }
+
+        if (result == FV_RESULT_SUCCESS) {
+            // Store graphics pipeline wrapper and return handle as graphics
+            // pipeline
+            const Handle *handle =
+                graphicsPipelines.add(graphicsPipelineWrapper);
+
+            if (handle != nullptr) {
+                *graphicsPipeline = (FvGraphicsPipeline)handle;
+
+            } else {
+                result = FV_RESULT_FAILURE;
+            }
+        }
+    }
+
+    // Create function objects from shader stage descriptions
+    // Loop thru stages
+    // Create vector of shader functions
 
     return result;
 }
@@ -162,7 +326,8 @@ MetalWrapper::shaderModuleCreate(FvShaderModule *shaderModule,
                                  const FvShaderModuleCreateInfo *createInfo) {
     FvResult result = FV_RESULT_FAILURE;
 
-    if (shaderModule != nullptr && createInfo != nullptr) {
+    if (shaderModule != nullptr && createInfo != nullptr &&
+        createInfo->data != nullptr) {
         MTLCompileOptions *options = [MTLCompileOptions new];
 
         NSError *error;
@@ -249,25 +414,25 @@ MTLPixelFormat MetalWrapper::toMtlPixelFormat(FvFormat format) {
     MTLPixelFormat pixelFormat = MTLPixelFormatInvalid;
 
     switch (format) {
-    FV_FORMAT_RGBA8UNORM:
+    case FV_FORMAT_RGBA8UNORM:
         pixelFormat = MTLPixelFormatRGBA8Unorm;
         break;
-    FV_FORMAT_RGBA16FLOAT:
+    case FV_FORMAT_RGBA16FLOAT:
         pixelFormat = MTLPixelFormatRGBA16Float;
         break;
-    FV_FORMAT_DEPTH32FLOAT_STENCIL8:
+    case FV_FORMAT_DEPTH32FLOAT_STENCIL8:
         pixelFormat = MTLPixelFormatDepth32Float_Stencil8;
         break;
-    FV_FORMAT_BGRA8UNORM:
+    case FV_FORMAT_BGRA8UNORM:
         pixelFormat = MTLPixelFormatBGRA8Unorm;
         break;
-    FV_FORMAT_R32_SFLOAT:
+    case FV_FORMAT_R32_SFLOAT:
         pixelFormat = MTLPixelFormatR32Float;
         break;
-    FV_FORMAT_R32G32_SFLOAT:
+    case FV_FORMAT_R32G32_SFLOAT:
         pixelFormat = MTLPixelFormatRG32Float;
         break;
-    FV_FORMAT_R32G32B32A32_SFLOAT:
+    case FV_FORMAT_R32G32B32A32_SFLOAT:
         pixelFormat = MTLPixelFormatRGBA32Float;
         break;
     default:
@@ -275,5 +440,138 @@ MTLPixelFormat MetalWrapper::toMtlPixelFormat(FvFormat format) {
     };
 
     return pixelFormat;
+}
+
+MTLBlendFactor MetalWrapper::toMtlBlendFactor(FvBlendFactor factor) {
+    MTLBlendFactor blendFactor = MTLBlendFactorZero;
+
+    switch (factor) {
+    case FV_BLEND_FACTOR_ZERO:
+        blendFactor = MTLBlendFactorZero;
+        break;
+    case FV_BLEND_FACTOR_ONE:
+        blendFactor = MTLBlendFactorOne;
+        break;
+    case FV_BLEND_FACTOR_SOURCE_COLOR:
+        blendFactor = MTLBlendFactorSourceColor;
+        break;
+    case FV_BLEND_FACTOR_ONE_MINUS_SOURCE_COLOR:
+        blendFactor = MTLBlendFactorOneMinusSourceColor;
+        break;
+    case FV_BLEND_FACTOR_SOURCE_ALPHA:
+        blendFactor = MTLBlendFactorSourceAlpha;
+        break;
+    case FV_BLEND_FACTOR_ONE_MINUS_SOURCE_ALPHA:
+        blendFactor = MTLBlendFactorOneMinusSourceAlpha;
+        break;
+    case FV_BLEND_FACTOR_DST_COLOR:
+        blendFactor = MTLBlendFactorDestinationColor;
+        break;
+    case FV_BLEND_FACTOR_ONE_MINUS_DST_COLOR:
+        blendFactor = MTLBlendFactorOneMinusDestinationColor;
+        break;
+    case FV_BLEND_FACTOR_DST_ALPHA:
+        blendFactor = MTLBlendFactorDestinationAlpha;
+        break;
+    case FV_BLEND_FACTOR_ONE_MINUS_DST_ALPHA:
+        blendFactor = MTLBlendFactorOneMinusDestinationAlpha;
+        break;
+    case FV_BLEND_FACTOR_SOURCE_ALPHA_SATURATED:
+        blendFactor = MTLBlendFactorSourceAlphaSaturated;
+        break;
+    case FV_BLEND_FACTOR_BLEND_COLOR:
+        blendFactor = MTLBlendFactorBlendColor;
+        break;
+    case FV_BLEND_FACTOR_ONE_MINUS_BLEND_COLOR:
+        blendFactor = MTLBlendFactorOneMinusBlendColor;
+        break;
+    case FV_BLEND_FACTOR_BLEND_ALPHA:
+        blendFactor = MTLBlendFactorBlendAlpha;
+        break;
+    case FV_BLEND_FACTOR_ONE_MINUS_BLEND_ALPHA:
+        blendFactor = MTLBlendFactorOneMinusBlendAlpha;
+        break;
+    case FV_BLEND_FACTOR_SOURCE1_COLOR:
+        blendFactor = MTLBlendFactorSource1Color;
+        break;
+    case FV_BLEND_FACTOR_ONE_MINUS_SOURCE1_COLOR:
+        blendFactor = MTLBlendFactorOneMinusSource1Color;
+        break;
+    case FV_BLEND_FACTOR_SOURCE1_ALPHA:
+        blendFactor = MTLBlendFactorSource1Alpha;
+        break;
+    case FV_BLEND_FACTOR_ONE_MINUS_SOURCE1_ALPHA:
+        blendFactor = MTLBlendFactorOneMinusSource1Alpha;
+        break;
+    default:
+        break;
+    }
+
+    return blendFactor;
+}
+
+MTLBlendOperation MetalWrapper::toMtlBlendOperation(FvBlendOp op) {
+    MTLBlendOperation blendOperation = MTLBlendOperationAdd;
+
+    switch (op) {
+    FV_BLEND_OP_ADD:
+        blendOperation = MTLBlendOperationAdd;
+        break;
+    FV_BLEND_OP_SUBTRACT:
+        blendOperation = MTLBlendOperationSubtract;
+        break;
+    FV_BLEND_OP_REVERSE_SUBTRACT:
+        blendOperation = MTLBlendOperationReverseSubtract;
+        break;
+    FV_BLEND_OP_MIN:
+        blendOperation = MTLBlendOperationMin;
+        break;
+    FV_BLEND_OP_MAX:
+        blendOperation = MTLBlendOperationMax;
+        break;
+    default:
+        break;
+    }
+
+    return blendOperation;
+}
+
+BOOL MetalWrapper::toObjCBool(bool b) { return (b ? YES : NO); }
+
+MTLWinding MetalWrapper::toMtlWindingOrder(FvWindingOrder winding) {
+    MTLWinding windingOrder = MTLWindingClockwise;
+
+    switch (winding) {
+    case FV_WINDING_ORDER_CLOCKWISE:
+        windingOrder = MTLWindingClockwise;
+        break;
+    case FV_WINDING_ORDER_COUNTER_CLOCKWISE:
+        windingOrder = MTLWindingCounterClockwise;
+        break;
+    default:
+        break;
+    }
+
+    return windingOrder;
+}
+
+MTLCullMode MetalWrapper::toMtlCullMode(FvCullMode cull) {
+    MTLCullMode cullMode = MTLCullModeNone;
+
+    switch (cull) {
+    case FV_CULL_MODE_NONE:
+        cullMode = MTLCullModeNone;
+        break;
+    case FV_CULL_MODE_FRONT:
+        cullMode = MTLCullModeFront;
+        break;
+    case FV_CULL_MODE_BACK:
+        cullMode = MTLCullModeBack;
+        break;
+    default:
+        break;
+    }
+
+    return cullMode;
 }
 }

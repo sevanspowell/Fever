@@ -3,7 +3,9 @@ cmake_minimum_required(VERSION 3.2 FATAL_ERROR)
 project(FeverLibrary VERSION 0.0.1 LANGUAGES C CXX)
 
 add_library(Fever
-  src/Sample.c
+  src/FeverMetalBackend.mm
+  src/FeverMetalWrapper.mm
+  src/Handle.cpp
   )
 
 target_include_directories(Fever
@@ -15,13 +17,17 @@ target_include_directories(Fever
   )
 
 set_property(TARGET Fever PROPERTY C_STANDARD_REQUIRED ON)
-set_property(TARGET Fever PROPERTY C_STANDARD 90)
+set_property(TARGET Fever PROPERTY C_STANDARD 99)
 
 # target_compile_features(Fever
 #   )
 
 target_link_libraries(Fever
   glew
+  ${METAL_LIBRARY}
+  ${QUARTZCORE_FRAMEWORK}
+  ${COREFOUNDATION_LIBRARY}
+  ${COCOA_LIBRARY}
   )
 
 install(TARGETS Fever EXPORT FeverConfig

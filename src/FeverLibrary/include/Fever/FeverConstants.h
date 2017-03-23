@@ -43,25 +43,32 @@ typedef enum FvFormat {
     FV_FORMAT_BGRA8UNORM,
     FV_FORMAT_R32_SFLOAT,
     FV_FORMAT_R32G32_SFLOAT,
-    FV_FORMAT_R32G32B32A32_SFLOAT
+    FV_FORMAT_R32G32B32A32_SFLOAT,
 } FvFormat;
 
-typedef enum FvTextureUsage {
-    FV_TEXTURE_USAGE_UNKNOWN,
-    FV_TEXTURE_USAGE_RENDER_TARGET,
-    FV_TEXTURE_USAGE_SHADER_READ,
-    FV_TEXTURE_USAGE_SHADER_WRITE
-} FvTextureUsage;
+typedef enum FvImageType {
+    FV_IMAGE_TYPE_1D,
+    FV_IMAGE_TYPE_2D,
+    FV_IMAGE_TYPE_3D,
+} FvImageType;
 
-typedef enum FvTextureViewType {
-    FV_TEXTURE_VIEW_TYPE_1D,
-    FV_TEXTURE_VIEW_TYPE_2D,
-    FV_TEXTURE_VIEW_TYPE_3D,
-    FV_TEXTURE_VIEW_TYPE_CUBE,
-    FV_TEXTURE_VIEW_TYPE_1D_ARRAY,
-    FV_TEXTURE_VIEW_TYPE_2D_ARRAY,
-    FV_TEXTURE_VIEW_TYPE_CUBE_ARRAY
-} FvTextureViewType;
+typedef enum FvImageUsage {
+    FV_IMAGE_USAGE_UNKNOWN = 0,
+    FV_IMAGE_USAGE_RENDER_TARGET = 1 << 0,
+    FV_IMAGE_USAGE_SHADER_READ = 1 << 1,
+    FV_IMAGE_USAGE_SHADER_WRITE = 1 << 2,
+    FV_IMAGE_USAGE_IMAGE_VIEW = 1 << 3,
+} FvImageUsage;
+
+typedef enum FvImageViewType {
+    FV_IMAGE_VIEW_TYPE_1D,
+    FV_IMAGE_VIEW_TYPE_2D,
+    FV_IMAGE_VIEW_TYPE_3D,
+    FV_IMAGE_VIEW_TYPE_CUBE,
+    FV_IMAGE_VIEW_TYPE_1D_ARRAY,
+    FV_IMAGE_VIEW_TYPE_2D_ARRAY,
+    FV_IMAGE_VIEW_TYPE_CUBE_ARRAY
+} FvImageViewType;
 
 typedef enum FvCompareFunc {
     /** Newer value always passes */
@@ -182,7 +189,7 @@ typedef enum FvSampleCount {
     FV_SAMPLE_COUNT_8,
     FV_SAMPLE_COUNT_16,
     FV_SAMPLE_COUNT_32,
-    FV_SAMPLE_COUNT_64
+    FV_SAMPLE_COUNT_64,
 } FvSampleCount;
 
 typedef enum FvVertexInputRate {

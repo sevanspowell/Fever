@@ -79,15 +79,27 @@ class MetalWrapper {
     static const uint32_t MAX_NUM_LIBRARIES          = 64;
     static const uint32_t MAX_NUM_RENDER_PASSES      = 64;
     static const uint32_t MAX_NUM_GRAPHICS_PIPELINES = 64;
+    static const uint32_t MAX_NUM_TEXTURES           = 256;
+    static const uint32_t MAX_NUM_TEXTURE_VIEWS      = 256;
 
     MetalWrapper()
         : metalLayer(NULL), device(nil), commandQueue(nil),
           libraries(MAX_NUM_LIBRARIES), renderPasses(MAX_NUM_RENDER_PASSES),
-          graphicsPipelines(MAX_NUM_GRAPHICS_PIPELINES) {}
+          graphicsPipelines(MAX_NUM_GRAPHICS_PIPELINES),
+          textures(MAX_NUM_TEXTURES), textureViews(MAX_NUM_TEXTURE_VIEWS) {}
 
     FvResult init(const FvInitInfo *initInfo);
 
     void shutdown();
+
+    FvResult imageViewCreate(FvImageView *imageView,
+                             const FvImageViewCreateInfo *createInfo);
+
+    void imageViewDestroy(FvImageView imageView);
+
+    FvResult imageCreate(FvImage *image, const FvImageCreateInfo *createInfo);
+
+    void imageDestroy(FvImage image);
 
     FvResult
     graphicsPipelineCreate(FvGraphicsPipeline *graphicsPipeline,
@@ -131,6 +143,10 @@ class MetalWrapper {
 
     static MTLCompareFunction toMtlCompareFunction(FvCompareFunc compare);
 
+    static uint32_t toMtlSampleCount(FvSampleCount samples);
+
+    static MTLTextureUsage toMtlTextureUsage(FvImageUsage imageUsage);
+
     CAMetalLayer *metalLayer;
     id<MTLDevice> device;
     id<MTLCommandQueue> commandQueue;
@@ -138,5 +154,7 @@ class MetalWrapper {
     PersistentHandleDataStore<id<MTLLibrary>> libraries;
     PersistentHandleDataStore<RenderPassWrapper> renderPasses;
     PersistentHandleDataStore<GraphicsPipelineWrapper> graphicsPipelines;
+    PersistentHandleDataStore<id<MTLTexture>> textures;
+    PersistentHandleDataStore<id<MTLTexture>> textureViews;
 };
 }

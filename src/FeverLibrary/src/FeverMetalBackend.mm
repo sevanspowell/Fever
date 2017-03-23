@@ -38,6 +38,36 @@ void fvShutdown() {
         metalWrapper->shutdown();
 
         delete metalWrapper;
+        metalWrapper = nullptr;
+    }
+}
+
+FvResult fvImageViewCreate(FvImageView *imageView,
+                       const FvImageViewCreateInfo *createInfo) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->imageViewCreate(imageView, createInfo);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+void fvImageViewDestroy(FvImageView imageView) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->imageViewDestroy(imageView);
+    }
+}
+
+FvResult fvImageCreate(FvImage *image, const FvImageCreateInfo *createInfo) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->imageCreate(image, createInfo);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+void fvImageDestroy(FvImage image) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->imageDestroy(image);
     }
 }
 
@@ -137,3 +167,4 @@ FvResult fvCreateCocoaSurface(FvSurface *surface,
 }
 
 void fvDestroySurface(FvSurface surface) { surface = nullptr; }
+

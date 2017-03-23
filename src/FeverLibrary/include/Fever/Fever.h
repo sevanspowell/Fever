@@ -40,6 +40,27 @@
 /*     FvClearDepthStencil depthStencil; */
 /* } FvClearValue; */
 
+typedef struct FvOffset2D {
+    int32_t x;
+    int32_t y;
+} FvOffset2D;
+
+typedef struct FvExtent2D {
+    uint32_t width;
+    uint32_t height;
+} FvExtent2D;
+
+typedef struct FvExtent3D {
+    uint32_t width;
+    uint32_t height;
+    uint32_t depth;
+} FvExtent3D;
+
+typedef struct FvRect2D {
+    FvOffset2D offset;
+    FvExtent2D extent;
+} FvRect2D;
+
 /* /\** Structure specifying creation parameters for a buffer. *\/ */
 /* typedef struct FvBufferCreateInfo { */
 /*     FvBufferType type; /\** Type of the buffer. *\/ */
@@ -72,34 +93,31 @@ fvShaderModuleCreate(FvShaderModule *shaderModule,
 
 extern void fvShaderModuleDestroy(FvShaderModule shaderModule);
 
-/* /\** Opaque handle to texture object. *\/ */
-/* FV_DEFINE_HANDLE(FvTexture); */
+/** Opaque handle to image object. */
+FV_DEFINE_HANDLE(FvImage);
 
-/* /\** Structure specifying creation parameters for a texture. *\/ */
-/* typedef struct FvTextureCreateInfo { */
-/*     /\** Format of each pixel in the texture *\/ */
-/*     FvFormat format; */
-/*     /\** Width of the texture *\/ */
-/*     uint32_t width; */
-/*     /\** Height of the texture *\/ */
-/*     uint32_t height; */
-/*     /\** Depth of the texture *\/ */
-/*     uint32_t depth; */
-/*     /\** Number of mipmap levels *\/ */
-/*     uint32_t numMipmapLevels; */
-/*     /\** Number of samples in each pixel *\/ */
-/*     FvSampleCount numSamples; */
-/*     /\** How the texture will be used *\/ */
-/*     FvTextureUsage usage; */
-/* } FvTextureCreateInfo; */
+/** Structure specifying creation parameters for a image. */
+typedef struct FvImageCreateInfo {
+    /** Format of each pixel in the image */
+    FvFormat format;
+    /** Dimensionality of the image */
+    FvImageType imageType;
+    /** Dimensions of image */
+    FvExtent3D extent;
+    /** Number of mipmap levels */
+    uint32_t numMipmapLevels;
+    /** Number of layers in image */
+    uint32_t arrayLayers;
+    /** Number of samples in each pixel */
+    FvSampleCount numSamples;
+    /** How the image will be used (bitmask of FvImageUsage) */
+    FvImageUsage usage;
+} FvImageCreateInfo;
 
-/* extern void fvTextureCreate(FvTexture *texture, */
-/*                             const FvTextureCreateInfo *createInfo); */
+extern FvResult fvImageCreate(FvImage *image,
+                              const FvImageCreateInfo *createInfo);
 
-/* extern void fvTextureDestroy(FvTexture texture); */
-
-/** Opaque handle to depth stencil state object. */
-/* FV_DEFINE_HANDLE(FvDepthStencilState); */
+extern void fvImageDestroy(FvImage image);
 
 typedef struct FvStencilOperationState {
     /** Operation performed to update the values in the stencil attachment when
@@ -179,21 +197,6 @@ typedef struct FvViewport {
     /** Depth range of the viewport [0, 1] */
     float minDepth, maxDepth;
 } FvViewport;
-
-typedef struct FvOffset2D {
-    int32_t x;
-    int32_t y;
-} FvOffset2D;
-
-typedef struct FvExtent2D {
-    uint32_t width;
-    uint32_t height;
-} FvExtent2D;
-
-typedef struct FvRect2D {
-    FvOffset2D offset;
-    FvExtent2D extent;
-} FvRect2D;
 
 /** Describes viewport to render through */
 typedef struct FvPipelineViewportDescription {
@@ -403,44 +406,43 @@ field */
     uint32_t subpass;
 } FvGraphicsPipelineCreateInfo;
 
-extern FvResult 
+extern FvResult
 fvGraphicsPipelineCreate(FvGraphicsPipeline *graphicsPipeline,
                          const FvGraphicsPipelineCreateInfo *createInfo);
 
 extern void fvGraphicsPipelineDestroy(FvGraphicsPipeline graphicsPipeline);
 
-/* FV_DEFINE_HANDLE(FvTextureView); */
+FV_DEFINE_HANDLE(FvImageView);
 
-/* /\** Texture views are used to access texture data from shaders *\/ */
-/* typedef struct FvTextureViewCreateInfo { */
-/*     /\** Handle to texture object *\/ */
-/*     FvTexture texture; */
-/*     /\** Type of texture view *\/ */
-/*     FvTextureViewType viewType; */
-/*     /\** Texture view format *\/ */
-/*     FvFormat format; */
-/* } FvTextureViewCreateInfo; */
+/** Image views are used to access image data from shaders */
+typedef struct FvImageViewCreateInfo {
+    /** Handle to image object */
+    FvImage image;
+    /** Type of image view */
+    FvImageViewType viewType;
+    /** Image view format */
+    FvFormat format;
+} FvImageViewCreateInfo;
 
-/* extern void fvTextureViewCreate(FvTextureView *textureView, */
-/*                                 const FvTextureViewCreateInfo *createInfo);
- */
+extern FvResult fvImageViewCreate(FvImageView *imageView,
+                                  const FvImageViewCreateInfo *createInfo);
 
-/* extern void fvTextureViewDestroy(FvTextureView textureView); */
+extern void fvImageViewDestroy(FvImageView imageView);
 
 /* FV_DEFINE_HANDLE(FvFramebuffer); */
 
 /* typedef struct FvFramebufferCreateInfo { */
 /*     /\** Render pass object the framebuffer should be compatible with. *\/ */
 /*     FvRenderPass renderPass; */
-/*     /\** Number of texture attachments *\/ */
+/*     /\** Number of image attachments *\/ */
 /*     uint32_t attachmentCount; */
-/*     /\** Array of texture attachments *\/ */
-/*     const FvTextureView *attachments; */
+/*     /\** Array of image attachments *\/ */
+/*     const FvImageView *attachments; */
 /*     /\** Width of framebuffer *\/ */
 /*     uint32_t width; */
 /*     /\** Height of framebuffer *\/ */
 /*     uint32_t height; */
-/*     /\** Number of layers in texture arrays *\/ */
+/*     /\** Number of layers in image arrays *\/ */
 /*     uint32_t layers; */
 /* } FvFramebufferCreateInfo; */
 
@@ -559,7 +561,7 @@ extern void fvGraphicsPipelineDestroy(FvGraphicsPipeline graphicsPipeline);
 /* } FvPresentInfo; */
 
 /* /\** */
-/*  * Queue a texture for presentation. */
+/*  * Queue a image for presentation. */
 /*  *\/ */
 /* extern void fvQueuePresent(const FvPresentInfo *presentInfo); */
 

@@ -39,10 +39,141 @@ void MetalWrapper::shutdown() {
     FV_MTL_RELEASE(device);
 }
 
+FvResult
+MetalWrapper::imageViewCreate(FvImageView *imageView,
+                              const FvImageViewCreateInfo *createInfo) {
+    if (createInfo == nullptr || imageView == nullptr) {
+        return FV_RESULT_FAILURE;
+    }
+
+    // Get texture this texture view will be sharing a storage allocation with.
+    id<MTLTexture> texture = nil;
+    const Handle *handle   = (const Handle *)createInfo->image;
+
+    if (handle != nullptr) {
+        id<MTLTexture> *texturePtr = textures.get(*handle);
+
+        if (texturePtr != nullptr) {
+            texture = *texturePtr;
+        }
+    }
+
+    if (texture == nil) {
+        return FV_RESULT_FAILURE;
+    }
+
+    id<MTLTexture> textureView = [texture
+        newTextureViewWithPixelFormat:toMtlPixelFormat(createInfo->format)];
+
+    // Store texture view and return handle
+    handle = textureViews.add(textureView);
+
+    if (handle != nullptr) {
+        *imageView = (FvImageView)handle;
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+
+    return FV_RESULT_SUCCESS;
+}
+
+void MetalWrapper::imageViewDestroy(FvImageView imageView) {
+    const Handle *handle = (const Handle *)imageView;
+
+    if (handle != nullptr) {
+        id<MTLTexture> *textureView = textureViews.get(*handle);
+
+        // Destroy texture view
+        if (textureView != nullptr) {
+            *textureView = nil;
+        }
+
+        textureViews.remove(*handle);
+    }
+}
+
+FvResult MetalWrapper::imageCreate(FvImage *image,
+                                   const FvImageCreateInfo *createInfo) {
+    if (createInfo == nullptr || image == nullptr) {
+        return FV_RESULT_FAILURE;
+    }
+
+    MTLTextureDescriptor *textureDesc;
+
+    // Determine basic dimensionality of image and create descriptor
+    if (createInfo->imageType == FV_IMAGE_TYPE_1D ||
+        createInfo->imageType == FV_IMAGE_TYPE_2D) {
+        textureDesc = [MTLTextureDescriptor
+            texture2DDescriptorWithPixelFormat:toMtlPixelFormat(
+                                                   createInfo->format)
+                                         width:createInfo->extent.width
+                                        height:createInfo->extent.height
+                                     mipmapped:createInfo->numMipmapLevels > 1
+                                                   ? YES
+                                                   : NO];
+
+    } else {
+        textureDesc = [MTLTextureDescriptor
+            textureCubeDescriptorWithPixelFormat:toMtlPixelFormat(
+                                                     createInfo->format)
+                                            size:createInfo->extent.width
+                                       mipmapped:createInfo->numMipmapLevels > 1
+                                                     ? YES
+                                                     : NO];
+    }
+
+    if (textureDesc == NULL) {
+        return FV_RESULT_FAILURE;
+    }
+
+    // Setup descriptor
+    textureDesc.pixelFormat      = toMtlPixelFormat(createInfo->format);
+    textureDesc.width            = createInfo->extent.width;
+    textureDesc.height           = createInfo->extent.height;
+    textureDesc.depth            = createInfo->extent.depth;
+    textureDesc.mipmapLevelCount = createInfo->numMipmapLevels;
+    textureDesc.sampleCount      = toMtlSampleCount(createInfo->numSamples);
+    textureDesc.arrayLength      = createInfo->arrayLayers;
+    textureDesc.usage            = toMtlTextureUsage(createInfo->usage);
+
+    // Create texture
+    id<MTLTexture> texture = [device newTextureWithDescriptor:textureDesc];
+
+    if (texture == nil) {
+        return FV_RESULT_FAILURE;
+    }
+
+    // Store texture and return handle
+    const Handle *handle = textures.add(texture);
+
+    if (handle != nullptr) {
+        *image = (FvImage)handle;
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+
+    return FV_RESULT_SUCCESS;
+}
+
+void MetalWrapper::imageDestroy(FvImage image) {
+    const Handle *handle = (const Handle *)image;
+
+    if (handle != nullptr) {
+        id<MTLTexture> *texture = textures.get(*handle);
+
+        // Destroy texture
+        if (texture != nullptr) {
+            *texture = nil;
+        }
+
+        textures.remove(*handle);
+    }
+}
+
 FvResult MetalWrapper::graphicsPipelineCreate(
     FvGraphicsPipeline *graphicsPipeline,
     const FvGraphicsPipelineCreateInfo *createInfo) {
-    // TODO: Clean up, put into separate functions deal with optional fields
+    // TODO: Clean up, put into separate functions, deal with optional fields
     // early
     FvResult result = FV_RESULT_FAILURE;
 
@@ -307,7 +438,7 @@ void MetalWrapper::graphicsPipelineDestroy(
 
         // Destroy pipeline
         if (pipeline != nullptr) {
-            pipeline->depthStencilState = nil;
+            pipeline->depthStencilState   = nil;
             pipeline->renderPipelineState = nil;
         }
 
@@ -745,5 +876,56 @@ MTLCompareFunction MetalWrapper::toMtlCompareFunction(FvCompareFunc compare) {
     }
 
     return compareFunction;
+}
+
+uint32_t MetalWrapper::toMtlSampleCount(FvSampleCount samples) {
+    uint32_t sampleCount = 1;
+
+    switch (samples) {
+    case FV_SAMPLE_COUNT_1:
+        sampleCount = 1;
+        break;
+    case FV_SAMPLE_COUNT_2:
+        sampleCount = 2;
+        break;
+    case FV_SAMPLE_COUNT_4:
+        sampleCount = 4;
+        break;
+    case FV_SAMPLE_COUNT_8:
+        sampleCount = 8;
+        break;
+    case FV_SAMPLE_COUNT_16:
+        sampleCount = 16;
+        break;
+    case FV_SAMPLE_COUNT_32:
+        sampleCount = 32;
+        break;
+    case FV_SAMPLE_COUNT_64:
+        sampleCount = 64;
+        break;
+    default:
+        break;
+    }
+
+    return sampleCount;
+}
+
+MTLTextureUsage MetalWrapper::toMtlTextureUsage(FvImageUsage usage) {
+    MTLTextureUsage textureUsage = MTLTextureUsageUnknown;
+
+    if (usage & FV_IMAGE_USAGE_RENDER_TARGET) {
+        textureUsage |= MTLTextureUsageRenderTarget;
+    }
+    if (usage & FV_IMAGE_USAGE_SHADER_READ) {
+        textureUsage |= MTLTextureUsageShaderRead;
+    }
+    if (usage & FV_IMAGE_USAGE_SHADER_WRITE) {
+        textureUsage |= MTLTextureUsageShaderWrite;
+    }
+    if (usage & FV_IMAGE_USAGE_IMAGE_VIEW) {
+        textureUsage |= MTLTextureUsagePixelFormatView;
+    }
+
+    return textureUsage;
 }
 }

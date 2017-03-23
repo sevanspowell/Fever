@@ -251,8 +251,8 @@ class HelloTriangleApplication {
         FvPipelineRasterizerDescription rasterizer = {};
         rasterizer.depthClampEnable                = false;
         /* rasterizer.rasterizerDiscardEnable         = false; */
-        rasterizer.cullMode                        = FV_CULL_MODE_BACK;
-        rasterizer.frontFacing                     = FV_WINDING_ORDER_CLOCKWISE;
+        rasterizer.cullMode    = FV_CULL_MODE_BACK;
+        rasterizer.frontFacing = FV_WINDING_ORDER_CLOCKWISE;
 
         FvColorBlendAttachmentState colorBlendAttachment = {};
         colorBlendAttachment.blendEnable                 = false;
@@ -289,6 +289,32 @@ class HelloTriangleApplication {
         if (fvGraphicsPipelineCreate(graphicsPipeline.replace(),
                                      &pipelineInfo) != FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to create graphics pipeline!");
+        }
+
+        FvImageCreateInfo imageInfo = {};
+        imageInfo.format            = FV_FORMAT_BGRA8UNORM;
+        imageInfo.imageType         = FV_IMAGE_TYPE_2D;
+        imageInfo.extent.width      = 800;
+        imageInfo.extent.height     = 600;
+        imageInfo.extent.depth      = 1;
+        imageInfo.numMipmapLevels   = 1;
+        imageInfo.arrayLayers       = 1;
+        imageInfo.numSamples        = FV_SAMPLE_COUNT_1;
+        imageInfo.usage             = FV_IMAGE_USAGE_RENDER_TARGET;
+
+        FvImage image;
+        if (fvImageCreate(&image, &imageInfo) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create image!");
+        }
+
+        FvImageViewCreateInfo imageViewInfo{};
+        imageViewInfo.image    = image;
+        imageViewInfo.viewType = FV_IMAGE_VIEW_TYPE_2D;
+        imageViewInfo.format   = FV_FORMAT_BGRA8UNORM;
+
+        FvImageView imageView;
+        if (fvImageViewCreate(&imageView, &imageViewInfo) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create image view!");
         }
     }
 

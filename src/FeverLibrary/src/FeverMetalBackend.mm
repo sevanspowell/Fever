@@ -42,8 +42,23 @@ void fvShutdown() {
     }
 }
 
+FvResult fvFramebufferCreate(FvFramebuffer *framebuffer,
+                             const FvFramebufferCreateInfo *createInfo) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->framebufferCreate(framebuffer, createInfo);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+void fvFramebufferDestroy(FvFramebuffer framebuffer) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->framebufferDestroy(framebuffer);
+    }
+}
+
 FvResult fvImageViewCreate(FvImageView *imageView,
-                       const FvImageViewCreateInfo *createInfo) {
+                           const FvImageViewCreateInfo *createInfo) {
     if (metalWrapper != nullptr) {
         return metalWrapper->imageViewCreate(imageView, createInfo);
     } else {
@@ -167,4 +182,3 @@ FvResult fvCreateCocoaSurface(FvSurface *surface,
 }
 
 void fvDestroySurface(FvSurface surface) { surface = nullptr; }
-

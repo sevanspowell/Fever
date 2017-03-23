@@ -429,28 +429,27 @@ extern FvResult fvImageViewCreate(FvImageView *imageView,
 
 extern void fvImageViewDestroy(FvImageView imageView);
 
-/* FV_DEFINE_HANDLE(FvFramebuffer); */
+FV_DEFINE_HANDLE(FvFramebuffer);
 
-/* typedef struct FvFramebufferCreateInfo { */
-/*     /\** Render pass object the framebuffer should be compatible with. *\/ */
-/*     FvRenderPass renderPass; */
-/*     /\** Number of image attachments *\/ */
-/*     uint32_t attachmentCount; */
-/*     /\** Array of image attachments *\/ */
-/*     const FvImageView *attachments; */
-/*     /\** Width of framebuffer *\/ */
-/*     uint32_t width; */
-/*     /\** Height of framebuffer *\/ */
-/*     uint32_t height; */
-/*     /\** Number of layers in image arrays *\/ */
-/*     uint32_t layers; */
-/* } FvFramebufferCreateInfo; */
+typedef struct FvFramebufferCreateInfo {
+    /** Render pass object the framebuffer should be compatible with. */
+    FvRenderPass renderPass;
+    /** Number of image attachments */
+    uint32_t attachmentCount;
+    /** Array of image attachments */
+    const FvImageView *attachments;
+    /** Width of framebuffer */
+    uint32_t width;
+    /** Height of framebuffer */
+    uint32_t height;
+    /** Number of layers in image arrays */
+    uint32_t layers;
+} FvFramebufferCreateInfo;
 
-/* extern void fvFramebufferCreate(FvFramebuffer *framebuffer, */
-/*                                 const FvFramebufferCreateInfo *createInfo);
- */
+extern FvResult fvFramebufferCreate(FvFramebuffer *framebuffer,
+                                    const FvFramebufferCreateInfo *createInfo);
 
-/* extern void fvFramebufferDestroy(FvFramebuffer framebuffer); */
+extern void fvFramebufferDestroy(FvFramebuffer framebuffer);
 
 /* FV_DEFINE_HANDLE(FvCommandPool); */
 
@@ -561,7 +560,7 @@ extern void fvImageViewDestroy(FvImageView imageView);
 /* } FvPresentInfo; */
 
 /* /\** */
-/*  * Queue a image for presentation. */
+/*  * Queue an image for presentation. */
 /*  *\/ */
 /* extern void fvQueuePresent(const FvPresentInfo *presentInfo); */
 

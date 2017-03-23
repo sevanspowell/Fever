@@ -40,6 +40,48 @@ void MetalWrapper::shutdown() {
 }
 
 FvResult
+MetalWrapper::framebufferCreate(FvFramebuffer *framebuffer,
+                                const FvFramebufferCreateInfo *createInfo) {
+    if (createInfo == nullptr || framebuffer == nullptr) {
+        return FV_RESULT_FAILURE;
+    }
+
+    FramebufferWrapper framebufferWrapper;
+    for (uint32_t i = 0; i < createInfo->attachmentCount; ++i) {
+        // Get texture of image view attachment and store in the frambuffer
+        // wrapper
+        const Handle *handle = (const Handle *)createInfo->attachments[i];
+
+        if (handle != nullptr) {
+            id<MTLTexture> *texture = textureViews.get(*handle);
+
+            if (texture != nullptr) {
+                framebufferWrapper.attachments.push_back(*texture);
+            }
+        }
+    }
+
+    // Store framebuffer and return handle
+    const Handle *handle = framebuffers.add(framebufferWrapper);
+
+    if (handle != nullptr) {
+        *framebuffer = (FvFramebuffer)handle;
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+
+    return FV_RESULT_SUCCESS;
+}
+
+void MetalWrapper::framebufferDestroy(FvFramebuffer framebuffer) {
+    const Handle *handle = (const Handle *)framebuffer;
+
+    if (handle != nullptr) {
+        framebuffers.remove(*handle);
+    }
+}
+
+FvResult
 MetalWrapper::imageViewCreate(FvImageView *imageView,
                               const FvImageViewCreateInfo *createInfo) {
     if (createInfo == nullptr || imageView == nullptr) {
@@ -421,10 +463,6 @@ FvResult MetalWrapper::graphicsPipelineCreate(
             }
         }
     }
-
-    // Create function objects from shader stage descriptions
-    // Loop thru stages
-    // Create vector of shader functions
 
     return result;
 }

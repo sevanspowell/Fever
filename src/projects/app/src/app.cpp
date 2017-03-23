@@ -313,8 +313,22 @@ class HelloTriangleApplication {
         imageViewInfo.format   = FV_FORMAT_BGRA8UNORM;
 
         FvImageView imageView;
-        if (fvImageViewCreate(&imageView, &imageViewInfo) != FV_RESULT_SUCCESS) {
+        if (fvImageViewCreate(&imageView, &imageViewInfo) !=
+            FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to create image view!");
+        }
+
+        FvFramebufferCreateInfo framebufferInfo = {};
+        framebufferInfo.renderPass              = renderPass;
+        framebufferInfo.attachmentCount         = 1;
+        framebufferInfo.attachments             = &imageView;
+        framebufferInfo.width                   = WINDOW_WIDTH;
+        framebufferInfo.height                  = WINDOW_HEIGHT;
+        framebufferInfo.layers                  = 1;
+
+        if (fvFramebufferCreate(framebuffer.replace(), &framebufferInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create framebuffer!");
         }
     }
 
@@ -371,6 +385,7 @@ class HelloTriangleApplication {
     FDeleter<FvPipelineLayout> pipelineLayout{fvPipelineLayoutDestroy};
     FDeleter<FvRenderPass> renderPass{fvRenderPassDestroy};
     FDeleter<FvGraphicsPipeline> graphicsPipeline{fvGraphicsPipelineDestroy};
+    FDeleter<FvFramebuffer> framebuffer{fvFramebufferDestroy};
 };
 
 int main(void) {

@@ -74,6 +74,10 @@ struct GraphicsPipelineWrapper {
     MTLScissorRect scissor;
 };
 
+struct FramebufferWrapper {
+    std::vector<id<MTLTexture>> attachments;
+};
+
 class MetalWrapper {
   public:
     static const uint32_t MAX_NUM_LIBRARIES          = 64;
@@ -81,16 +85,23 @@ class MetalWrapper {
     static const uint32_t MAX_NUM_GRAPHICS_PIPELINES = 64;
     static const uint32_t MAX_NUM_TEXTURES           = 256;
     static const uint32_t MAX_NUM_TEXTURE_VIEWS      = 256;
+    static const uint32_t MAX_NUM_FRAMEBUFFERS       = 64;
 
     MetalWrapper()
         : metalLayer(NULL), device(nil), commandQueue(nil),
           libraries(MAX_NUM_LIBRARIES), renderPasses(MAX_NUM_RENDER_PASSES),
           graphicsPipelines(MAX_NUM_GRAPHICS_PIPELINES),
-          textures(MAX_NUM_TEXTURES), textureViews(MAX_NUM_TEXTURE_VIEWS) {}
+          textures(MAX_NUM_TEXTURES), textureViews(MAX_NUM_TEXTURE_VIEWS),
+          framebuffers(MAX_NUM_FRAMEBUFFERS) {}
 
     FvResult init(const FvInitInfo *initInfo);
 
     void shutdown();
+
+    FvResult framebufferCreate(FvFramebuffer *framebuffer,
+                               const FvFramebufferCreateInfo *createInfo);
+
+    void framebufferDestroy(FvFramebuffer framebuffer);
 
     FvResult imageViewCreate(FvImageView *imageView,
                              const FvImageViewCreateInfo *createInfo);
@@ -156,5 +167,7 @@ class MetalWrapper {
     PersistentHandleDataStore<GraphicsPipelineWrapper> graphicsPipelines;
     PersistentHandleDataStore<id<MTLTexture>> textures;
     PersistentHandleDataStore<id<MTLTexture>> textureViews;
+    PersistentHandleDataStore<FramebufferWrapper> framebuffers;
+    ;
 };
 }

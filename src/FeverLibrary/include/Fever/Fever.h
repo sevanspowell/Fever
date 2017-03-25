@@ -24,21 +24,21 @@
 #define FV_NULL_HANDLE 0
 #define FV_DEFINE_HANDLE(object) typedef struct object##_t *object;
 
-/* typedef union FvClearColor { */
-/*     float float32[4]; */
-/*     int32_t int32[4]; */
-/*     uint32_t uint32[4]; */
-/* } FvClearColor; */
+typedef union FvClearColor {
+    float float32[4];
+    int32_t int32[4];
+    uint32_t uint32[4];
+} FvClearColor;
 
-/* typedef struct FvClearDepthStencil { */
-/*     float depth; */
-/*     uint32_t stencil; */
-/* } FvClearDepthStencil; */
+typedef struct FvClearDepthStencil {
+    float depth;
+    uint32_t stencil;
+} FvClearDepthStencil;
 
-/* typedef union FvClearValue { */
-/*     FvClearColor color; */
-/*     FvClearDepthStencil depthStencil; */
-/* } FvClearValue; */
+typedef union FvClearValue {
+    FvClearColor color;
+    FvClearDepthStencil depthStencil;
+} FvClearValue;
 
 typedef struct FvOffset2D {
     int32_t x;
@@ -451,64 +451,59 @@ extern FvResult fvFramebufferCreate(FvFramebuffer *framebuffer,
 
 extern void fvFramebufferDestroy(FvFramebuffer framebuffer);
 
-/* FV_DEFINE_HANDLE(FvCommandPool); */
+FV_DEFINE_HANDLE(FvCommandPool);
 
-/* typedef struct FvCommandPoolCreateInfo { */
-/* } FvCommandPoolCreateInfo; */
+typedef struct FvCommandPoolCreateInfo {
+} FvCommandPoolCreateInfo;
 
-/* extern void fvCommandPoolCreate(FvCommandPool *commandPool, */
-/*                                 const FvCommandPoolCreateInfo *createInfo);
+extern FvResult fvCommandPoolCreate(FvCommandPool *commandPool,
+                                    const FvCommandPoolCreateInfo *createInfo);
+
+extern void fvCommandPoolDestroy(FvCommandPool commandPool);
+
+FV_DEFINE_HANDLE(FvCommandBuffer);
+
+/** Create a command buffer from a command pool, command buffers are
+ * automatically destroyed when their command pool is destroyed. */
+extern FvResult fvCommandBufferCreate(FvCommandBuffer *commandBuffer,
+                                      FvCommandPool commandPool);
+
+extern void fvCommandBufferBegin(FvCommandBuffer commandBuffer);
+
+extern FvResult fvCommandBufferEnd(FvCommandBuffer commandBuffer);
+
+typedef struct FvRenderPassBeginInfo {
+    /** Render pass to begin recording commands for */
+    FvRenderPass renderPass;
+    /** Framebuffer containing attachments to use for this render pass */
+    FvFramebuffer framebuffer;
+    /** Number of clear values */
+    uint32_t clearValueCount;
+    /** Array of clear values. One clear value for each attachment. Array is
+     * indexed by attachment number */
+    const FvClearValue *clearValues;
+} FvRenderPassBeginInfo;
+
+extern void fvCmdBeginRenderPass(FvCommandBuffer commandBuffer,
+                                 const FvRenderPassBeginInfo *renderPassInfo);
+
+extern void fvCmdEndRenderPass(FvCommandBuffer commandBuffer);
+
+extern void fvCmdBindGraphicsPipeline(FvCommandBuffer commandBuffer,
+                                      FvGraphicsPipeline graphicsPipeline);
+
+/**
+ * Record a non-indexed draw call into a command buffer.
+ *
+ * \param commandBuffer CommandBuffer to record draw call into.
+ * \param vertexCount   Number of vertices to draw.
+ * \param instanceCount Number of instances to draw.
+ * \param firstVertex   Index of the first vertex to draw.
+ * \param firstInstance Instance ID of the first instance to draw.
  */
-
-/* extern void fvCommandPoolDestroy(FvCommandPool commandPool); */
-
-/* FV_DEFINE_HANDLE(FvCommandBuffer); */
-
-/* /\** Create a command buffer from a command pool, command buffers are */
-/*  * automatically destroyed when their command pool is destroyed. *\/ */
-/* extern void fvCommandBufferCreate(FvCommandBuffer *commandBuffer, */
-/*                                   FvCommandPool commandPool); */
-
-/* extern void fvBeginCommandBuffer(FvCommandBuffer commandBuffer); */
-
-/* extern void fvEndCommandBuffer(FvCommandBuffer commandBuffer); */
-
-/* typedef struct FvRenderPassBeginInfo { */
-/*     /\** Render pass to begin recording commands for *\/ */
-/*     FvRenderPass renderPass; */
-/*     /\** Framebuffer containing attachments to use for this render pass *\/
- */
-/*     FvFramebuffer framebuffer; */
-/*     /\** Number of clear values *\/ */
-/*     uint32_t clearValueCount; */
-/*     /\** Array of clear values. One clear value for each attachment. Array is
- */
-/*      * indexed by attachment number *\/ */
-/*     const FvClearValue *clearValues; */
-/* } FvRenderPassBeginInfo; */
-
-/* extern void fvCmdBeginRenderPass(FvCommandBuffer commandBuffer, */
-/*                                  const FvRenderPassBeginInfo
- * *renderPassInfo); */
-
-/* extern void fvCmdEndRenderPass(FvCommandBuffer commandBuffer); */
-
-/* extern void fvCmdBindGraphicsPipeline(FvCommandBuffer commandBuffer, */
-/*                                       FvGraphicsPipeline graphicsPipeline);
- */
-
-/* /\** */
-/*  * Record a non-indexed draw call into a command buffer. */
-/*  * */
-/*  * \param commandBuffer CommandBuffer to record draw call into. */
-/*  * \param vertexCount   Number of vertices to draw. */
-/*  * \param instanceCount Number of instances to draw. */
-/*  * \param firstVertex   Index of the first vertex to draw. */
-/*  * \param firstInstance Instance ID of the first instance to draw. */
-/*  *\/ */
-/* extern void fvCmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount, */
-/*                       uint32_t instanceCount, uint32_t firstVertex, */
-/*                       uint32_t firstInstance); */
+extern void fvCmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
+                      uint32_t instanceCount, uint32_t firstVertex,
+                      uint32_t firstInstance);
 
 /* FV_DEFINE_HANDLE(FvSemaphore); */
 

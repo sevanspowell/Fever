@@ -42,6 +42,73 @@ void fvShutdown() {
     }
 }
 
+void fvCmdBindGraphicsPipeline(FvCommandBuffer commandBuffer,
+                               FvGraphicsPipeline graphicsPipeline) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->cmdBindGraphicsPipeline(commandBuffer, graphicsPipeline);
+    }
+}
+
+void fvCmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
+               uint32_t instanceCount, uint32_t firstVertex,
+               uint32_t firstInstance) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->cmdDraw(commandBuffer, vertexCount, instanceCount,
+                              firstVertex, firstInstance);
+    }
+}
+
+void fvCmdBeginRenderPass(FvCommandBuffer commandBuffer,
+                          const FvRenderPassBeginInfo *renderPassInfo) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->cmdBeginRenderPass(commandBuffer, renderPassInfo);
+    }
+}
+
+void fvCmdEndRenderPass(FvCommandBuffer commandBuffer) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->cmdEndRenderPass(commandBuffer);
+    }
+}
+
+FvResult fvCommandBufferCreate(FvCommandBuffer *commandBuffer,
+                               FvCommandPool commandPool) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->commandBufferCreate(commandBuffer, commandPool);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+void fvCommandBufferBegin(FvCommandBuffer commandBuffer) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->commandBufferBegin(commandBuffer);
+    }
+}
+
+FvResult fvCommandBufferEnd(FvCommandBuffer commandBuffer) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->commandBufferEnd(commandBuffer);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+FvResult fvCommandPoolCreate(FvCommandPool *commandPool,
+                             const FvCommandPoolCreateInfo *createInfo) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->commandPoolCreate(commandPool, createInfo);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+void fvCommandPoolDestroy(FvCommandPool commandPool) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->commandPoolDestroy(commandPool);
+    }
+}
+
 FvResult fvFramebufferCreate(FvFramebuffer *framebuffer,
                              const FvFramebufferCreateInfo *createInfo) {
     if (metalWrapper != nullptr) {

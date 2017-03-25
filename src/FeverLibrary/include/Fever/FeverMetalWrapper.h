@@ -57,6 +57,10 @@ namespace fv {
 struct SubpassWrapper {
     MTLRenderPassDescriptor *mtlRenderPass;
     MTLRenderPipelineDescriptor *mtlPipelineDescriptor;
+
+    std::vector<FvAttachmentReference> inputAttachments;
+    std::vector<FvAttachmentReference> colorAttachments;
+    std::vector<FvAttachmentReference> depthStencilAttachment;
 };
 
 struct RenderPassWrapper {
@@ -72,10 +76,36 @@ struct GraphicsPipelineWrapper {
     id<MTLRenderPipelineState> renderPipelineState;
     MTLViewport viewport;
     MTLScissorRect scissor;
+
+    std::vector<FvAttachmentReference> inputAttachments;
+    std::vector<FvAttachmentReference> colorAttachments;
+    std::vector<FvAttachmentReference> depthStencilAttachment;
 };
 
 struct FramebufferWrapper {
     std::vector<id<MTLTexture>> attachments;
+};
+
+struct DrawCall {
+    uint32_t vertexCount;
+    uint32_t instanceCount;
+    uint32_t firstVertex;
+    uint32_t firstInstance;
+};
+
+struct CommandBufferWrapper {
+    CommandBufferWrapper()
+        : commandQueue(nil), readyForSubmit(false),
+          graphicsPipeline(FV_NULL_HANDLE) {}
+
+    id<MTLCommandQueue> commandQueue;
+    // FvGraphicsPipeline graphicsPipelineHandle;
+    std::vector<FvClearValue> clearValues;
+    std::vector<id<MTLTexture>> attachments;
+    bool readyForSubmit;
+
+    FvGraphicsPipeline graphicsPipeline;
+    DrawCall drawCall;
 };
 
 class MetalWrapper {
@@ -86,17 +116,45 @@ class MetalWrapper {
     static const uint32_t MAX_NUM_TEXTURES           = 256;
     static const uint32_t MAX_NUM_TEXTURE_VIEWS      = 256;
     static const uint32_t MAX_NUM_FRAMEBUFFERS       = 64;
+    static const uint32_t MAX_NUM_COMMAND_QUEUES     = 64;
+    static const uint32_t MAX_NUM_COMMAND_BUFFERS    = 64;
 
     MetalWrapper()
         : metalLayer(NULL), device(nil), commandQueue(nil),
           libraries(MAX_NUM_LIBRARIES), renderPasses(MAX_NUM_RENDER_PASSES),
           graphicsPipelines(MAX_NUM_GRAPHICS_PIPELINES),
           textures(MAX_NUM_TEXTURES), textureViews(MAX_NUM_TEXTURE_VIEWS),
-          framebuffers(MAX_NUM_FRAMEBUFFERS) {}
+          framebuffers(MAX_NUM_FRAMEBUFFERS),
+          commandQueues(MAX_NUM_COMMAND_QUEUES),
+          commandBuffers(MAX_NUM_COMMAND_BUFFERS) {}
 
     FvResult init(const FvInitInfo *initInfo);
 
     void shutdown();
+
+    void cmdBindGraphicsPipeline(FvCommandBuffer commandBuffer,
+                                 FvGraphicsPipeline graphicsPipeline);
+
+    void cmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
+                 uint32_t instanceCount, uint32_t firstVertex,
+                 uint32_t firstInstance);
+
+    void cmdBeginRenderPass(FvCommandBuffer commandBuffer,
+                            const FvRenderPassBeginInfo *renderPassInfo);
+
+    void cmdEndRenderPass(FvCommandBuffer commandBuffer);
+
+    FvResult commandBufferCreate(FvCommandBuffer *commandBuffer,
+                                 FvCommandPool commandPool);
+
+    void commandBufferBegin(FvCommandBuffer commandBuffer);
+
+    FvResult commandBufferEnd(FvCommandBuffer commandBuffer);
+
+    FvResult commandPoolCreate(FvCommandPool *commandPool,
+                               const FvCommandPoolCreateInfo *createInfo);
+
+    void commandPoolDestroy(FvCommandPool commandPool);
 
     FvResult framebufferCreate(FvFramebuffer *framebuffer,
                                const FvFramebufferCreateInfo *createInfo);
@@ -168,6 +226,7 @@ class MetalWrapper {
     PersistentHandleDataStore<id<MTLTexture>> textures;
     PersistentHandleDataStore<id<MTLTexture>> textureViews;
     PersistentHandleDataStore<FramebufferWrapper> framebuffers;
-    ;
+    PersistentHandleDataStore<id<MTLCommandQueue>> commandQueues;
+    PersistentHandleDataStore<CommandBufferWrapper> commandBuffers;
 };
 }

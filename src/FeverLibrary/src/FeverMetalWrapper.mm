@@ -39,6 +39,252 @@ void MetalWrapper::shutdown() {
     FV_MTL_RELEASE(device);
 }
 
+void MetalWrapper::cmdBindGraphicsPipeline(
+    FvCommandBuffer commandBuffer, FvGraphicsPipeline graphicsPipeline) {
+    // Get graphics pipeline wrapper
+    GraphicsPipelineWrapper *pipelineWrapper = nullptr;
+
+    const Handle *handle = (const Handle *)graphicsPipeline;
+
+    if (handle != nullptr) {
+        pipelineWrapper = graphicsPipelines.get(*handle);
+    }
+
+    // Get command buffer
+    CommandBufferWrapper *commandBufferWrapper = nullptr;
+
+    handle = (const Handle *)commandBuffer;
+
+    if (handle != nullptr) {
+        commandBufferWrapper = commandBuffers.get(*handle);
+    }
+
+    if (pipelineWrapper == nullptr || commandBufferWrapper == nullptr) {
+        return;
+    }
+
+    if (pipelineWrapper->renderPass == nullptr) {
+        return;
+    }
+
+    // Fill out render pass color and depthStencil attachment information
+    for (uint32_t i = 0; i < pipelineWrapper->colorAttachments.size(); ++i) {
+        uint32_t attachmentIndex =
+            pipelineWrapper->colorAttachments[i].attachment;
+
+        // Get clear color
+        float clearColor[4] = {0, 0, 0, 0};
+        for (uint32_t j = 0; j < 4; ++j) {
+            clearColor[j] = commandBufferWrapper->clearValues[attachmentIndex]
+                                .color.float32[j];
+        }
+
+        pipelineWrapper->renderPass.colorAttachments[i].texture =
+            commandBufferWrapper->attachments[attachmentIndex];
+
+        pipelineWrapper->renderPass.colorAttachments[i].clearColor =
+            MTLClearColorMake(clearColor[0], clearColor[1], clearColor[2],
+                              clearColor[3]);
+    }
+
+    // Should only be one depth stencil attachment per framebuffer
+    if (pipelineWrapper->depthStencilAttachment.size() == 1) {
+        uint32_t attachmentIndex =
+            pipelineWrapper->depthStencilAttachment[0].attachment;
+
+        pipelineWrapper->renderPass.depthAttachment.texture =
+            commandBufferWrapper->attachments[attachmentIndex];
+        pipelineWrapper->renderPass.stencilAttachment.texture =
+            commandBufferWrapper->attachments[attachmentIndex];
+
+        pipelineWrapper->renderPass.depthAttachment.clearDepth =
+            commandBufferWrapper->clearValues[attachmentIndex]
+                .depthStencil.depth;
+        pipelineWrapper->renderPass.stencilAttachment.clearStencil =
+            commandBufferWrapper->clearValues[attachmentIndex]
+                .depthStencil.stencil;
+    }
+
+    // Associate graphics pipeline with command buffer
+    commandBufferWrapper->graphicsPipeline = graphicsPipeline;
+}
+
+void MetalWrapper::cmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
+                           uint32_t instanceCount, uint32_t firstVertex,
+                           uint32_t firstInstance) {
+
+    // Get command buffer
+    CommandBufferWrapper *commandBufferWrapper = nullptr;
+
+    const Handle *handle = (const Handle *)commandBuffer;
+
+    if (handle != nullptr) {
+        commandBufferWrapper = commandBuffers.get(*handle);
+    }
+
+    if (commandBufferWrapper != nullptr) {
+        commandBufferWrapper->drawCall.vertexCount   = vertexCount;
+        commandBufferWrapper->drawCall.instanceCount = instanceCount;
+        commandBufferWrapper->drawCall.firstVertex   = firstVertex;
+        commandBufferWrapper->drawCall.firstInstance = firstInstance;
+    }
+}
+
+void MetalWrapper::cmdBeginRenderPass(
+    FvCommandBuffer commandBuffer,
+    const FvRenderPassBeginInfo *renderPassInfo) {
+    // Get command buffer wrapper
+    CommandBufferWrapper *commandBufferWrapper = nullptr;
+
+    const Handle *handle = (const Handle *)commandBuffer;
+
+    if (handle != nullptr) {
+        commandBufferWrapper = commandBuffers.get(*handle);
+    }
+
+    if (renderPassInfo == nullptr || commandBufferWrapper == nullptr) {
+        return;
+    }
+
+    // Get framebuffer
+    FramebufferWrapper *framebufferWrapper = nullptr;
+    handle = (const Handle *)renderPassInfo->framebuffer;
+
+    if (handle != nullptr) {
+        framebufferWrapper = framebuffers.get(*handle);
+    }
+
+    if (framebufferWrapper == nullptr) {
+        return;
+    }
+
+    // Store clear values
+    for (uint32_t i = 0; i < renderPassInfo->clearValueCount; ++i) {
+        commandBufferWrapper->clearValues.push_back(
+            renderPassInfo->clearValues[i]);
+    }
+
+    // Store texture attachments
+    commandBufferWrapper->attachments = framebufferWrapper->attachments;
+}
+
+void MetalWrapper::cmdEndRenderPass(FvCommandBuffer commandBuffer) {
+    // Get command buffer wrapper
+    CommandBufferWrapper *commandBufferWrapper = nullptr;
+
+    const Handle *handle = (const Handle *)commandBuffer;
+
+    if (handle != nullptr) {
+        commandBufferWrapper = commandBuffers.get(*handle);
+
+        if (commandBufferWrapper != nullptr) {
+            commandBufferWrapper->readyForSubmit = true;
+        }
+    }
+}
+
+FvResult MetalWrapper::commandBufferCreate(FvCommandBuffer *commandBuffer,
+                                           FvCommandPool commandPool) {
+    // Get command pool to create command buffer from
+    id<MTLCommandQueue> commandQueue = nil;
+    const Handle *handle             = (const Handle *)commandPool;
+
+    if (handle != nullptr) {
+        id<MTLCommandQueue> *tmp = commandQueues.get(*handle);
+
+        // Destroy command queue
+        if (tmp != nullptr) {
+            commandQueue = *tmp;
+        }
+    }
+
+    if (commandBuffer == nullptr || commandQueue == nil) {
+        return FV_RESULT_FAILURE;
+    }
+
+    CommandBufferWrapper commandBufferWrapper;
+    commandBufferWrapper.commandQueue   = commandQueue;
+    commandBufferWrapper.readyForSubmit = false;
+
+    // Store command buffer and return handle
+    handle = commandBuffers.add(commandBufferWrapper);
+
+    if (handle != nullptr) {
+        *commandBuffer = (FvCommandBuffer)handle;
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+
+    return FV_RESULT_SUCCESS;
+}
+
+void MetalWrapper::commandBufferBegin(FvCommandBuffer commandBuffer) {
+    // Clear recorded commands
+}
+
+FvResult MetalWrapper::commandBufferEnd(FvCommandBuffer commandBuffer) {
+    // Get command buffer wrapper
+    CommandBufferWrapper *commandBufferWrapper = nullptr;
+
+    const Handle *handle = (const Handle *)commandBuffer;
+
+    if (handle != nullptr) {
+        commandBufferWrapper = commandBuffers.get(*handle);
+    }
+
+    if (commandBufferWrapper == nullptr) {
+        return FV_RESULT_FAILURE;
+    }
+
+    if (commandBufferWrapper->readyForSubmit == false) {
+        // Render pass not ended with 'fvCmdEndRenderPass'
+        return FV_RESULT_FAILURE;
+    }
+
+    return FV_RESULT_SUCCESS;
+}
+
+FvResult
+MetalWrapper::commandPoolCreate(FvCommandPool *commandPool,
+                                const FvCommandPoolCreateInfo *createInfo) {
+    if (createInfo == nullptr || commandPool == nullptr) {
+        return FV_RESULT_FAILURE;
+    }
+
+    // Create command queue (MTL) / command pool (Fever)
+    id<MTLCommandQueue> commandQueue = [device newCommandQueue];
+
+    if (commandQueue == nil) {
+        return FV_RESULT_FAILURE;
+    }
+
+    // Store command queue and return handle
+    const Handle *handle = commandQueues.add(commandQueue);
+
+    if (handle != nullptr) {
+        *commandPool = (FvCommandPool)handle;
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+
+    return FV_RESULT_SUCCESS;
+}
+
+void MetalWrapper::commandPoolDestroy(FvCommandPool commandPool) {
+    const Handle *handle = (const Handle *)commandPool;
+
+    if (handle != nullptr) {
+        id<MTLCommandQueue> *commandQueue = commandQueues.get(*handle);
+
+        // Destroy command queue
+        if (commandQueue != nullptr) {
+            *commandQueue = nil;
+        }
+
+        commandQueues.remove(*handle);
+    }
+}
+
 FvResult
 MetalWrapper::framebufferCreate(FvFramebuffer *framebuffer,
                                 const FvFramebufferCreateInfo *createInfo) {
@@ -239,6 +485,15 @@ FvResult MetalWrapper::graphicsPipelineCreate(
             if (renderPassWrapper != nullptr) {
                 SubpassWrapper subpassWrapper =
                     renderPassWrapper->subpasses[createInfo->subpass];
+
+                // Copy attachment descriptions to graphics pipeline from
+                // subpass
+                graphicsPipelineWrapper.inputAttachments =
+                    subpassWrapper.inputAttachments;
+                graphicsPipelineWrapper.colorAttachments =
+                    subpassWrapper.colorAttachments;
+                graphicsPipelineWrapper.depthStencilAttachment =
+                    subpassWrapper.depthStencilAttachment;
 
                 // Fill out shader functions for Metal pipeline descriptor
                 MTLRenderPipelineDescriptor *mtlPipelineDescriptor =
@@ -556,6 +811,24 @@ MetalWrapper::renderPassCreate(FvRenderPass *renderPass,
 
                 mtlRenderPipelineDescriptor.stencilAttachmentPixelFormat =
                     toMtlPixelFormat(depthStencilAttachment.format);
+            }
+
+            // Store attachment references
+            for (uint32_t j = 0; j < subpassDescription.inputAttachmentCount;
+                 ++j) {
+                subpassWrapper.inputAttachments.push_back(
+                    subpassDescription.inputAttachments[j]);
+            }
+
+            for (uint32_t j = 0; j < subpassDescription.colorAttachmentCount;
+                 ++j) {
+                subpassWrapper.colorAttachments.push_back(
+                    subpassDescription.colorAttachments[j]);
+            }
+
+            if (subpassDescription.depthStencilAttachment != nullptr) {
+                subpassWrapper.depthStencilAttachment.push_back(
+                    *subpassDescription.depthStencilAttachment);
             }
 
             // Add subpass to renderPass aggregate

@@ -330,6 +330,42 @@ class HelloTriangleApplication {
             FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to create framebuffer!");
         }
+
+        FvCommandPoolCreateInfo poolInfo = {};
+
+        if (fvCommandPoolCreate(commandPool.replace(), &poolInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create command pool!");
+        }
+
+        if (fvCommandBufferCreate(&commandBuffer, commandPool) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create command buffer!");
+        }
+
+        fvCommandBufferBegin(commandBuffer);
+
+        FvRenderPassBeginInfo renderPassInfo = {};
+        renderPassInfo.renderPass            = renderPass;
+        renderPassInfo.framebuffer           = framebuffer;
+
+        FvClearValue clearColor        = {0.0f, 0.0f, 0.0f, 1.0f};
+        renderPassInfo.clearValueCount = 1;
+        renderPassInfo.clearValues     = &clearColor;
+
+        fvCmdBeginRenderPass(commandBuffer, &renderPassInfo);
+
+        {
+            fvCmdBindGraphicsPipeline(commandBuffer, graphicsPipeline);
+
+            fvCmdDraw(commandBuffer, 3, 1, 0, 0);
+        }
+
+        fvCmdEndRenderPass(commandBuffer);
+
+        if (fvCommandBufferEnd(commandBuffer) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to record command buffer");
+        }
     }
 
     void shutdownFever() { fvShutdown(); }
@@ -386,6 +422,9 @@ class HelloTriangleApplication {
     FDeleter<FvRenderPass> renderPass{fvRenderPassDestroy};
     FDeleter<FvGraphicsPipeline> graphicsPipeline{fvGraphicsPipelineDestroy};
     FDeleter<FvFramebuffer> framebuffer{fvFramebufferDestroy};
+    FDeleter<FvCommandPool> commandPool{fvCommandPoolDestroy};
+    // Resources of command buffer automatically freed
+    FvCommandBuffer commandBuffer;
 };
 
 int main(void) {

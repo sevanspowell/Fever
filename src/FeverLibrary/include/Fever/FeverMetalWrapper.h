@@ -9,23 +9,6 @@
 #include <Fever/PersistentHandleDataStore.h>
 
 namespace fv {
-// // clang-format off
-// #define MTL_CLASS(name)                                                        \
-// class name                                                                     \
-// {                                                                              \
-// public:                                                                        \
-//     name(id<MTL##name> obj_ = nil) : obj(obj_)                                 \
-//     {                                                                          \
-//     }                                                                          \
-//     operator id<MTL##name>() const                                             \
-//     {                                                                          \
-//         return obj;                                                            \
-//     }                                                                          \
-//     id<MTL##name> obj;
-
-// #define MTL_CLASS_END                                                          \
-//     };
-
 // clang-format off
 #define FV_MTL_RELEASE(obj)                                                    \
     do {                                                                       \
@@ -33,26 +16,6 @@ namespace fv {
         obj = nil;                                                             \
     } while (0)
 // clang-format on
-
-// namespace mtl {
-// MTL_CLASS(Device)
-// id<MTLCommandQueue> newCommandQueue() { return [obj newCommandQueue]; }
-// MTL_CLASS_END
-
-// MTL_CLASS(CommandQueue)
-// id<MTLCommandBuffer> commandBuffer() { return [obj commandBuffer]; }
-// MTL_CLASS_END
-// }
-
-// class CommandQueueWrapper {
-//   public:
-//     void init(mtl::Device device);
-//     void shutdown();
-//     void release(NSObject *ptr);
-//     void consume();
-
-//     mtl::CommandQueue commandQueue;
-// };
 
 struct SubpassWrapper {
     MTLRenderPassDescriptor *mtlRenderPass;
@@ -76,6 +39,7 @@ struct GraphicsPipelineWrapper {
     id<MTLRenderPipelineState> renderPipelineState;
     MTLViewport viewport;
     MTLScissorRect scissor;
+    MTLPrimitiveType primitiveType;
 
     std::vector<FvAttachmentReference> inputAttachments;
     std::vector<FvAttachmentReference> colorAttachments;
@@ -108,6 +72,26 @@ struct CommandBufferWrapper {
     DrawCall drawCall;
 };
 
+struct ImageWrapper {
+    ImageWrapper() : isDrawable(false), texture(nil) {}
+
+    bool isDrawable;
+    id<MTLTexture> texture;
+};
+
+struct ImageViewWrapper {
+    ImageViewWrapper() : referencesDrawable(false), texture(nil) {}
+
+    bool referencesDrawable;
+    id<MTLTexture> texture;
+};
+
+struct SemaphoreWrapper {
+    SemaphoreWrapper() : isSignalled(false) {}
+
+    bool isSignalled;
+};
+
 class MetalWrapper {
   public:
     static const uint32_t MAX_NUM_LIBRARIES          = 64;
@@ -118,19 +102,46 @@ class MetalWrapper {
     static const uint32_t MAX_NUM_FRAMEBUFFERS       = 64;
     static const uint32_t MAX_NUM_COMMAND_QUEUES     = 64;
     static const uint32_t MAX_NUM_COMMAND_BUFFERS    = 64;
+    static const uint32_t MAX_NUM_DRAWABLES          = 32;
+    static const uint32_t MAX_NUM_SEMAPHORES         = 32;
 
     MetalWrapper()
-        : metalLayer(NULL), device(nil), commandQueue(nil),
-          libraries(MAX_NUM_LIBRARIES), renderPasses(MAX_NUM_RENDER_PASSES),
+        : metalLayer(NULL), device(nil), libraries(MAX_NUM_LIBRARIES),
+          renderPasses(MAX_NUM_RENDER_PASSES),
           graphicsPipelines(MAX_NUM_GRAPHICS_PIPELINES),
           textures(MAX_NUM_TEXTURES), textureViews(MAX_NUM_TEXTURE_VIEWS),
           framebuffers(MAX_NUM_FRAMEBUFFERS),
           commandQueues(MAX_NUM_COMMAND_QUEUES),
-          commandBuffers(MAX_NUM_COMMAND_BUFFERS) {}
+          commandBuffers(MAX_NUM_COMMAND_BUFFERS),
+          semaphores(MAX_NUM_SEMAPHORES) {}
 
     FvResult init(const FvInitInfo *initInfo);
 
     void shutdown();
+
+    FvResult semaphoreCreate(FvSemaphore *semaphore);
+
+    void semaphoreDestroy(FvSemaphore semaphore);
+
+    FvResult acquireNextImage(FvSwapchain swapchain,
+                          FvSemaphore imageAvailableSemaphore,
+                          uint32_t *imageIndex);
+
+    FvResult createSwapchain(FvSwapchain *swapchain,
+                             const FvSwapchainCreateInfo *createInfo);
+
+    void destroySwapchain(FvSwapchain swapchain);
+
+    void getSwapchainImage(FvSwapchain swapchain, FvImage *swapchainImage);
+
+    void queuePresent(const FvPresentInfo *presentInfo);
+
+    FvResult queueSubmit(uint32_t submissionsCount,
+                         const FvSubmitInfo *submissions);
+
+    // FvResult getDrawable(FvDrawable *drawable);
+
+    // FvResult getDrawableImage(FvImage *drawableImage, FvDrawable drawable);
 
     void cmdBindGraphicsPipeline(FvCommandBuffer commandBuffer,
                                  FvGraphicsPipeline graphicsPipeline);
@@ -216,17 +227,27 @@ class MetalWrapper {
 
     static MTLTextureUsage toMtlTextureUsage(FvImageUsage imageUsage);
 
+    static MTLPrimitiveType toMtlPrimitiveType(FvPrimitiveType primitiveType);
+
     CAMetalLayer *metalLayer;
     id<MTLDevice> device;
-    id<MTLCommandQueue> commandQueue;
 
     PersistentHandleDataStore<id<MTLLibrary>> libraries;
     PersistentHandleDataStore<RenderPassWrapper> renderPasses;
     PersistentHandleDataStore<GraphicsPipelineWrapper> graphicsPipelines;
-    PersistentHandleDataStore<id<MTLTexture>> textures;
-    PersistentHandleDataStore<id<MTLTexture>> textureViews;
+    PersistentHandleDataStore<ImageWrapper> textures;
+    PersistentHandleDataStore<ImageViewWrapper> textureViews;
     PersistentHandleDataStore<FramebufferWrapper> framebuffers;
     PersistentHandleDataStore<id<MTLCommandQueue>> commandQueues;
     PersistentHandleDataStore<CommandBufferWrapper> commandBuffers;
+    PersistentHandleDataStore<SemaphoreWrapper> semaphores;
+
+    typedef std::vector<id<CAMetalDrawable>> Swapchain;
+    // PersistentHandleDataStore<Swapchain> swapchains;
+    Swapchain currentSwapchain;
+
+    id<CAMetalDrawable> currentDrawable;
+    id<MTLCommandQueue> currentCommandQueue;
+
 };
 }

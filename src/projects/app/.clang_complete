@@ -1,0 +1,10 @@
+-DGTEST_HAS_PTHREAD=1
+-I/Users/sam/Documents/code/Fever/src/FeverLibrary/include
+-I/Users/sam/Documents/code/Fever/src/FeverLibrary/src
+-I/Users/sam/Documents/code/Fever/src/libs/googletest/googletest
+-I/Users/sam/Documents/code/Fever/src/libs/googletest/googletest/include
+-I/Users/sam/Documents/code/Fever/src/libs/stb_image
+-isystem/usr/local/include
+-isysroot/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.12.sdk
+-std=gnu++11
+-std=gnu++14

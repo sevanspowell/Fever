@@ -42,6 +42,83 @@ void fvShutdown() {
     }
 }
 
+FvResult fvSemaphoreCreate(FvSemaphore *semaphore) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->semaphoreCreate(semaphore);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+void fvSemaphoreDestroy(FvSemaphore semaphore) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->semaphoreDestroy(semaphore);
+    }
+}
+
+/* FvResult fvGetDrawable(FvDrawable *drawable) { */
+/*     if (metalWrapper != nullptr) { */
+/*         return metalWrapper->getDrawable(drawable); */
+/*     } else { */
+/*         return FV_RESULT_FAILURE; */
+/*     } */
+/* } */
+
+/* FvResult fvGetDrawableImage(FvImage *drawableImage, FvDrawable drawable) { */
+/*     if (metalWrapper != nullptr) { */
+/*         return metalWrapper->getDrawableImage(drawableImage, drawable); */
+/*     } else { */
+/*         return FV_RESULT_FAILURE; */
+/*     } */
+/* } */
+
+FvResult fvCreateSwapchain(FvSwapchain *swapchain,
+                           const FvSwapchainCreateInfo *createInfo) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->createSwapchain(swapchain, createInfo);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+void fvDestroySwapchain(FvSwapchain swapchain) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->destroySwapchain(swapchain);
+    }
+}
+
+void fvGetSwapchainImage(FvSwapchain swapchain, FvImage *swapchainImage) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->getSwapchainImage(swapchain, swapchainImage);
+    }
+}
+
+FvResult fvAcquireNextImage(FvSwapchain swapchain,
+                        FvSemaphore imageAvailableSemaphore,
+                        uint32_t *imageIndex) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->acquireNextImage(swapchain, imageAvailableSemaphore,
+                                       imageIndex);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+FvResult fvQueueSubmit(uint32_t submissionsCount,
+                       const FvSubmitInfo *submissions) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->queueSubmit(submissionsCount, submissions);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+void fvQueuePresent(const FvPresentInfo *presentInfo) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->queuePresent(presentInfo);
+    }
+}
+
 void fvCmdBindGraphicsPipeline(FvCommandBuffer commandBuffer,
                                FvGraphicsPipeline graphicsPipeline) {
     if (metalWrapper != nullptr) {

@@ -2,8 +2,6 @@
 
 namespace fv {
 FvResult MetalWrapper::init(const FvInitInfo *initInfo) {
-    FvResult result = FV_RESULT_FAILURE;
-
     if (initInfo == NULL || initInfo->surface == NULL) {
         return FV_RESULT_FAILURE;
     }
@@ -23,20 +21,229 @@ FvResult MetalWrapper::init(const FvInitInfo *initInfo) {
     // Assign device to metal layer
     metalLayer.device = device;
 
-    // Create a command queue
-    commandQueue = [device newCommandQueue];
+    return FV_RESULT_SUCCESS;
+}
 
-    // Check for nil command queue
-    if (commandQueue == nil) {
+void MetalWrapper::shutdown() { FV_MTL_RELEASE(device); }
+
+FvResult MetalWrapper::semaphoreCreate(FvSemaphore *semaphore) {
+    FvResult result = FV_RESULT_FAILURE;
+
+    if (semaphore != nullptr) {
+        SemaphoreWrapper semaphoreWrapper;
+        semaphoreWrapper.isSignalled = false;
+
+        const Handle *handle = semaphores.add(semaphoreWrapper);
+
+        if (handle != nullptr) {
+            *semaphore = (FvSemaphore)handle;
+            result     = FV_RESULT_SUCCESS;
+        }
+    }
+
+    return result;
+}
+
+void MetalWrapper::semaphoreDestroy(FvSemaphore semaphore) {
+    const Handle *handle = (const Handle *)semaphore;
+
+    if (handle != nullptr) {
+        semaphores.remove(*handle);
+    }
+}
+
+FvResult MetalWrapper::acquireNextImage(FvSwapchain swapchain,
+                                        FvSemaphore imageAvailableSemaphore,
+                                        uint32_t *imageIndex) {
+    // TODO Get the swapchain to use
+
+    // Find index of first available image in swapchain
+    uint32_t availableImageIndex = 0;
+    bool foundIndex              = false;
+    for (uint32_t i = 0; i < currentSwapchain.size(); ++i) {
+        if (currentSwapchain[i] == nil) {
+            availableImageIndex = i;
+            foundIndex          = true;
+        }
+    }
+
+    // If can't find index, add a new image to swapchain
+    // NOTE we also restrict the number of swapchain images to 3 as Metal is
+    // by-default triple-buffered
+    if (foundIndex == false && currentSwapchain.size() < 3) {
+        currentSwapchain.push_back(nil);
+        availableImageIndex = currentSwapchain.size() - 1;
+        foundIndex          = true;
+    }
+
+    if (foundIndex == false) {
+        // Not enough images free, can't acquire another
         return FV_RESULT_FAILURE;
+    }
+
+    // Get next drawable and add to swapchain
+    currentSwapchain[availableImageIndex] = [metalLayer nextDrawable];
+    currentDrawable = currentSwapchain[availableImageIndex];
+
+    if (imageIndex != nullptr) {
+        *imageIndex = availableImageIndex;
+    }
+
+    // Signal semaphore immediately
+    // (Metal nextDrawable is blocking and so when it returns, image is ready)
+    const Handle *handle = (const Handle *)imageAvailableSemaphore;
+
+    if (handle != nullptr) {
+        SemaphoreWrapper *semaphoreWrapper = semaphores.get(*handle);
+
+        if (semaphoreWrapper != nullptr) {
+            semaphoreWrapper->isSignalled = true;
+        }
     }
 
     return FV_RESULT_SUCCESS;
 }
 
-void MetalWrapper::shutdown() {
-    FV_MTL_RELEASE(commandQueue);
-    FV_MTL_RELEASE(device);
+FvResult
+MetalWrapper::createSwapchain(FvSwapchain *swapchain,
+                              const FvSwapchainCreateInfo *createInfo) {
+    FvResult result = FV_RESULT_SUCCESS;
+
+    // TODO Actually create swapchain - or not, Metal has no concept of multiple
+    // swapchains
+
+    return result;
+}
+
+void MetalWrapper::destroySwapchain(FvSwapchain swapchain) {
+    // TODO Actually destroy swapchain
+}
+
+void MetalWrapper::getSwapchainImage(FvSwapchain swapchain,
+                                     FvImage *swapchainImage) {
+    // Create drawable image
+    ImageWrapper imageWrapper;
+    imageWrapper.isDrawable = true;
+    imageWrapper.texture    = nil;
+
+    // Store texture and return handle
+    const Handle *handle = textures.add(imageWrapper);
+
+    if (handle != nullptr) {
+        *swapchainImage = (FvImage)handle;
+    }
+}
+
+void MetalWrapper::queuePresent(const FvPresentInfo *presentInfo) {
+
+    if (presentInfo != nullptr && presentInfo->imageIndices != nullptr) {
+        uint32_t imageIndex = presentInfo->imageIndices[0];
+
+        // Make separate command buffer to schedule drawable presentation and
+        // submit it
+        id<MTLCommandBuffer> commandBuffer =
+            [currentCommandQueue commandBuffer];
+
+        [commandBuffer presentDrawable:currentDrawable];
+
+        [commandBuffer commit];
+
+        // Can now re-use drawable, so free it from swapchain
+        for (uint32_t i = 0; i < currentSwapchain.size(); ++i) {
+            if (i == imageIndex) {
+                currentSwapchain[i] = nil;
+            }
+        }
+    }
+}
+
+FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
+                                   const FvSubmitInfo *submissions) {
+    if (submissions == nullptr && submissionsCount != 0) {
+        return FV_RESULT_FAILURE;
+    }
+
+    // Loop thru each submission
+    for (uint32_t i = 0; i < submissionsCount; ++i) {
+        // Submit each command buffer
+        for (uint32_t j = 0; j < submissions->commandBufferCount; ++j) {
+            FvCommandBuffer commandBufferHandle =
+                submissions->commandBuffers[j];
+            const Handle *handle = (const Handle *)commandBufferHandle;
+
+            // Get command buffer from handle
+            CommandBufferWrapper *commandBufferWrapper = nullptr;
+
+            if (handle == nullptr) {
+                return FV_RESULT_FAILURE;
+            }
+
+            commandBufferWrapper = commandBuffers.get(*handle);
+
+            if (commandBufferWrapper == nullptr) {
+                return FV_RESULT_FAILURE;
+            }
+
+            // Get graphics pipeline wrapper
+            handle = (const Handle *)commandBufferWrapper->graphicsPipeline;
+
+            if (handle == nullptr) {
+                return FV_RESULT_FAILURE;
+            }
+
+            GraphicsPipelineWrapper *pipeline = nullptr;
+
+            pipeline = graphicsPipelines.get(*handle);
+
+            if (pipeline == nullptr) {
+                return FV_RESULT_FAILURE;
+            }
+
+            // Loop through each render pass color attachment, check if it's
+            // texture is nil. If it is, back it with the current drawable.
+            for (uint32_t k = 0; k < pipeline->colorAttachments.size(); ++k) {
+                if (pipeline->renderPass.colorAttachments[k].texture == nil) {
+                    pipeline->renderPass.colorAttachments[k].texture =
+                        currentDrawable.texture;
+                }
+            }
+
+            // Create command buffer from it's command queue
+            // Command buffers are transient, single-use objects in Metal
+            // and so are created here at the last minute.
+            id<MTLCommandBuffer> commandBuffer =
+                [commandBufferWrapper->commandQueue commandBuffer];
+
+            // Set current command queue
+            currentCommandQueue = commandBufferWrapper->commandQueue;
+
+            // Create command encoder from command buffer and render pass
+            // descriptor
+            id<MTLRenderCommandEncoder> encoder = [commandBuffer
+                renderCommandEncoderWithDescriptor:pipeline->renderPass];
+            // Set states
+            [encoder setCullMode:pipeline->cullMode];
+            [encoder setDepthStencilState:pipeline->depthStencilState];
+            [encoder setFrontFacingWinding:pipeline->windingOrder];
+            [encoder setRenderPipelineState:pipeline->renderPipelineState];
+            [encoder setScissorRect:pipeline->scissor];
+            [encoder setViewport:pipeline->viewport];
+            // Make draw call
+            DrawCall dc = commandBufferWrapper->drawCall;
+            [encoder drawPrimitives:pipeline->primitiveType
+                        vertexStart:dc.firstVertex
+                        vertexCount:dc.vertexCount
+                      instanceCount:dc.instanceCount
+                       baseInstance:dc.firstInstance];
+            // End encoding
+            [encoder endEncoding];
+
+            // Commit command buffer
+            [commandBuffer commit];
+        }
+    }
+
+    return FV_RESULT_SUCCESS;
 }
 
 void MetalWrapper::cmdBindGraphicsPipeline(
@@ -299,10 +506,10 @@ MetalWrapper::framebufferCreate(FvFramebuffer *framebuffer,
         const Handle *handle = (const Handle *)createInfo->attachments[i];
 
         if (handle != nullptr) {
-            id<MTLTexture> *texture = textureViews.get(*handle);
+            ImageViewWrapper *textureView = textureViews.get(*handle);
 
-            if (texture != nullptr) {
-                framebufferWrapper.attachments.push_back(*texture);
+            if (textureView != nullptr) {
+                framebufferWrapper.attachments.push_back(textureView->texture);
             }
         }
     }
@@ -336,25 +543,36 @@ MetalWrapper::imageViewCreate(FvImageView *imageView,
 
     // Get texture this texture view will be sharing a storage allocation with.
     id<MTLTexture> texture = nil;
+    bool isDrawable        = false;
     const Handle *handle   = (const Handle *)createInfo->image;
 
     if (handle != nullptr) {
-        id<MTLTexture> *texturePtr = textures.get(*handle);
+        ImageWrapper *texturePtr = textures.get(*handle);
 
         if (texturePtr != nullptr) {
-            texture = *texturePtr;
+            texture    = texturePtr->texture;
+            isDrawable = texturePtr->isDrawable;
         }
     }
 
-    if (texture == nil) {
+    ImageViewWrapper imageViewWrapper;
+
+    if (texture == nil && isDrawable == false) {
         return FV_RESULT_FAILURE;
+    } else if (isDrawable == true) {
+        // We only acquire a drawable and create it's texture when we need it.
+        imageViewWrapper.referencesDrawable = true;
+        imageViewWrapper.texture            = nil;
+    } else if (texture != nil && isDrawable == false) {
+        id<MTLTexture> textureView = [texture
+            newTextureViewWithPixelFormat:toMtlPixelFormat(createInfo->format)];
+
+        imageViewWrapper.texture            = textureView;
+        imageViewWrapper.referencesDrawable = isDrawable;
     }
 
-    id<MTLTexture> textureView = [texture
-        newTextureViewWithPixelFormat:toMtlPixelFormat(createInfo->format)];
-
     // Store texture view and return handle
-    handle = textureViews.add(textureView);
+    handle = textureViews.add(imageViewWrapper);
 
     if (handle != nullptr) {
         *imageView = (FvImageView)handle;
@@ -369,11 +587,11 @@ void MetalWrapper::imageViewDestroy(FvImageView imageView) {
     const Handle *handle = (const Handle *)imageView;
 
     if (handle != nullptr) {
-        id<MTLTexture> *textureView = textureViews.get(*handle);
+        ImageViewWrapper *textureView = textureViews.get(*handle);
 
         // Destroy texture view
         if (textureView != nullptr) {
-            *textureView = nil;
+            textureView->texture = nil;
         }
 
         textureViews.remove(*handle);
@@ -431,8 +649,12 @@ FvResult MetalWrapper::imageCreate(FvImage *image,
         return FV_RESULT_FAILURE;
     }
 
+    ImageWrapper imageWrapper;
+    imageWrapper.texture    = texture;
+    imageWrapper.isDrawable = false;
+
     // Store texture and return handle
-    const Handle *handle = textures.add(texture);
+    const Handle *handle = textures.add(imageWrapper);
 
     if (handle != nullptr) {
         *image = (FvImage)handle;
@@ -447,11 +669,11 @@ void MetalWrapper::imageDestroy(FvImage image) {
     const Handle *handle = (const Handle *)image;
 
     if (handle != nullptr) {
-        id<MTLTexture> *texture = textures.get(*handle);
+        ImageWrapper *imageWrapper = textures.get(*handle);
 
         // Destroy texture
-        if (texture != nullptr) {
-            *texture = nil;
+        if (imageWrapper != nullptr) {
+            imageWrapper->texture = nil;
         }
 
         textures.remove(*handle);
@@ -468,7 +690,7 @@ FvResult MetalWrapper::graphicsPipelineCreate(
     if (graphicsPipeline != nullptr && createInfo != nullptr) {
         // Create GraphicsPipelineWrapper
         GraphicsPipelineWrapper graphicsPipelineWrapper;
-        graphicsPipelineWrapper.renderPass          = NULL;
+        graphicsPipelineWrapper.renderPass          = nullptr;
         graphicsPipelineWrapper.cullMode            = MTLCullModeNone;
         graphicsPipelineWrapper.windingOrder        = MTLWindingClockwise;
         graphicsPipelineWrapper.depthClipMode       = MTLDepthClipModeClip;
@@ -494,6 +716,10 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                     subpassWrapper.colorAttachments;
                 graphicsPipelineWrapper.depthStencilAttachment =
                     subpassWrapper.depthStencilAttachment;
+
+                // Copy render pass descriptor from subpass
+                graphicsPipelineWrapper.renderPass =
+                    subpassWrapper.mtlRenderPass;
 
                 // Fill out shader functions for Metal pipeline descriptor
                 MTLRenderPipelineDescriptor *mtlPipelineDescriptor =
@@ -597,13 +823,14 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                     result = FV_RESULT_FAILURE;
                 }
 
+                MTLDepthStencilDescriptor *mtlDepthStencilDesc =
+                    [[MTLDepthStencilDescriptor alloc] init];
+                id<MTLDepthStencilState> depthStencilState = nil;
                 // Create depth stencil states from DepthStencilDescription
                 if (createInfo->depthStencilDescription != nullptr) {
                     FvPipelineDepthStencilStateDescription depthStencilDesc =
                         *createInfo->depthStencilDescription;
 
-                    MTLDepthStencilDescriptor *mtlDepthStencilDesc =
-                        [[MTLDepthStencilDescriptor alloc] init];
                     mtlDepthStencilDesc.depthCompareFunction =
                         toMtlCompareFunction(depthStencilDesc.depthCompareFunc);
                     mtlDepthStencilDesc.depthWriteEnabled =
@@ -642,18 +869,21 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                         depthStencilDesc.frontFaceStencil.readMask;
                     mtlDepthStencilDesc.frontFaceStencil.writeMask =
                         depthStencilDesc.frontFaceStencil.writeMask;
+                }
 
-                    id<MTLDepthStencilState> depthStencilState = [device
-                        newDepthStencilStateWithDescriptor:mtlDepthStencilDesc];
+                // Create depth stencil state from default mtlDepthStencilDesc
+                // if no depthStencilDescription provided (Metal requires a
+                // depth stencil state)
+                depthStencilState = [device
+                    newDepthStencilStateWithDescriptor:mtlDepthStencilDesc];
 
-                    if (mtlRenderPipelineState != nil) {
-                        graphicsPipelineWrapper.depthStencilState =
-                            depthStencilState;
-                    } else {
-                        printf("Failed to create depth stencil state.\n");
+                if (depthStencilState != nil) {
+                    graphicsPipelineWrapper.depthStencilState =
+                        depthStencilState;
+                } else {
+                    printf("Failed to create depth stencil state.\n");
 
-                        result = FV_RESULT_FAILURE;
-                    }
+                    result = FV_RESULT_FAILURE;
                 }
 
                 // Fill out rasterizer info
@@ -701,6 +931,26 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                 } else {
                     result = FV_RESULT_FAILURE;
                 }
+
+                if (createInfo->inputAssemblyDescription != nullptr) {
+                    FvPipelineInputAssemblyDescription
+                        inputAssemblyDescription =
+                            *createInfo->inputAssemblyDescription;
+
+                    // Metal doesn't allow you to turn off primitive restart
+                    // AFAIK
+                    if (inputAssemblyDescription.primitiveRestartEnable ==
+                        false) {
+                        printf("Primitive restart cannot be false in Metal "
+                               "backed.\n");
+                        result = FV_RESULT_FAILURE;
+                    }
+
+                    graphicsPipelineWrapper.primitiveType = toMtlPrimitiveType(
+                        inputAssemblyDescription.primitiveType);
+                } else {
+                    result = FV_RESULT_FAILURE;
+                }
             }
         }
 
@@ -712,7 +962,6 @@ FvResult MetalWrapper::graphicsPipelineCreate(
 
             if (handle != nullptr) {
                 *graphicsPipeline = (FvGraphicsPipeline)handle;
-
             } else {
                 result = FV_RESULT_FAILURE;
             }
@@ -1057,19 +1306,19 @@ MTLBlendOperation MetalWrapper::toMtlBlendOperation(FvBlendOp op) {
     MTLBlendOperation blendOperation = MTLBlendOperationAdd;
 
     switch (op) {
-    FV_BLEND_OP_ADD:
+    case FV_BLEND_OP_ADD:
         blendOperation = MTLBlendOperationAdd;
         break;
-    FV_BLEND_OP_SUBTRACT:
+    case FV_BLEND_OP_SUBTRACT:
         blendOperation = MTLBlendOperationSubtract;
         break;
-    FV_BLEND_OP_REVERSE_SUBTRACT:
+    case FV_BLEND_OP_REVERSE_SUBTRACT:
         blendOperation = MTLBlendOperationReverseSubtract;
         break;
-    FV_BLEND_OP_MIN:
+    case FV_BLEND_OP_MIN:
         blendOperation = MTLBlendOperationMin;
         break;
-    FV_BLEND_OP_MAX:
+    case FV_BLEND_OP_MAX:
         blendOperation = MTLBlendOperationMax;
         break;
     default:
@@ -1238,5 +1487,32 @@ MTLTextureUsage MetalWrapper::toMtlTextureUsage(FvImageUsage usage) {
     }
 
     return textureUsage;
+}
+
+MTLPrimitiveType
+MetalWrapper::toMtlPrimitiveType(FvPrimitiveType primitiveType) {
+    MTLPrimitiveType type = MTLPrimitiveTypeTriangle;
+
+    switch (primitiveType) {
+    case FV_PRIMITIVE_TYPE_POINT_LIST:
+        type = MTLPrimitiveTypePoint;
+        break;
+    case FV_PRIMITIVE_TYPE_LINE_LIST:
+        type = MTLPrimitiveTypeLine;
+        break;
+    case FV_PRIMITIVE_TYPE_LINE_STRIP:
+        type = MTLPrimitiveTypeLineStrip;
+        break;
+    case FV_PRIMITIVE_TYPE_TRIANGLE_LIST:
+        type = MTLPrimitiveTypeTriangle;
+        break;
+    case FV_PRIMITIVE_TYPE_TRIANGLE_STRIP:
+        type = MTLPrimitiveTypeTriangleStrip;
+        break;
+    default:
+        break;
+    }
+
+    return type;
 }
 }

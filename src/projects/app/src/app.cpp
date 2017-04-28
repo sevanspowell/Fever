@@ -159,7 +159,9 @@ class HelloTriangleApplication {
         }
 
         createRenderPass();
+        createSwapchain();
         createGraphicsPipeline();
+        createSemaphores();
     }
 
     void createRenderPass() {
@@ -190,6 +192,17 @@ class HelloTriangleApplication {
             FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to create render pass!");
         }
+    }
+
+    void createSwapchain() {
+        FvSwapchainCreateInfo swapchainCreateInfo;
+
+        if (fvCreateSwapchain(swapchain.replace(), &swapchainCreateInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create swapchain!");
+        }
+
+        fvGetSwapchainImage(swapchain, &swapchainImage);
     }
 
     void createGraphicsPipeline() {
@@ -230,7 +243,7 @@ class HelloTriangleApplication {
 
         FvPipelineInputAssemblyDescription inputAssembly = {};
         inputAssembly.primitiveType          = FV_PRIMITIVE_TYPE_TRIANGLE_LIST;
-        inputAssembly.primitiveRestartEnable = false;
+        inputAssembly.primitiveRestartEnable = true;
 
         FvViewport viewport = {};
         viewport.x          = 0.0f;
@@ -252,7 +265,7 @@ class HelloTriangleApplication {
         rasterizer.depthClampEnable                = false;
         /* rasterizer.rasterizerDiscardEnable         = false; */
         rasterizer.cullMode    = FV_CULL_MODE_BACK;
-        rasterizer.frontFacing = FV_WINDING_ORDER_CLOCKWISE;
+        rasterizer.frontFacing = FV_WINDING_ORDER_COUNTER_CLOCKWISE;
 
         FvColorBlendAttachmentState colorBlendAttachment = {};
         colorBlendAttachment.blendEnable                 = false;
@@ -291,24 +304,24 @@ class HelloTriangleApplication {
             throw std::runtime_error("Failed to create graphics pipeline!");
         }
 
-        FvImageCreateInfo imageInfo = {};
-        imageInfo.format            = FV_FORMAT_BGRA8UNORM;
-        imageInfo.imageType         = FV_IMAGE_TYPE_2D;
-        imageInfo.extent.width      = 800;
-        imageInfo.extent.height     = 600;
-        imageInfo.extent.depth      = 1;
-        imageInfo.numMipmapLevels   = 1;
-        imageInfo.arrayLayers       = 1;
-        imageInfo.numSamples        = FV_SAMPLE_COUNT_1;
-        imageInfo.usage             = FV_IMAGE_USAGE_RENDER_TARGET;
+        /* FvImageCreateInfo imageInfo = {}; */
+        /* imageInfo.format            = FV_FORMAT_BGRA8UNORM; */
+        /* imageInfo.imageType         = FV_IMAGE_TYPE_2D; */
+        /* imageInfo.extent.width      = 800; */
+        /* imageInfo.extent.height     = 600; */
+        /* imageInfo.extent.depth      = 1; */
+        /* imageInfo.numMipmapLevels   = 1; */
+        /* imageInfo.arrayLayers       = 1; */
+        /* imageInfo.numSamples        = FV_SAMPLE_COUNT_1; */
+        /* imageInfo.usage             = FV_IMAGE_USAGE_RENDER_TARGET; */
 
-        FvImage image;
-        if (fvImageCreate(&image, &imageInfo) != FV_RESULT_SUCCESS) {
-            throw std::runtime_error("Failed to create image!");
-        }
+        /* FvImage image; */
+        /* if (fvImageCreate(&image, &imageInfo) != FV_RESULT_SUCCESS) { */
+        /*     throw std::runtime_error("Failed to create image!"); */
+        /* } */
 
         FvImageViewCreateInfo imageViewInfo{};
-        imageViewInfo.image    = image;
+        imageViewInfo.image    = swapchainImage;
         imageViewInfo.viewType = FV_IMAGE_VIEW_TYPE_2D;
         imageViewInfo.format   = FV_FORMAT_BGRA8UNORM;
 
@@ -368,6 +381,40 @@ class HelloTriangleApplication {
         }
     }
 
+    void createSemaphores() {
+        if (fvSemaphoreCreate(imageAvailableSemaphore.replace()) !=
+                FV_RESULT_SUCCESS ||
+            fvSemaphoreCreate(renderFinishedSemaphore.replace()) !=
+                FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create semaphores!");
+        }
+    }
+
+    void drawFrame() {
+        uint32_t imageIndex;
+        if (fvAcquireNextImage(swapchain, imageAvailableSemaphore,
+                               &imageIndex) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to acquire image!");
+        }
+
+        FvSubmitInfo submitInfo;
+
+        submitInfo.commandBufferCount = 1;
+        submitInfo.commandBuffers     = &commandBuffer;
+
+        if (fvQueueSubmit(1, &submitInfo) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to submit draw command buffer!");
+        }
+
+        FvPresentInfo presentInfo;
+        presentInfo.swapchainCount = 1;
+        FvSwapchain swapchains[]   = {swapchain};
+        presentInfo.swapchains     = swapchains;
+        presentInfo.imageIndices   = &imageIndex;
+
+        fvQueuePresent(&presentInfo);
+    }
+
     void shutdownFever() { fvShutdown(); }
 
     void mainLoop() {
@@ -385,8 +432,11 @@ class HelloTriangleApplication {
                 }
             }
 
+            drawFrame();
+
             // Swap display buffers
-            SDL_GL_SwapWindow(window);
+            // TODO Do this but for metal? Swap Metal, not GL buffers
+            //SDL_GL_SwapWindow(window);
         }
 
         SDL_DestroyWindow(window);
@@ -425,6 +475,10 @@ class HelloTriangleApplication {
     FDeleter<FvCommandPool> commandPool{fvCommandPoolDestroy};
     // Resources of command buffer automatically freed
     FvCommandBuffer commandBuffer;
+    FDeleter<FvSwapchain> swapchain{fvDestroySwapchain};
+    FvImage swapchainImage;
+    FDeleter<FvSemaphore> imageAvailableSemaphore{fvSemaphoreDestroy};
+    FDeleter<FvSemaphore> renderFinishedSemaphore{fvSemaphoreDestroy};
 };
 
 int main(void) {

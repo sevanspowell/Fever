@@ -15,8 +15,8 @@ constant float2 positions[3] = {
 
 constant float3 colors[3] = {
     float3(1.0f, 0.0f, 0.0f),
-    float3(0.0f, 1.0f, 0.0f),
-    float3(0.0f, 0.0f, 1.0f)
+    float3(1.0f, 0.0f, 0.0f),
+    float3(1.0f, 0.0f, 0.0f)
 };
 
 vertex VertexOut vertFunc(unsigned int vid [[vertex_id]]) {
@@ -29,5 +29,5 @@ vertex VertexOut vertFunc(unsigned int vid [[vertex_id]]) {
 }
 
 fragment float4 fragFunc(VertexOut inFrag [[stage_in]]) {
-    return float4(inFrag.color, 1.0f);
+    return float4(1, 0, 0, 1.0f);
 }

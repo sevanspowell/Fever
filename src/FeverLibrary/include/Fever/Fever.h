@@ -226,8 +226,7 @@ typedef struct FvPipelineInputAssemblyDescription {
     FvPrimitiveType primitiveType;
     /** If true the assembly is restarted if a special index value is
      * encountered (0xFFFFFFFF when index type is 32-bit uint or 0xFFFF when
-     * index type is 16-bit uint). Is not allowed for 'list' primitive types.
-*/
+     * index type is 16-bit uint). Is not allowed for 'list' primitive types. */
     bool primitiveRestartEnable;
 } FvPipelineInputAssemblyDescription;
 
@@ -362,8 +361,7 @@ typedef struct FvRenderPassCreateInfo {
     uint32_t attachmentCount;
     /** Array of render attachments */
     const FvAttachmentDescription *attachments;
-    /** Number of subpasses, each render pass must have atleast one subpass
-*/
+    /** Number of subpasses, each render pass must have atleast one subpass */
     uint32_t subpassCount;
     /** Array of subpasses */
     const FvSubpassDescription *subpasses;
@@ -383,8 +381,7 @@ FV_DEFINE_HANDLE(FvGraphicsPipeline);
 typedef struct FvGraphicsPipelineCreateInfo {
     /** Number of shader stages */
     uint32_t stageCount;
-    /** Array of shader stages, number in array must match 'stageCount'
-field */
+    /** Array of shader stages, number in array must match 'stageCount' field */
     const FvPipelineShaderStageDescription *stages;
     /** Vertex input descriptor */
     const FvPipelineVertexInputDescription *vertexInputDescription;
@@ -505,6 +502,48 @@ extern void fvCmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
                       uint32_t instanceCount, uint32_t firstVertex,
                       uint32_t firstInstance);
 
+FV_DEFINE_HANDLE(FvSemaphore);
+
+FvResult fvSemaphoreCreate(FvSemaphore *semaphore);
+
+void fvSemaphoreDestroy(FvSemaphore semaphore);
+
+typedef struct FvSwapchainCreateInfo {
+    /** Format of each pixel in the image */
+    FvFormat format;
+    /** Dimensions of image */
+    FvExtent3D extent;
+    /** Number of layers in image */
+    uint32_t arrayLayers;
+    /** How the image will be used (bitmask of FvImageUsage) */
+    FvImageUsage usage;
+} FvSwapchainCreateInfo;
+
+FV_DEFINE_HANDLE(FvSwapchain);
+
+extern FvResult fvCreateSwapchain(FvSwapchain *swapchain,
+                                  const FvSwapchainCreateInfo *createInfo);
+
+extern void fvDestroySwapchain(FvSwapchain swapchain);
+
+extern void fvGetSwapchainImage(FvSwapchain swapchain, FvImage *swapchainImage);
+
+/**
+ * Backs swapchain image with next drawable image - do this as late as possible.
+ *
+ * Function returns immediately, semaphore signals when image is actually
+ * available.
+ *
+ * \param swapchain Swapchain to acquire drawable image from.
+ * \param imageAvailableSemaphore Semaphore that will be signaled when image is
+ * available.
+ * \param [out] imageIndex Index of available image in swapchain.
+ * \return FV_RESULT_SUCCESS if success, FV_RESULT_FAILURE otherwise.
+ */
+extern FvResult fvAcquireNextImage(FvSwapchain swapchain,
+                                   FvSemaphore imageAvailableSemaphore,
+                                   uint32_t *imageIndex);
+
 /* FV_DEFINE_HANDLE(FvSemaphore); */
 
 /* typedef struct FvSemaphoreCreateInfo { */
@@ -516,48 +555,53 @@ extern void fvCmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
 
 /* extern void fvAcquireNextImage(uint32_t *imageIndex); */
 
-/* typedef struct FvSubmitInfo { */
-/*     /\** Number of semaphores to wait on *\/ */
-/*     uint32_t waitSemaphoreCount; */
-/*     /\** Array of semaphores to wait on before executing command buffers in
- */
-/*      * submission *\/ */
-/*     const FvSemaphore *waitSemaphores; */
-/*     /\** Array of bitmasked pipeline stages. Each entry corresponds to a wait
- */
-/*      * semaphore. Waiting will occur on each semaphore at the given stages of
- */
-/*      * the pipeline. *\/ */
-/*     const FvPipelineStage *waitStagesMask; */
-/*     /\** Number of command buffers *\/ */
-/*     uint32_t commandBufferCount; */
-/*     /\** Command buffers to submit *\/ */
-/*     const FvCommandBuffer *commandBuffers; */
-/*     /\** Number of semaphores to be signaled once commands have completed */
-/*      * execution  *\/ */
-/*     uint32_t signalSemaphoreCount; */
-/*     /\** Array of semaphores to be signaled once commands have completed */
-/*      * execution *\/ */
-/*     const FvSemaphore *signalSemaphores; */
-/* } FvSubmitInfo; */
+typedef struct FvSubmitInfo {
+    /* /\** Number of semaphores to wait on *\/ */
+    /* uint32_t waitSemaphoreCount; */
+    /* /\** Array of semaphores to wait on before executing command buffers in
+     */
+    /*  * submission *\/ */
+    /* const FvSemaphore *waitSemaphores; */
+    /* /\** Array of bitmasked pipeline stages. Each entry corresponds to a wait
+     */
+    /*  * semaphore. Waiting will occur on each semaphore at the given stages of
+     */
+    /*  * the pipeline. *\/ */
+    /* const FvPipelineStage *waitStagesMask; */
 
-/* /\** */
-/*  * Make a collection of submissions. */
-/*  *\/ */
-/* extern void fvQueueSubmit(uint32_t submissionsCount, */
-/*                           const FvSubmitInfo *submissions); */
+    /** Number of command buffers */
+    uint32_t commandBufferCount;
+    /** Command buffers to submit */
+    const FvCommandBuffer *commandBuffers;
 
-/* typedef struct FvPresentInfo { */
-/*     /\** Number of semaphores to wait on before presentation *\/ */
-/*     uint32_t waitSemaphoreCount; */
-/*     /\** Array of semaphores to wait on before presentation *\/ */
-/*     const FvSemaphore *waitSemaphores; */
-/* } FvPresentInfo; */
+    /* /\** Number of semaphores to be signaled once commands have completed */
+    /*  * execution  *\/ */
+    /* uint32_t signalSemaphoreCount; */
+    /* /\** Array of semaphores to be signaled once commands have completed */
+    /*  * execution *\/ */
+    /* const FvSemaphore *signalSemaphores; */
+} FvSubmitInfo;
 
-/* /\** */
-/*  * Queue an image for presentation. */
-/*  *\/ */
-/* extern void fvQueuePresent(const FvPresentInfo *presentInfo); */
+/**
+ * Make a collection of submissions.
+ */
+extern FvResult fvQueueSubmit(uint32_t submissionsCount,
+                              const FvSubmitInfo *submissions);
+
+typedef struct FvPresentInfo {
+    /*     /\** Number of semaphores to wait on before presentation *\/ */
+    /*     uint32_t waitSemaphoreCount; */
+    /*     /\** Array of semaphores to wait on before presentation *\/ */
+    /*     const FvSemaphore *waitSemaphores; */
+    uint32_t swapchainCount;
+    FvSwapchain *swapchains;
+    uint32_t *imageIndices;
+} FvPresentInfo;
+
+/**
+ * Queue an image for presentation.
+ */
+extern void fvQueuePresent(const FvPresentInfo *presentInfo);
 
 FV_DEFINE_HANDLE(FvSurface);
 

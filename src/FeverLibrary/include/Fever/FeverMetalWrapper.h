@@ -17,6 +17,20 @@ namespace fv {
     } while (0)
 // clang-format on
 
+struct ImageWrapper {
+    ImageWrapper() : isDrawable(false), texture(nil) {}
+
+    bool isDrawable;
+    id<MTLTexture> texture;
+};
+
+struct ImageViewWrapper {
+    ImageViewWrapper() : referencesDrawable(false), texture(nil) {}
+
+    bool referencesDrawable;
+    id<MTLTexture> texture;
+};
+
 struct SubpassWrapper {
     MTLRenderPassDescriptor *mtlRenderPass;
     MTLRenderPipelineDescriptor *mtlPipelineDescriptor;
@@ -47,7 +61,7 @@ struct GraphicsPipelineWrapper {
 };
 
 struct FramebufferWrapper {
-    std::vector<id<MTLTexture>> attachments;
+    std::vector<ImageViewWrapper> attachments;
 };
 
 struct DrawCall {
@@ -65,25 +79,11 @@ struct CommandBufferWrapper {
     id<MTLCommandQueue> commandQueue;
     // FvGraphicsPipeline graphicsPipelineHandle;
     std::vector<FvClearValue> clearValues;
-    std::vector<id<MTLTexture>> attachments;
+    std::vector<ImageViewWrapper> attachments;
     bool readyForSubmit;
 
     FvGraphicsPipeline graphicsPipeline;
     DrawCall drawCall;
-};
-
-struct ImageWrapper {
-    ImageWrapper() : isDrawable(false), texture(nil) {}
-
-    bool isDrawable;
-    id<MTLTexture> texture;
-};
-
-struct ImageViewWrapper {
-    ImageViewWrapper() : referencesDrawable(false), texture(nil) {}
-
-    bool referencesDrawable;
-    id<MTLTexture> texture;
 };
 
 struct SemaphoreWrapper {
@@ -124,8 +124,8 @@ class MetalWrapper {
     void semaphoreDestroy(FvSemaphore semaphore);
 
     FvResult acquireNextImage(FvSwapchain swapchain,
-                          FvSemaphore imageAvailableSemaphore,
-                          uint32_t *imageIndex);
+                              FvSemaphore imageAvailableSemaphore,
+                              uint32_t *imageIndex);
 
     FvResult createSwapchain(FvSwapchain *swapchain,
                              const FvSwapchainCreateInfo *createInfo);
@@ -248,6 +248,5 @@ class MetalWrapper {
 
     id<CAMetalDrawable> currentDrawable;
     id<MTLCommandQueue> currentCommandQueue;
-
 };
 }

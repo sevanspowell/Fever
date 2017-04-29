@@ -76,6 +76,9 @@ FvResult MetalWrapper::acquireNextImage(FvSwapchain swapchain,
         foundIndex          = true;
     }
 
+    availableImageIndex = 0;
+    foundIndex          = true;
+
     if (foundIndex == false) {
         // Not enough images free, can't acquire another
         return FV_RESULT_FAILURE;
@@ -200,9 +203,11 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
             }
 
             // Loop through each render pass color attachment, check if it's
-            // texture is nil. If it is, back it with the current drawable.
+            // texture is a drawable. If it is, back it with the current
+            // drawable.
             for (uint32_t k = 0; k < pipeline->colorAttachments.size(); ++k) {
-                if (pipeline->renderPass.colorAttachments[k].texture == nil) {
+                if (commandBufferWrapper->attachments[k].referencesDrawable ==
+                    true) {
                     pipeline->renderPass.colorAttachments[k].texture =
                         currentDrawable.texture;
                 }
@@ -287,7 +292,7 @@ void MetalWrapper::cmdBindGraphicsPipeline(
         }
 
         pipelineWrapper->renderPass.colorAttachments[i].texture =
-            commandBufferWrapper->attachments[attachmentIndex];
+            commandBufferWrapper->attachments[attachmentIndex].texture;
 
         pipelineWrapper->renderPass.colorAttachments[i].clearColor =
             MTLClearColorMake(clearColor[0], clearColor[1], clearColor[2],
@@ -300,9 +305,9 @@ void MetalWrapper::cmdBindGraphicsPipeline(
             pipelineWrapper->depthStencilAttachment[0].attachment;
 
         pipelineWrapper->renderPass.depthAttachment.texture =
-            commandBufferWrapper->attachments[attachmentIndex];
+            commandBufferWrapper->attachments[attachmentIndex].texture;
         pipelineWrapper->renderPass.stencilAttachment.texture =
-            commandBufferWrapper->attachments[attachmentIndex];
+            commandBufferWrapper->attachments[attachmentIndex].texture;
 
         pipelineWrapper->renderPass.depthAttachment.clearDepth =
             commandBufferWrapper->clearValues[attachmentIndex]
@@ -509,7 +514,7 @@ MetalWrapper::framebufferCreate(FvFramebuffer *framebuffer,
             ImageViewWrapper *textureView = textureViews.get(*handle);
 
             if (textureView != nullptr) {
-                framebufferWrapper.attachments.push_back(textureView->texture);
+                framebufferWrapper.attachments.push_back(*textureView);
             }
         }
     }

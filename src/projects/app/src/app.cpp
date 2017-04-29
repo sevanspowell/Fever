@@ -1,4 +1,4 @@
-/*===-- app/app.h - Fever 'Hello Triangle' app ----------------------*- C -*-===
+/*===-- app/app.h - Fever 'Hello Triangle' app --------------------*- C++ -*-===
  *
  *                     The Fever Graphics Library
  *

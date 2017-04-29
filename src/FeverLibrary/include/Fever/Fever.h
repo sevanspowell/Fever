@@ -556,30 +556,28 @@ extern FvResult fvAcquireNextImage(FvSwapchain swapchain,
 /* extern void fvAcquireNextImage(uint32_t *imageIndex); */
 
 typedef struct FvSubmitInfo {
-    /* /\** Number of semaphores to wait on *\/ */
-    /* uint32_t waitSemaphoreCount; */
-    /* /\** Array of semaphores to wait on before executing command buffers in
-     */
-    /*  * submission *\/ */
-    /* const FvSemaphore *waitSemaphores; */
+    /** Number of semaphores to wait on */
+    uint32_t waitSemaphoreCount;
+    /** Array of semaphores to wait on before executing command buffers in
+     * submission */
+    const FvSemaphore *waitSemaphores;
+    /** Number of command buffers */
+    uint32_t commandBufferCount;
+    /** Command buffers to submit */
+    const FvCommandBuffer *commandBuffers;
+    /** Number of semaphores to be signaled once commands have completed
+     * execution  */
+    uint32_t signalSemaphoreCount;
+    /** Array of semaphores to be signaled once commands have completed
+     * execution */
+    const FvSemaphore *signalSemaphores;
+
     /* /\** Array of bitmasked pipeline stages. Each entry corresponds to a wait
      */
     /*  * semaphore. Waiting will occur on each semaphore at the given stages of
      */
     /*  * the pipeline. *\/ */
     /* const FvPipelineStage *waitStagesMask; */
-
-    /** Number of command buffers */
-    uint32_t commandBufferCount;
-    /** Command buffers to submit */
-    const FvCommandBuffer *commandBuffers;
-
-    /* /\** Number of semaphores to be signaled once commands have completed */
-    /*  * execution  *\/ */
-    /* uint32_t signalSemaphoreCount; */
-    /* /\** Array of semaphores to be signaled once commands have completed */
-    /*  * execution *\/ */
-    /* const FvSemaphore *signalSemaphores; */
 } FvSubmitInfo;
 
 /**
@@ -589,10 +587,10 @@ extern FvResult fvQueueSubmit(uint32_t submissionsCount,
                               const FvSubmitInfo *submissions);
 
 typedef struct FvPresentInfo {
-    /*     /\** Number of semaphores to wait on before presentation *\/ */
-    /*     uint32_t waitSemaphoreCount; */
-    /*     /\** Array of semaphores to wait on before presentation *\/ */
-    /*     const FvSemaphore *waitSemaphores; */
+    /** Number of semaphores to wait on before presentation */
+    uint32_t waitSemaphoreCount;
+    /** Array of semaphores to wait on before presentation */
+    const FvSemaphore *waitSemaphores;
     uint32_t swapchainCount;
     FvSwapchain *swapchains;
     uint32_t *imageIndices;

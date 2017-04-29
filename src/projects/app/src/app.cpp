@@ -399,18 +399,28 @@ class HelloTriangleApplication {
 
         FvSubmitInfo submitInfo;
 
+        FvSemaphore waitSemaphores[]  = {imageAvailableSemaphore};
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.waitSemaphores     = waitSemaphores;
+
         submitInfo.commandBufferCount = 1;
         submitInfo.commandBuffers     = &commandBuffer;
+
+        FvSemaphore signalSemaphores[]  = {renderFinishedSemaphore};
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.signalSemaphores     = signalSemaphores;
 
         if (fvQueueSubmit(1, &submitInfo) != FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to submit draw command buffer!");
         }
 
         FvPresentInfo presentInfo;
-        presentInfo.swapchainCount = 1;
-        FvSwapchain swapchains[]   = {swapchain};
-        presentInfo.swapchains     = swapchains;
-        presentInfo.imageIndices   = &imageIndex;
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.waitSemaphores     = signalSemaphores;
+        presentInfo.swapchainCount     = 1;
+        FvSwapchain swapchains[]       = {swapchain};
+        presentInfo.swapchains         = swapchains;
+        presentInfo.imageIndices       = &imageIndex;
 
         fvQueuePresent(&presentInfo);
     }
@@ -436,7 +446,7 @@ class HelloTriangleApplication {
 
             // Swap display buffers
             // TODO Do this but for metal? Swap Metal, not GL buffers
-            //SDL_GL_SwapWindow(window);
+            // SDL_GL_SwapWindow(window);
         }
 
         SDL_DestroyWindow(window);

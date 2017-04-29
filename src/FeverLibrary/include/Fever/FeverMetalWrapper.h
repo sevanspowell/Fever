@@ -87,9 +87,35 @@ struct CommandBufferWrapper {
 };
 
 struct SemaphoreWrapper {
-    SemaphoreWrapper() : isSignalled(false) {}
+public:
+    SemaphoreWrapper() { semaphore = dispatch_semaphore_create(0); }
 
-    bool isSignalled;
+    /**
+     * Signals (increments) the semaphore.
+     *
+     * Increment the semaphore. If the previous value was less than zero, this
+     * method will wake a thread currently waiting.
+     */
+    void signal() {
+        dispatch_semaphore_signal(semaphore);
+    }
+
+    /**
+     * Waits for (decrements) the semaphore.
+     *
+     * If the resulting value of the semaphore is less than zero, this method 
+     * will block until the semaphore is signalled.
+     */
+    void wait() {
+        dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+    }
+    
+    void release() {
+        dispatch_release(semaphore);
+    }
+
+private:
+    dispatch_semaphore_t semaphore;
 };
 
 class MetalWrapper {

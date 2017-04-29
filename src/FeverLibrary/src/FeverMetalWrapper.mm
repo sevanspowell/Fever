@@ -31,7 +31,6 @@ FvResult MetalWrapper::semaphoreCreate(FvSemaphore *semaphore) {
 
     if (semaphore != nullptr) {
         SemaphoreWrapper semaphoreWrapper;
-        semaphoreWrapper.isSignalled = false;
 
         const Handle *handle = semaphores.add(semaphoreWrapper);
 
@@ -48,6 +47,12 @@ void MetalWrapper::semaphoreDestroy(FvSemaphore semaphore) {
     const Handle *handle = (const Handle *)semaphore;
 
     if (handle != nullptr) {
+        SemaphoreWrapper *semaphoreWrapper = semaphores.get(*handle);
+
+        if (semaphoreWrapper != nullptr) {
+            semaphoreWrapper->release();
+        }
+
         semaphores.remove(*handle);
     }
 }
@@ -100,7 +105,7 @@ FvResult MetalWrapper::acquireNextImage(FvSwapchain swapchain,
         SemaphoreWrapper *semaphoreWrapper = semaphores.get(*handle);
 
         if (semaphoreWrapper != nullptr) {
-            semaphoreWrapper->isSignalled = true;
+            semaphoreWrapper->signal();
         }
     }
 
@@ -138,8 +143,24 @@ void MetalWrapper::getSwapchainImage(FvSwapchain swapchain,
 }
 
 void MetalWrapper::queuePresent(const FvPresentInfo *presentInfo) {
-
     if (presentInfo != nullptr && presentInfo->imageIndices != nullptr) {
+        // Wait for semaphores
+        for (uint32_t i = 0; i < presentInfo->waitSemaphoreCount; ++i) {
+            FvSemaphore semaphore = presentInfo->waitSemaphores[i];
+
+            // Get internal semaphore
+            const Handle *handle = (const Handle *)semaphore;
+
+            if (handle != nullptr) {
+                SemaphoreWrapper *semaphoreWrapper = semaphores.get(*handle);
+
+                if (semaphoreWrapper != nullptr) {
+                    semaphoreWrapper->wait();
+                }
+            }
+        }
+
+        // TODO: Expand for multiple presentation images
         uint32_t imageIndex = presentInfo->imageIndices[0];
 
         // Make separate command buffer to schedule drawable presentation and
@@ -168,10 +189,37 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
 
     // Loop thru each submission
     for (uint32_t i = 0; i < submissionsCount; ++i) {
+
+        // Wait for semaphores
+        for (uint32_t j = 0; j < submissions[i].waitSemaphoreCount; ++j) {
+            FvSemaphore semaphore = submissions[i].waitSemaphores[j];
+
+            // Get internal semaphore
+            const Handle *handle = (const Handle *)semaphore;
+
+            if (handle != nullptr) {
+                SemaphoreWrapper *semaphoreWrapper = semaphores.get(*handle);
+
+                if (semaphoreWrapper != nullptr) {
+                    semaphoreWrapper->wait();
+                }
+            }
+        }
+
+        // Synchronization code from this excellent answer on SO:
+        // http://stackoverflow.com/a/20910658/
+        // Create a group of tasks (each command buffers work is a task)
+        // A group is created so we can be notified when they are ALL finished.
+        dispatch_group_t group = dispatch_group_create();
+
         // Submit each command buffer
-        for (uint32_t j = 0; j < submissions->commandBufferCount; ++j) {
+        for (uint32_t j = 0; j < submissions[i].commandBufferCount; ++j) {
+            // Enter the group (essentially adding a new task that will wait for
+            // completion)
+            dispatch_group_enter(group);
+
             FvCommandBuffer commandBufferHandle =
-                submissions->commandBuffers[j];
+                submissions[i].commandBuffers[j];
             const Handle *handle = (const Handle *)commandBufferHandle;
 
             // Get command buffer from handle
@@ -243,9 +291,48 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
             // End encoding
             [encoder endEncoding];
 
+            [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> cb) {
+              // Indicate that this task has finished
+              dispatch_group_leave(group);
+            }];
+
             // Commit command buffer
             [commandBuffer commit];
         }
+
+        // A copy of the submission object is made here so that we use it,
+        // rather than the submissions pointer to access the submission object
+        // in the block below. If we use the pointer, it may no longer point to
+        // a valid object (the submission info) when the block begins.
+        //
+        // We can access and mutate the 'semaphores' member variable within
+        // block because blocks make a strong, mutable referenc to member
+        // variables used inside blocks. Blocks and Objects reference:
+        // https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/Blocks/Articles/bxVariables.html#//apple_ref/doc/uid/TP40007502-CH6-SW4
+
+        FvSubmitInfo submission = submissions[i];
+
+        // Notify us when all tasks are done
+        dispatch_group_notify(
+            group, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0),
+            ^{
+              // Signal semaphores on completion
+              for (uint32_t i = 0; i < submission.signalSemaphoreCount; ++i) {
+                  FvSemaphore semaphore = submission.signalSemaphores[i];
+
+                  // Get internal semaphore
+                  const Handle *handle = (const Handle *)semaphore;
+
+                  if (handle != nullptr) {
+                      SemaphoreWrapper *semaphoreWrapper =
+                          semaphores.get(*handle);
+
+                      if (semaphoreWrapper != nullptr) {
+                          semaphoreWrapper->signal();
+                      }
+                  }
+              }
+            });
     }
 
     return FV_RESULT_SUCCESS;

@@ -87,7 +87,7 @@ struct CommandBufferWrapper {
 };
 
 struct SemaphoreWrapper {
-public:
+  public:
     SemaphoreWrapper() { semaphore = dispatch_semaphore_create(0); }
 
     /**
@@ -96,26 +96,24 @@ public:
      * Increment the semaphore. If the previous value was less than zero, this
      * method will wake a thread currently waiting.
      */
-    void signal() {
-        dispatch_semaphore_signal(semaphore);
-    }
+    void signal() { dispatch_semaphore_signal(semaphore); }
 
     /**
      * Waits for (decrements) the semaphore.
      *
-     * If the resulting value of the semaphore is less than zero, this method 
+     * If the resulting value of the semaphore is less than zero, this method
      * will block until the semaphore is signalled.
      */
-    void wait() {
-        dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
-    }
-    
-    void release() {
-        dispatch_release(semaphore);
-    }
+    void wait() { dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER); }
 
-private:
+    void release() { dispatch_release(semaphore); }
+
+  private:
     dispatch_semaphore_t semaphore;
+};
+
+struct SwapchainWrapper {
+    FvExtent3D extent;
 };
 
 class MetalWrapper {
@@ -130,6 +128,8 @@ class MetalWrapper {
     static const uint32_t MAX_NUM_COMMAND_BUFFERS    = 64;
     static const uint32_t MAX_NUM_DRAWABLES          = 32;
     static const uint32_t MAX_NUM_SEMAPHORES         = 32;
+    static const uint32_t MAX_NUM_SWAPCHAINS         = 16;
+
 
     MetalWrapper()
         : metalLayer(NULL), device(nil), libraries(MAX_NUM_LIBRARIES),
@@ -139,7 +139,8 @@ class MetalWrapper {
           framebuffers(MAX_NUM_FRAMEBUFFERS),
           commandQueues(MAX_NUM_COMMAND_QUEUES),
           commandBuffers(MAX_NUM_COMMAND_BUFFERS),
-          semaphores(MAX_NUM_SEMAPHORES) {}
+          semaphores(MAX_NUM_SEMAPHORES),
+    swapchains(MAX_NUM_SWAPCHAINS) {}
 
     FvResult init(const FvInitInfo *initInfo);
 
@@ -267,10 +268,7 @@ class MetalWrapper {
     PersistentHandleDataStore<id<MTLCommandQueue>> commandQueues;
     PersistentHandleDataStore<CommandBufferWrapper> commandBuffers;
     PersistentHandleDataStore<SemaphoreWrapper> semaphores;
-
-    // typedef std::vector<id<CAMetalDrawable>> Swapchain;
-    // PersistentHandleDataStore<Swapchain> swapchains;
-    // Swapchain currentSwapchain;
+    PersistentHandleDataStore<SwapchainWrapper> swapchains;
 
     id<CAMetalDrawable> currentDrawable;
     id<MTLCommandQueue> currentCommandQueue;

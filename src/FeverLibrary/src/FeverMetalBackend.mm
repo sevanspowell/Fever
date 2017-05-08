@@ -157,6 +157,11 @@ FvResult fvCommandBufferCreate(FvCommandBuffer *commandBuffer,
     }
 }
 
+void fvCommandBufferDestroy(FvCommandBuffer commandBuffer,
+                            FvCommandPool commandPool) {
+    
+}
+
 void fvCommandBufferBegin(FvCommandBuffer commandBuffer) {
     if (metalWrapper != nullptr) {
         metalWrapper->commandBufferBegin(commandBuffer);

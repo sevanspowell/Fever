@@ -81,7 +81,8 @@ template <typename T> class FDeleter {
 
 class HelloTriangleApplication {
   public:
-    HelloTriangleApplication() : window(nullptr) {}
+    HelloTriangleApplication(SDL_Window *windowPtr)
+        : window(windowPtr), commandBuffer(FV_NULL_HANDLE) {}
 
     ~HelloTriangleApplication() {
         // Clean up window if it hasn't already been cleaned up
@@ -92,13 +93,11 @@ class HelloTriangleApplication {
 
     void run() {
         // initWindow();
+        initFever();
         mainLoop();
     }
 
   private:
-    const uint32_t WINDOW_WIDTH  = 800;
-    const uint32_t WINDOW_HEIGHT = 600;
-
     void initWindow() {}
 
     void initFever() {
@@ -139,18 +138,46 @@ class HelloTriangleApplication {
     }
 
     void createSwapchain() {
-        FvSwapchainCreateInfo swapchainCreateInfo;
+        int outputWidth = 0;
+        int outputHeight = 0;
+        
+        SDL_GL_GetDrawableSize(window, &outputWidth, &outputHeight);
+        
+        FvSwapchain oldSwapchain = swapchain;
 
-        if (fvCreateSwapchain(swapchain.replace(), &swapchainCreateInfo) !=
+        FvSwapchainCreateInfo swapchainCreateInfo;
+        swapchainCreateInfo.oldSwapchain = oldSwapchain;
+        swapchainCreateInfo.extent.width = outputWidth;
+        swapchainCreateInfo.extent.height = outputHeight;
+
+
+        FvSwapchain newSwapchain;
+        if (fvCreateSwapchain(&newSwapchain, &swapchainCreateInfo) !=
             FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to create swapchain!");
         }
 
+        swapchain = newSwapchain;
+
         fvGetSwapchainImage(swapchain, &swapchainImage);
     }
 
+    void recreateSwapchain() {
+        fvDeviceWaitIdle();
+
+        createSwapchain();
+        createRenderPass();
+        createGraphicsPipeline();
+    }
+
     void createGraphicsPipeline() {
+        int outputWidth = 0;
+        int outputHeight = 0;
+
+        SDL_GL_GetDrawableSize(window, &outputWidth, &outputHeight);
+
         std::vector<char> shaderCode =
+
             readFile("src/projects/app/assets/hello.metal");
         shaderCode.push_back('\0');
 
@@ -192,14 +219,15 @@ class HelloTriangleApplication {
         FvViewport viewport = {};
         viewport.x          = 0.0f;
         viewport.y          = 0.0f;
-        viewport.width      = (float)WINDOW_WIDTH;
-        viewport.height     = (float)WINDOW_HEIGHT;
+        viewport.width      = (float)outputWidth;
+        viewport.height     = (float)outputHeight;
         viewport.minDepth   = 0.0f;
         viewport.maxDepth   = 1.0f;
 
         FvRect2D scissor = {};
         scissor.offset   = {0, 0};
-        scissor.extent   = {WINDOW_WIDTH, WINDOW_HEIGHT};
+        scissor.extent.width = (uint32_t)outputWidth;
+        scissor.extent.height = (uint32_t)outputHeight;
 
         FvPipelineViewportDescription viewportState = {};
         viewportState.viewport                      = viewport;
@@ -279,8 +307,8 @@ class HelloTriangleApplication {
         framebufferInfo.renderPass              = renderPass;
         framebufferInfo.attachmentCount         = 1;
         framebufferInfo.attachments             = &imageView;
-        framebufferInfo.width                   = WINDOW_WIDTH;
-        framebufferInfo.height                  = WINDOW_HEIGHT;
+        framebufferInfo.width                   = outputWidth;
+        framebufferInfo.height                  = outputHeight;
         framebufferInfo.layers                  = 1;
 
         if (fvFramebufferCreate(framebuffer.replace(), &framebufferInfo) !=
@@ -293,6 +321,11 @@ class HelloTriangleApplication {
         if (fvCommandPoolCreate(commandPool.replace(), &poolInfo) !=
             FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to create command pool!");
+        }
+
+        // If a command buffer already exists, free it
+        if (commandBuffer != FV_NULL_HANDLE) {
+            fvCommandBufferDestroy(commandBuffer, commandPool);
         }
 
         if (fvCommandBufferCreate(&commandBuffer, commandPool) !=
@@ -379,6 +412,14 @@ class HelloTriangleApplication {
                 switch (event.type) {
                 case SDL_QUIT: {
                     shouldQuit = true;
+                    break;
+                }
+                case SDL_WINDOWEVENT: {
+                    switch (event.window.event) {
+                    case SDL_WINDOWEVENT_SIZE_CHANGED:
+                        recreateSwapchain();
+                        break;
+                    }
                     break;
                 }
                 }
@@ -469,7 +510,7 @@ int main(void) {
             throw std::runtime_error("Failed to initialize Fever library.");
         }
         while (true) {
-            HelloTriangleApplication app;
+            HelloTriangleApplication app(window);
 
             app.run();
         }

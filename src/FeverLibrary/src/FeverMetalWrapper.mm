@@ -91,6 +91,20 @@ FvResult MetalWrapper::acquireNextImage(FvSwapchain swapchain,
     // // Get next drawable and add to swapchain
     // currentSwapchain[availableImageIndex] = [metalLayer nextDrawable];
     // currentDrawable = currentSwapchain[availableImageIndex];
+    const Handle *handle = (const Handle *)swapchain;
+
+    if (handle == nullptr) {
+        return FV_RESULT_FAILURE;
+    }
+
+    SwapchainWrapper *swapchainWrapper = swapchains.get(*handle);
+
+    CGSize drawableSize;
+    drawableSize.width  = swapchainWrapper->extent.width;
+    drawableSize.height = swapchainWrapper->extent.height;
+
+    metalLayer.drawableSize = drawableSize;
+
     currentDrawable = [metalLayer nextDrawable];
 
     if (imageIndex != nullptr) {
@@ -100,7 +114,7 @@ FvResult MetalWrapper::acquireNextImage(FvSwapchain swapchain,
 
     // Signal semaphore immediately
     // (Metal nextDrawable is blocking and so when it returns, image is ready)
-    const Handle *handle = (const Handle *)imageAvailableSemaphore;
+    handle = (const Handle *)imageAvailableSemaphore;
 
     if (handle != nullptr) {
         SemaphoreWrapper *semaphoreWrapper = semaphores.get(*handle);
@@ -116,16 +130,33 @@ FvResult MetalWrapper::acquireNextImage(FvSwapchain swapchain,
 FvResult
 MetalWrapper::createSwapchain(FvSwapchain *swapchain,
                               const FvSwapchainCreateInfo *createInfo) {
-    FvResult result = FV_RESULT_SUCCESS;
+    if (createInfo == nullptr || swapchain == nullptr) {
+        return FV_RESULT_FAILURE;
+    }
 
-    // TODO Actually create swapchain - or not, Metal has no concept of multiple
-    // swapchains
+    SwapchainWrapper swapchainWrapper;
+    swapchainWrapper.extent = createInfo->extent;
 
-    return result;
+    // Store swapchain wrapper and return handle
+    const Handle *handle = swapchains.add(swapchainWrapper);
+
+    if (handle != nullptr) {
+        *swapchain = (FvSwapchain)handle;
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+
+    return FV_RESULT_SUCCESS;
 }
 
 void MetalWrapper::destroySwapchain(FvSwapchain swapchain) {
-    // TODO Actually destroy swapchain
+    const Handle *handle = (const Handle *)swapchain;
+
+    if (handle != nullptr) {
+        // SwapchainWrapper *swapchainWrapper = swapchains.get(*handle);
+
+        swapchains.remove(*handle);
+    }
 }
 
 void MetalWrapper::getSwapchainImage(FvSwapchain swapchain,
@@ -1240,7 +1271,7 @@ void MetalWrapper::renderPassDestroy(FvRenderPass renderPass) {
                 FV_MTL_RELEASE(renderPassWrapper->subpasses[i]
                                    .mtlPipelineDescriptor.vertexFunction);
                 FV_MTL_RELEASE(renderPassWrapper->subpasses[i]
-                               .mtlPipelineDescriptor.fragmentFunction);
+                                   .mtlPipelineDescriptor.fragmentFunction);
                 FV_MTL_RELEASE(
                     renderPassWrapper->subpasses[i].mtlPipelineDescriptor);
             }

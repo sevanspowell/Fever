@@ -465,6 +465,9 @@ FV_DEFINE_HANDLE(FvCommandBuffer);
 extern FvResult fvCommandBufferCreate(FvCommandBuffer *commandBuffer,
                                       FvCommandPool commandPool);
 
+extern void fvCommandBufferDestroy(FvCommandBuffer commandBuffer,
+                                   FvCommandPool commandPool);
+
 extern void fvCommandBufferBegin(FvCommandBuffer commandBuffer);
 
 extern FvResult fvCommandBufferEnd(FvCommandBuffer commandBuffer);
@@ -508,6 +511,8 @@ FvResult fvSemaphoreCreate(FvSemaphore *semaphore);
 
 void fvSemaphoreDestroy(FvSemaphore semaphore);
 
+FV_DEFINE_HANDLE(FvSwapchain);
+
 typedef struct FvSwapchainCreateInfo {
     /** Format of each pixel in the image */
     FvFormat format;
@@ -517,9 +522,9 @@ typedef struct FvSwapchainCreateInfo {
     uint32_t arrayLayers;
     /** How the image will be used (bitmask of FvImageUsage) */
     FvImageUsage usage;
+    FvSwapchain oldSwapchain;
 } FvSwapchainCreateInfo;
 
-FV_DEFINE_HANDLE(FvSwapchain);
 
 extern FvResult fvCreateSwapchain(FvSwapchain *swapchain,
                                   const FvSwapchainCreateInfo *createInfo);

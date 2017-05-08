@@ -11,6 +11,7 @@ target_link_libraries(${PROJECT_NAME}
   PRIVATE Fever
   PRIVATE sdl2
   PRIVATE stb
+  PRIVATE glm
   )
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)

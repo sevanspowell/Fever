@@ -54,6 +54,7 @@ struct GraphicsPipelineWrapper {
     MTLViewport viewport;
     MTLScissorRect scissor;
     MTLPrimitiveType primitiveType;
+    FvPipelineVertexInputDescription vertexInputDescription;
 
     std::vector<FvAttachmentReference> inputAttachments;
     std::vector<FvAttachmentReference> colorAttachments;
@@ -71,6 +72,13 @@ struct DrawCall {
     uint32_t firstInstance;
 };
 
+struct BufferWrapper {
+    id<MTLBuffer> mtlBuffer;
+
+    FvSize bindingPoint;
+    FvSize offset;
+};
+
 struct CommandBufferWrapper {
     CommandBufferWrapper()
         : commandQueue(nil), readyForSubmit(false),
@@ -84,6 +92,8 @@ struct CommandBufferWrapper {
 
     FvGraphicsPipeline graphicsPipeline;
     DrawCall drawCall;
+
+    std::vector<FvBuffer> vertexBuffers;
 };
 
 struct SemaphoreWrapper {
@@ -129,7 +139,7 @@ class MetalWrapper {
     static const uint32_t MAX_NUM_DRAWABLES          = 32;
     static const uint32_t MAX_NUM_SEMAPHORES         = 32;
     static const uint32_t MAX_NUM_SWAPCHAINS         = 16;
-
+    static const uint32_t MAX_NUM_BUFFERS            = 256;
 
     MetalWrapper()
         : metalLayer(NULL), device(nil), libraries(MAX_NUM_LIBRARIES),
@@ -139,12 +149,17 @@ class MetalWrapper {
           framebuffers(MAX_NUM_FRAMEBUFFERS),
           commandQueues(MAX_NUM_COMMAND_QUEUES),
           commandBuffers(MAX_NUM_COMMAND_BUFFERS),
-          semaphores(MAX_NUM_SEMAPHORES),
-    swapchains(MAX_NUM_SWAPCHAINS) {}
+          semaphores(MAX_NUM_SEMAPHORES), swapchains(MAX_NUM_SWAPCHAINS),
+          buffers(MAX_NUM_BUFFERS) {}
 
     FvResult init(const FvInitInfo *initInfo);
 
     void shutdown();
+
+    FvResult bufferCreate(FvBuffer *buffer,
+                          const FvBufferCreateInfo *createInfo);
+
+    void bufferDestroy(FvBuffer buffer);
 
     FvResult semaphoreCreate(FvSemaphore *semaphore);
 
@@ -172,6 +187,10 @@ class MetalWrapper {
 
     void cmdBindGraphicsPipeline(FvCommandBuffer commandBuffer,
                                  FvGraphicsPipeline graphicsPipeline);
+
+    void cmdBindVertexBuffers(FvCommandBuffer commandBuffer,
+                              uint32_t firstBinding, uint32_t bindingCount,
+                              const FvBuffer *buffers, const FvSize *offsets);
 
     void cmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
                  uint32_t instanceCount, uint32_t firstVertex,
@@ -230,6 +249,10 @@ class MetalWrapper {
     void shaderModuleDestroy(FvShaderModule shaderModule);
 
   private:
+    static MTLStepFunction toMtlStepFunction(FvVertexInputRate inputRate);
+
+    static MTLVertexFormat toMtlVertexFormat(FvVertexFormat format);
+
     static MTLLoadAction toMtlLoadAction(FvLoadOp loadOp);
 
     static MTLStoreAction toMtlStoreAction(FvStoreOp storeOp);
@@ -269,6 +292,7 @@ class MetalWrapper {
     PersistentHandleDataStore<CommandBufferWrapper> commandBuffers;
     PersistentHandleDataStore<SemaphoreWrapper> semaphores;
     PersistentHandleDataStore<SwapchainWrapper> swapchains;
+    PersistentHandleDataStore<BufferWrapper> buffers;
 
     id<CAMetalDrawable> currentDrawable;
     id<MTLCommandQueue> currentCommandQueue;

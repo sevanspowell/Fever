@@ -24,6 +24,9 @@
 #define FV_NULL_HANDLE 0
 #define FV_DEFINE_HANDLE(object) typedef struct object##_t *object;
 
+/** For use with memory sizes and offset values. */
+typedef uint64_t FvSize;
+
 typedef union FvClearColor {
     float float32[4];
     int32_t int32[4];
@@ -61,20 +64,20 @@ typedef struct FvRect2D {
     FvExtent2D extent;
 } FvRect2D;
 
-/* /\** Structure specifying creation parameters for a buffer. *\/ */
-/* typedef struct FvBufferCreateInfo { */
-/*     FvBufferType type; /\** Type of the buffer. *\/ */
-/*     const void *data;  /\** Buffer data. *\/ */
-/*     size_t size;       /\** Size of the buffer data in bytes. *\/ */
-/* } FvBufferCreateInfo; */
+/** Structure specifying creation parameters for a buffer. */
+typedef struct FvBufferCreateInfo {
+    FvBufferUsage usage; /** Bitmask indicating how buffer will be used. */
+    const void *data;    /** Buffer data. */
+    size_t size;         /** Size of the buffer data in bytes. */
+} FvBufferCreateInfo;
 
-/* /\** Opaque handle to buffer object. *\/ */
-/* FV_DEFINE_HANDLE(FvBuffer); */
+/** Opaque handle to buffer object. */
+FV_DEFINE_HANDLE(FvBuffer);
 
-/* extern void fvBufferCreate(FvBuffer *buffer, */
-/*                            const FvBufferCreateInfo *createInfo); */
+extern FvResult fvBufferCreate(FvBuffer *buffer,
+                               const FvBufferCreateInfo *createInfo);
 
-/* extern void fvBufferDestroy(FvBuffer buffer); */
+extern void fvBufferDestroy(FvBuffer buffer);
 
 /** Opaque handle to shader object. */
 FV_DEFINE_HANDLE(FvShaderModule);
@@ -246,9 +249,9 @@ typedef struct FvVertexInputAttributeDescription {
     uint32_t location;
     /** Index of binding in array of bindings */
     uint32_t binding;
-    /** Format of the vertext attribute (number of color channels of format
+    /** Format of the vertex attribute (number of color channels of format
      * should match number of components in shader data type) */
-    FvFormat format;
+    FvVertexFormat format;
     /** Number of bytes from start of per-vertex data to begin reading from */
     uint32_t offset;
 } FvVertexInputAttributeDescription;
@@ -493,6 +496,28 @@ extern void fvCmdBindGraphicsPipeline(FvCommandBuffer commandBuffer,
                                       FvGraphicsPipeline graphicsPipeline);
 
 /**
+ * Binds vertex buffers to a command buffer.
+ *
+ * \pre \p bindingCount is equal to the number of buffers and offsets provided.
+ * \pre All buffers must have been created with FV_BUFFER_USAGE_VERTEX_BUFFER
+ * flag.
+ * \pre All offsets must be valid offsets into their corresponding buffers
+ * (offset < size of buffer elements).
+ *
+ * \param firstBinding The index of the first binding to be updated by the
+ * function.
+ * \param bindingCount The number of bindings to update with the same number of
+ * buffers (num buffers == bindingCount).
+ * \param buffers An array of buffers to bind to the command buffer.
+ * \param offsets An array of offsets indicating how far the data should be read
+ * from the start of the corresponding buffer.
+ */
+extern void fvCmdBindVertexBuffers(FvCommandBuffer commandBuffer,
+                                   uint32_t firstBinding, uint32_t bindingCount,
+                                   const FvBuffer *buffers,
+                                   const FvSize *offsets);
+
+/**
  * Record a non-indexed draw call into a command buffer.
  *
  * \param commandBuffer CommandBuffer to record draw call into.
@@ -524,7 +549,6 @@ typedef struct FvSwapchainCreateInfo {
     FvImageUsage usage;
     FvSwapchain oldSwapchain;
 } FvSwapchainCreateInfo;
-
 
 extern FvResult fvCreateSwapchain(FvSwapchain *swapchain,
                                   const FvSwapchainCreateInfo *createInfo);

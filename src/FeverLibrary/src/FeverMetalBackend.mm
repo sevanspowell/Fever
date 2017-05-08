@@ -126,6 +126,15 @@ void fvCmdBindGraphicsPipeline(FvCommandBuffer commandBuffer,
     }
 }
 
+void fvCmdBindVertexBuffers(FvCommandBuffer commandBuffer,
+                            uint32_t firstBinding, uint32_t bindingCount,
+                            const FvBuffer *buffers, const FvSize *offsets) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->cmdBindVertexBuffers(commandBuffer, firstBinding,
+                                           bindingCount, buffers, offsets);
+    }
+}
+
 void fvCmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
                uint32_t instanceCount, uint32_t firstVertex,
                uint32_t firstInstance) {
@@ -158,9 +167,7 @@ FvResult fvCommandBufferCreate(FvCommandBuffer *commandBuffer,
 }
 
 void fvCommandBufferDestroy(FvCommandBuffer commandBuffer,
-                            FvCommandPool commandPool) {
-    
-}
+                            FvCommandPool commandPool) {}
 
 void fvCommandBufferBegin(FvCommandBuffer commandBuffer) {
     if (metalWrapper != nullptr) {
@@ -337,6 +344,20 @@ void fvDestroySurface(FvSurface surface) {
     metalLayer = nil;
 }
 
-void fvDeviceWaitIdle() {
-    
+void fvDeviceWaitIdle() {}
+
+FvResult fvBufferCreate(FvBuffer *buffer,
+                        const FvBufferCreateInfo *createInfo) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->bufferCreate(buffer, createInfo);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+void fvBufferDestroy(FvBuffer buffer) {
+    assert(metalWrapper != nullptr);
+    if (metalWrapper != nullptr) {
+        return metalWrapper->bufferDestroy(buffer);
+    }
 }

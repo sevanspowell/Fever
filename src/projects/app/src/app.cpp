@@ -11,6 +11,7 @@
  * Based off code provided by 'Alexander Overvoorde' on his 'Vulkan Tutorial'
  * website (https://vulkan-tutorial.com).
  *===----------------------------------------------------------------------===*/
+#include <array>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -24,12 +25,50 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#include <glm/glm.hpp>
+
 #include <Fever/Fever.h>
 #include <Fever/FeverPlatform.h>
 
 #if FV_PLATFORM_OSX
 #include "osx.h"
 #endif
+
+struct Vertex {
+    glm::vec2 pos;
+    glm::vec3 color;
+
+    static FvVertexInputBindingDescription getBindingDescription() {
+        FvVertexInputBindingDescription bindingDescription = {};
+        bindingDescription.binding                         = 0;
+        bindingDescription.stride                          = 20;
+        bindingDescription.inputRate = FV_VERTEX_INPUT_RATE_VERTEX;
+
+        return bindingDescription;
+    }
+
+    static std::array<FvVertexInputAttributeDescription, 2>
+    getAttributeDescriptions() {
+        std::array<FvVertexInputAttributeDescription, 2> attributeDescriptions =
+            {};
+
+        attributeDescriptions[0].binding  = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format   = FV_VERTEX_FORMAT_FLOAT2;
+        attributeDescriptions[0].offset   = offsetof(Vertex, pos);
+
+        attributeDescriptions[1].binding  = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format   = FV_VERTEX_FORMAT_FLOAT3;
+        attributeDescriptions[1].offset   = offsetof(Vertex, color);
+
+        return attributeDescriptions;
+    }
+};
+
+const std::vector<Vertex> vertices = {{{0.0f, 0.5f}, {1.0f, 0.0f, 0.0f}},
+                                      {{-0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}},
+                                      {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}}};
 
 /// For automatically freeing Fever resources
 template <typename T> class FDeleter {
@@ -82,7 +121,8 @@ template <typename T> class FDeleter {
 class HelloTriangleApplication {
   public:
     HelloTriangleApplication(SDL_Window *windowPtr)
-        : window(windowPtr), commandBuffer(FV_NULL_HANDLE) {}
+        : window(windowPtr), outputWidth(0), outputHeight(0),
+          commandBuffer(FV_NULL_HANDLE) {}
 
     ~HelloTriangleApplication() {
         // Clean up window if it hasn't already been cleaned up
@@ -92,18 +132,22 @@ class HelloTriangleApplication {
     }
 
     void run() {
-        // initWindow();
+        SDL_GL_GetDrawableSize(window, &outputWidth, &outputHeight);
+
         initFever();
         mainLoop();
     }
 
   private:
-    void initWindow() {}
-
     void initFever() {
-        createRenderPass();
         createSwapchain();
+        createImageView();
+        createRenderPass();
         createGraphicsPipeline();
+        createFramebuffer();
+        createCommandPool();
+        createVertexBuffer();
+        createCommandBuffer();
         createSemaphores();
     }
 
@@ -138,18 +182,12 @@ class HelloTriangleApplication {
     }
 
     void createSwapchain() {
-        int outputWidth = 0;
-        int outputHeight = 0;
-        
-        SDL_GL_GetDrawableSize(window, &outputWidth, &outputHeight);
-        
         FvSwapchain oldSwapchain = swapchain;
 
         FvSwapchainCreateInfo swapchainCreateInfo;
-        swapchainCreateInfo.oldSwapchain = oldSwapchain;
-        swapchainCreateInfo.extent.width = outputWidth;
+        swapchainCreateInfo.oldSwapchain  = oldSwapchain;
+        swapchainCreateInfo.extent.width  = outputWidth;
         swapchainCreateInfo.extent.height = outputHeight;
-
 
         FvSwapchain newSwapchain;
         if (fvCreateSwapchain(&newSwapchain, &swapchainCreateInfo) !=
@@ -166,19 +204,105 @@ class HelloTriangleApplication {
         fvDeviceWaitIdle();
 
         createSwapchain();
+        createImageView();
         createRenderPass();
         createGraphicsPipeline();
+        createFramebuffer();
+        createCommandBuffer();
+    }
+
+    void createVertexBuffer() {
+        FvBufferCreateInfo bufferInfo = {};
+        bufferInfo.size               = sizeof(vertices[0]) * vertices.size();
+        bufferInfo.usage              = FV_BUFFER_USAGE_VERTEX_BUFFER;
+        bufferInfo.data               = vertices.data();
+
+        if (fvBufferCreate(vertexBuffer.replace(), &bufferInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create vertex buffer!");
+        }
+    }
+
+    void createImageView() {
+        FvImageViewCreateInfo imageViewInfo{};
+        imageViewInfo.image    = swapchainImage;
+        imageViewInfo.viewType = FV_IMAGE_VIEW_TYPE_2D;
+        imageViewInfo.format   = FV_FORMAT_BGRA8UNORM;
+
+        if (fvImageViewCreate(imageView.replace(), &imageViewInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create image view!");
+        }
+    }
+
+    void createFramebuffer() {
+        FvFramebufferCreateInfo framebufferInfo = {};
+        framebufferInfo.renderPass              = renderPass;
+        framebufferInfo.attachmentCount         = 1;
+        framebufferInfo.attachments             = &imageView;
+        framebufferInfo.width                   = outputWidth;
+        framebufferInfo.height                  = outputHeight;
+        framebufferInfo.layers                  = 1;
+
+        if (fvFramebufferCreate(framebuffer.replace(), &framebufferInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create framebuffer!");
+        }
+    }
+
+    void createCommandPool() {
+        FvCommandPoolCreateInfo poolInfo = {};
+
+        if (fvCommandPoolCreate(commandPool.replace(), &poolInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create command pool!");
+        }
+    }
+
+    void createCommandBuffer() {
+        // If a command buffer already exists, free it
+        if (commandBuffer != FV_NULL_HANDLE) {
+            fvCommandBufferDestroy(commandBuffer, commandPool);
+        }
+
+        if (fvCommandBufferCreate(&commandBuffer, commandPool) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create command buffer!");
+        }
+
+        fvCommandBufferBegin(commandBuffer);
+
+        FvRenderPassBeginInfo renderPassInfo = {};
+        renderPassInfo.renderPass            = renderPass;
+        renderPassInfo.framebuffer           = framebuffer;
+
+        FvClearValue clearColor        = {0.0f, 0.0f, 0.0f, 1.0f};
+        renderPassInfo.clearValueCount = 1;
+        renderPassInfo.clearValues     = &clearColor;
+
+        fvCmdBeginRenderPass(commandBuffer, &renderPassInfo);
+
+        {
+            fvCmdBindGraphicsPipeline(commandBuffer, graphicsPipeline);
+
+            FvBuffer vertexBuffers[] = {vertexBuffer};
+            FvSize offsets[]         = {0};
+            fvCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
+            fvCmdDraw(commandBuffer, vertices.size(), 1, 0, 0);
+        }
+
+        fvCmdEndRenderPass(commandBuffer);
+
+        if (fvCommandBufferEnd(commandBuffer) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to record command buffer");
+        }
     }
 
     void createGraphicsPipeline() {
-        int outputWidth = 0;
-        int outputHeight = 0;
-
-        SDL_GL_GetDrawableSize(window, &outputWidth, &outputHeight);
-
         std::vector<char> shaderCode =
 
-            readFile("src/projects/app/assets/hello.metal");
+        readFile("src/projects/app/assets/hello-vertex-buffers.metal");
         shaderCode.push_back('\0');
 
         FDeleter<FvShaderModule> shaderModule{fvShaderModuleDestroy};
@@ -207,10 +331,14 @@ class HelloTriangleApplication {
                                                            fragShaderStageInfo};
 
         FvPipelineVertexInputDescription vertexInputInfo = {};
-        vertexInputInfo.vertexBindingDescriptionCount    = 0;
-        vertexInputInfo.vertexBindingDescriptions        = nullptr;
-        vertexInputInfo.vertexAttributeDescriptionCount  = 0;
-        vertexInputInfo.vertexAttributeDescriptions      = nullptr;
+        
+        auto bindingDescription = Vertex::getBindingDescription();
+        auto attributeDescriptions = Vertex::getAttributeDescriptions();
+        
+        vertexInputInfo.vertexBindingDescriptionCount    = 1;
+        vertexInputInfo.vertexBindingDescriptions        = &bindingDescription;
+        vertexInputInfo.vertexAttributeDescriptionCount  = attributeDescriptions.size();
+        vertexInputInfo.vertexAttributeDescriptions      = attributeDescriptions.data();
 
         FvPipelineInputAssemblyDescription inputAssembly = {};
         inputAssembly.primitiveType          = FV_PRIMITIVE_TYPE_TRIANGLE_LIST;
@@ -224,9 +352,9 @@ class HelloTriangleApplication {
         viewport.minDepth   = 0.0f;
         viewport.maxDepth   = 1.0f;
 
-        FvRect2D scissor = {};
-        scissor.offset   = {0, 0};
-        scissor.extent.width = (uint32_t)outputWidth;
+        FvRect2D scissor      = {};
+        scissor.offset        = {0, 0};
+        scissor.extent.width  = (uint32_t)outputWidth;
         scissor.extent.height = (uint32_t)outputHeight;
 
         FvPipelineViewportDescription viewportState = {};
@@ -274,87 +402,6 @@ class HelloTriangleApplication {
         if (fvGraphicsPipelineCreate(graphicsPipeline.replace(),
                                      &pipelineInfo) != FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to create graphics pipeline!");
-        }
-
-        /* FvImageCreateInfo imageInfo = {}; */
-        /* imageInfo.format            = FV_FORMAT_BGRA8UNORM; */
-        /* imageInfo.imageType         = FV_IMAGE_TYPE_2D; */
-        /* imageInfo.extent.width      = 800; */
-        /* imageInfo.extent.height     = 600; */
-        /* imageInfo.extent.depth      = 1; */
-        /* imageInfo.numMipmapLevels   = 1; */
-        /* imageInfo.arrayLayers       = 1; */
-        /* imageInfo.numSamples        = FV_SAMPLE_COUNT_1; */
-        /* imageInfo.usage             = FV_IMAGE_USAGE_RENDER_TARGET; */
-
-        /* FvImage image; */
-        /* if (fvImageCreate(&image, &imageInfo) != FV_RESULT_SUCCESS) { */
-        /*     throw std::runtime_error("Failed to create image!"); */
-        /* } */
-
-        FvImageViewCreateInfo imageViewInfo{};
-        imageViewInfo.image    = swapchainImage;
-        imageViewInfo.viewType = FV_IMAGE_VIEW_TYPE_2D;
-        imageViewInfo.format   = FV_FORMAT_BGRA8UNORM;
-
-        FvImageView imageView;
-        if (fvImageViewCreate(&imageView, &imageViewInfo) !=
-            FV_RESULT_SUCCESS) {
-            throw std::runtime_error("Failed to create image view!");
-        }
-
-        FvFramebufferCreateInfo framebufferInfo = {};
-        framebufferInfo.renderPass              = renderPass;
-        framebufferInfo.attachmentCount         = 1;
-        framebufferInfo.attachments             = &imageView;
-        framebufferInfo.width                   = outputWidth;
-        framebufferInfo.height                  = outputHeight;
-        framebufferInfo.layers                  = 1;
-
-        if (fvFramebufferCreate(framebuffer.replace(), &framebufferInfo) !=
-            FV_RESULT_SUCCESS) {
-            throw std::runtime_error("Failed to create framebuffer!");
-        }
-
-        FvCommandPoolCreateInfo poolInfo = {};
-
-        if (fvCommandPoolCreate(commandPool.replace(), &poolInfo) !=
-            FV_RESULT_SUCCESS) {
-            throw std::runtime_error("Failed to create command pool!");
-        }
-
-        // If a command buffer already exists, free it
-        if (commandBuffer != FV_NULL_HANDLE) {
-            fvCommandBufferDestroy(commandBuffer, commandPool);
-        }
-
-        if (fvCommandBufferCreate(&commandBuffer, commandPool) !=
-            FV_RESULT_SUCCESS) {
-            throw std::runtime_error("Failed to create command buffer!");
-        }
-
-        fvCommandBufferBegin(commandBuffer);
-
-        FvRenderPassBeginInfo renderPassInfo = {};
-        renderPassInfo.renderPass            = renderPass;
-        renderPassInfo.framebuffer           = framebuffer;
-
-        FvClearValue clearColor        = {0.0f, 0.0f, 0.0f, 1.0f};
-        renderPassInfo.clearValueCount = 1;
-        renderPassInfo.clearValues     = &clearColor;
-
-        fvCmdBeginRenderPass(commandBuffer, &renderPassInfo);
-
-        {
-            fvCmdBindGraphicsPipeline(commandBuffer, graphicsPipeline);
-
-            fvCmdDraw(commandBuffer, 3, 1, 0, 0);
-        }
-
-        fvCmdEndRenderPass(commandBuffer);
-
-        if (fvCommandBufferEnd(commandBuffer) != FV_RESULT_SUCCESS) {
-            throw std::runtime_error("Failed to record command buffer");
         }
     }
 
@@ -417,6 +464,12 @@ class HelloTriangleApplication {
                 case SDL_WINDOWEVENT: {
                     switch (event.window.event) {
                     case SDL_WINDOWEVENT_SIZE_CHANGED:
+                        int outputWidth  = 0;
+                        int outputHeight = 0;
+
+                        SDL_GL_GetDrawableSize(window, &outputWidth,
+                                               &outputHeight);
+
                         recreateSwapchain();
                         break;
                     }
@@ -454,6 +507,8 @@ class HelloTriangleApplication {
     }
 
     SDL_Window *window;
+    int outputWidth, outputHeight;
+
     FDeleter<FvPipelineLayout> pipelineLayout{fvPipelineLayoutDestroy};
     FDeleter<FvRenderPass> renderPass{fvRenderPassDestroy};
     FDeleter<FvGraphicsPipeline> graphicsPipeline{fvGraphicsPipelineDestroy};
@@ -465,6 +520,8 @@ class HelloTriangleApplication {
     FvImage swapchainImage;
     FDeleter<FvSemaphore> imageAvailableSemaphore{fvSemaphoreDestroy};
     FDeleter<FvSemaphore> renderFinishedSemaphore{fvSemaphoreDestroy};
+    FDeleter<FvBuffer> vertexBuffer{fvBufferDestroy};
+    FDeleter<FvImageView> imageView{fvImageViewDestroy};
 };
 
 int main(void) {

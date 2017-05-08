@@ -63,37 +63,39 @@ FvResult MetalWrapper::acquireNextImage(FvSwapchain swapchain,
     // TODO Get the swapchain to use
 
     // Find index of first available image in swapchain
-    uint32_t availableImageIndex = 0;
-    bool foundIndex              = false;
-    for (uint32_t i = 0; i < currentSwapchain.size(); ++i) {
-        if (currentSwapchain[i] == nil) {
-            availableImageIndex = i;
-            foundIndex          = true;
-        }
-    }
+    // uint32_t availableImageIndex = 0;
+    // bool foundIndex              = false;
+    // for (uint32_t i = 0; i < currentSwapchain.size(); ++i) {
+    //     if (currentSwapchain[i] == nil) {
+    //         availableImageIndex = i;
+    //         foundIndex          = true;
+    //     }
+    // }
 
     // If can't find index, add a new image to swapchain
     // NOTE we also restrict the number of swapchain images to 3 as Metal is
     // by-default triple-buffered
-    if (foundIndex == false && currentSwapchain.size() < 3) {
-        currentSwapchain.push_back(nil);
-        availableImageIndex = currentSwapchain.size() - 1;
-        foundIndex          = true;
-    }
+    // if (foundIndex == false && currentSwapchain.size() < 3) {
+    //     currentSwapchain.push_back(nil);
+    //     availableImageIndex = currentSwapchain.size() - 1;
+    //     foundIndex          = true;
+    // }
 
-    foundIndex = true;
+    // foundIndex = true;
 
-    if (foundIndex == false) {
-        // Not enough images free, can't acquire another
-        return FV_RESULT_FAILURE;
-    }
+    // if (foundIndex == false) {
+    //     // Not enough images free, can't acquire another
+    //     return FV_RESULT_FAILURE;
+    // }
 
-    // Get next drawable and add to swapchain
-    currentSwapchain[availableImageIndex] = [metalLayer nextDrawable];
-    currentDrawable = currentSwapchain[availableImageIndex];
+    // // Get next drawable and add to swapchain
+    // currentSwapchain[availableImageIndex] = [metalLayer nextDrawable];
+    // currentDrawable = currentSwapchain[availableImageIndex];
+    currentDrawable = [metalLayer nextDrawable];
 
     if (imageIndex != nullptr) {
-        *imageIndex = availableImageIndex;
+        // *imageIndex = availableImageIndex;
+        *imageIndex = 0;
     }
 
     // Signal semaphore immediately
@@ -160,7 +162,7 @@ void MetalWrapper::queuePresent(const FvPresentInfo *presentInfo) {
         }
 
         // TODO: Expand for multiple presentation images
-        uint32_t imageIndex = presentInfo->imageIndices[0];
+        // uint32_t imageIndex = presentInfo->imageIndices[0];
 
         @autoreleasepool {
             // Make separate command buffer to schedule drawable presentation
@@ -171,17 +173,20 @@ void MetalWrapper::queuePresent(const FvPresentInfo *presentInfo) {
             [commandBuffer presentDrawable:currentDrawable];
 
             [commandBuffer commit];
+
+            currentDrawable = nil;
+
+            currentCommandQueue = nil;
         }
 
-        [currentDrawable release];
-        currentDrawable = nil;
-
         // Can now re-use drawable, so free it from swapchain
+        /*
         for (uint32_t i = 0; i < currentSwapchain.size(); ++i) {
             if (i == imageIndex) {
                 currentSwapchain[i] = nil;
             }
         }
+        */
     }
 }
 
@@ -504,7 +509,6 @@ FvResult MetalWrapper::commandBufferCreate(FvCommandBuffer *commandBuffer,
     if (handle != nullptr) {
         id<MTLCommandQueue> *tmp = commandQueues.get(*handle);
 
-        // Destroy command queue
         if (tmp != nullptr) {
             commandQueue = *tmp;
         }
@@ -590,7 +594,7 @@ void MetalWrapper::commandPoolDestroy(FvCommandPool commandPool) {
 
         // Destroy command queue
         if (commandQueue != nullptr) {
-            *commandQueue = nil;
+            FV_MTL_RELEASE(*commandQueue);
         }
 
         commandQueues.remove(*handle);
@@ -696,7 +700,7 @@ void MetalWrapper::imageViewDestroy(FvImageView imageView) {
 
         // Destroy texture view
         if (textureView != nullptr) {
-            textureView->texture = nil;
+            FV_MTL_RELEASE(textureView->texture);
         }
 
         textureViews.remove(*handle);
@@ -778,7 +782,7 @@ void MetalWrapper::imageDestroy(FvImage image) {
 
         // Destroy texture
         if (imageWrapper != nullptr) {
-            imageWrapper->texture = nil;
+            FV_MTL_RELEASE(imageWrapper->texture);
         }
 
         textures.remove(*handle);
@@ -846,28 +850,29 @@ FvResult MetalWrapper::graphicsPipelineCreate(
 
                                 if (library != nullptr) {
                                     id<MTLFunction> func = [*library
-                                                               newFunctionWithName:
-                                                                   @(shaderStage.entryFunctionName)];
+                                        newFunctionWithName:
+                                            @(shaderStage.entryFunctionName)];
 
                                     if (func != nil) {
                                         switch (shaderStage.stage) {
                                         case FV_SHADER_STAGE_VERTEX:
-                                            mtlPipelineDescriptor.vertexFunction =
-                                                func;
+                                            mtlPipelineDescriptor
+                                                .vertexFunction = func;
                                             result = FV_RESULT_SUCCESS;
                                             break;
                                         case FV_SHADER_STAGE_FRAGMENT:
-                                            mtlPipelineDescriptor.fragmentFunction =
-                                                func;
+                                            mtlPipelineDescriptor
+                                                .fragmentFunction = func;
                                             result = FV_RESULT_SUCCESS;
                                             break;
                                         default:
                                             break;
                                         }
                                     } else {
-                                        printf("Failed to find function with name "
-                                               "'%s' in shader module.\n",
-                                               shaderStage.entryFunctionName);
+                                        printf(
+                                            "Failed to find function with name "
+                                            "'%s' in shader module.\n",
+                                            shaderStage.entryFunctionName);
                                     }
                                 }
                             }
@@ -877,43 +882,49 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                     // Create color blend states for ColorBlendAttachmentState
                     if (createInfo->colorBlendStateDescription != nullptr &&
                         createInfo->colorBlendStateDescription->attachments !=
-                        nullptr) {
+                            nullptr) {
                         FvPipelineColorBlendStateDescription colorBlendState =
                             *createInfo->colorBlendStateDescription;
 
-                        // Loop through color attachments and set color blend states
-                        for (uint32_t i = 0; i < colorBlendState.attachmentCount;
-                             ++i) {
+                        // Loop through color attachments and set color blend
+                        // states
+                        for (uint32_t i = 0;
+                             i < colorBlendState.attachmentCount; ++i) {
                             mtlPipelineDescriptor.colorAttachments[i]
                                 .blendingEnabled = toObjCBool(
-                                                              colorBlendState.attachments[i].blendEnable);
+                                colorBlendState.attachments[i].blendEnable);
                             mtlPipelineDescriptor.colorAttachments[i]
-                                .sourceRGBBlendFactor = toMtlBlendFactor(
-                                                                         colorBlendState.attachments[i].srcColorBlendFactor);
+                                .sourceRGBBlendFactor =
+                                toMtlBlendFactor(colorBlendState.attachments[i]
+                                                     .srcColorBlendFactor);
                             mtlPipelineDescriptor.colorAttachments[i]
-                                .destinationRGBBlendFactor = toMtlBlendFactor(
-                                                                              colorBlendState.attachments[i].dstColorBlendFactor);
+                                .destinationRGBBlendFactor =
+                                toMtlBlendFactor(colorBlendState.attachments[i]
+                                                     .dstColorBlendFactor);
                             mtlPipelineDescriptor.colorAttachments[i]
                                 .rgbBlendOperation = toMtlBlendOperation(
-                                                                         colorBlendState.attachments[i].colorBlendOp);
+                                colorBlendState.attachments[i].colorBlendOp);
                             mtlPipelineDescriptor.colorAttachments[i]
-                                .sourceAlphaBlendFactor = toMtlBlendFactor(
-                                                                           colorBlendState.attachments[i].srcAlphaBlendFactor);
+                                .sourceAlphaBlendFactor =
+                                toMtlBlendFactor(colorBlendState.attachments[i]
+                                                     .srcAlphaBlendFactor);
                             mtlPipelineDescriptor.colorAttachments[i]
-                                .destinationAlphaBlendFactor = toMtlBlendFactor(
-                                                                                colorBlendState.attachments[i].dstAlphaBlendFactor);
+                                .destinationAlphaBlendFactor =
+                                toMtlBlendFactor(colorBlendState.attachments[i]
+                                                     .dstAlphaBlendFactor);
                             mtlPipelineDescriptor.colorAttachments[i]
                                 .alphaBlendOperation = toMtlBlendOperation(
-                                                                           colorBlendState.attachments[i].alphaBlendOp);
+                                colorBlendState.attachments[i].alphaBlendOp);
                         }
                     }
 
                     // We've now done all the work required to make a
                     // MTLRenderPipelineState object:
-                    NSError *err                                      = nil;
-                    id<MTLRenderPipelineState> mtlRenderPipelineState = [device
-                                                                            newRenderPipelineStateWithDescriptor:mtlPipelineDescriptor
-                                                                                                           error:&err];
+                    NSError *err = nil;
+                    id<MTLRenderPipelineState> mtlRenderPipelineState =
+                        [device newRenderPipelineStateWithDescriptor:
+                                    mtlPipelineDescriptor
+                                                               error:&err];
 
                     if (mtlRenderPipelineState != nil) {
                         graphicsPipelineWrapper.renderPipelineState =
@@ -922,9 +933,9 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                         NSString *errString =
                             [NSString stringWithFormat:@"%@", err];
 
-                        printf(
-                               "Failed to create render pipeline state: %s\n",
-                               [errString cStringUsingEncoding:NSUTF8StringEncoding]);
+                        printf("Failed to create render pipeline state: %s\n",
+                               [errString
+                                   cStringUsingEncoding:NSUTF8StringEncoding]);
 
                         result = FV_RESULT_FAILURE;
                     }
@@ -934,26 +945,30 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                     id<MTLDepthStencilState> depthStencilState = nil;
                     // Create depth stencil states from DepthStencilDescription
                     if (createInfo->depthStencilDescription != nullptr) {
-                        FvPipelineDepthStencilStateDescription depthStencilDesc =
-                            *createInfo->depthStencilDescription;
+                        FvPipelineDepthStencilStateDescription
+                            depthStencilDesc =
+                                *createInfo->depthStencilDescription;
 
                         mtlDepthStencilDesc.depthCompareFunction =
-                            toMtlCompareFunction(depthStencilDesc.depthCompareFunc);
+                            toMtlCompareFunction(
+                                depthStencilDesc.depthCompareFunc);
                         mtlDepthStencilDesc.depthWriteEnabled =
                             toObjCBool(depthStencilDesc.depthWriteEnable);
 
                         mtlDepthStencilDesc.backFaceStencil
                             .stencilFailureOperation = toMtlStencilOperation(
-                                                                             depthStencilDesc.backFaceStencil.stencilFailOp);
-                        mtlDepthStencilDesc.backFaceStencil.depthFailureOperation =
-                            toMtlStencilOperation(
-                                                  depthStencilDesc.backFaceStencil.depthFailOp);
+                            depthStencilDesc.backFaceStencil.stencilFailOp);
+                        mtlDepthStencilDesc.backFaceStencil
+                            .depthFailureOperation = toMtlStencilOperation(
+                            depthStencilDesc.backFaceStencil.depthFailOp);
                         mtlDepthStencilDesc.backFaceStencil
                             .depthStencilPassOperation = toMtlStencilOperation(
-                                                                               depthStencilDesc.backFaceStencil.depthStencilPassOp);
-                        mtlDepthStencilDesc.backFaceStencil.stencilCompareFunction =
-                            toMtlCompareFunction(depthStencilDesc.backFaceStencil
-                                                 .stencilCompareFunc);
+                            depthStencilDesc.backFaceStencil
+                                .depthStencilPassOp);
+                        mtlDepthStencilDesc.backFaceStencil
+                            .stencilCompareFunction = toMtlCompareFunction(
+                            depthStencilDesc.backFaceStencil
+                                .stencilCompareFunc);
                         mtlDepthStencilDesc.backFaceStencil.readMask =
                             depthStencilDesc.backFaceStencil.readMask;
                         mtlDepthStencilDesc.backFaceStencil.writeMask =
@@ -961,31 +976,33 @@ FvResult MetalWrapper::graphicsPipelineCreate(
 
                         mtlDepthStencilDesc.frontFaceStencil
                             .stencilFailureOperation = toMtlStencilOperation(
-                                                                             depthStencilDesc.frontFaceStencil.stencilFailOp);
-                        mtlDepthStencilDesc.frontFaceStencil.depthFailureOperation =
-                            toMtlStencilOperation(
-                                                  depthStencilDesc.frontFaceStencil.depthFailOp);
+                            depthStencilDesc.frontFaceStencil.stencilFailOp);
+                        mtlDepthStencilDesc.frontFaceStencil
+                            .depthFailureOperation = toMtlStencilOperation(
+                            depthStencilDesc.frontFaceStencil.depthFailOp);
                         mtlDepthStencilDesc.frontFaceStencil
                             .depthStencilPassOperation = toMtlStencilOperation(
-                                                                               depthStencilDesc.frontFaceStencil.depthStencilPassOp);
+                            depthStencilDesc.frontFaceStencil
+                                .depthStencilPassOp);
                         mtlDepthStencilDesc.frontFaceStencil
                             .stencilCompareFunction = toMtlCompareFunction(
-                                                                           depthStencilDesc.frontFaceStencil.stencilCompareFunc);
+                            depthStencilDesc.frontFaceStencil
+                                .stencilCompareFunc);
                         mtlDepthStencilDesc.frontFaceStencil.readMask =
                             depthStencilDesc.frontFaceStencil.readMask;
                         mtlDepthStencilDesc.frontFaceStencil.writeMask =
                             depthStencilDesc.frontFaceStencil.writeMask;
                     }
 
-                    // Create depth stencil state from default mtlDepthStencilDesc
+                    // Create depth stencil state from default
+                    // mtlDepthStencilDesc
                     // if no depthStencilDescription provided (Metal requires a
                     // depth stencil state)
                     depthStencilState = [device
-                                            newDepthStencilStateWithDescriptor:mtlDepthStencilDesc];
+                        newDepthStencilStateWithDescriptor:mtlDepthStencilDesc];
 
                     // No longer need depthStencil descriptor anymore
-                    [mtlDepthStencilDesc release];
-                    mtlDepthStencilDesc = nil;
+                    FV_MTL_RELEASE(mtlDepthStencilDesc);
 
                     if (depthStencilState != nil) {
                         graphicsPipelineWrapper.depthStencilState =
@@ -1007,7 +1024,7 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                             toMtlWindingOrder(rasterizer.frontFacing);
                         graphicsPipelineWrapper.depthClipMode =
                             rasterizer.depthClampEnable ? MTLDepthClipModeClamp
-                            : MTLDepthClipModeClip;
+                                                        : MTLDepthClipModeClip;
                     } else {
                         result = FV_RESULT_FAILURE;
                     }
@@ -1045,7 +1062,7 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                     if (createInfo->inputAssemblyDescription != nullptr) {
                         FvPipelineInputAssemblyDescription
                             inputAssemblyDescription =
-                            *createInfo->inputAssemblyDescription;
+                                *createInfo->inputAssemblyDescription;
 
                         // Metal doesn't allow you to turn off primitive restart
                         // AFAIK
@@ -1056,8 +1073,9 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                             result = FV_RESULT_FAILURE;
                         }
 
-                        graphicsPipelineWrapper.primitiveType = toMtlPrimitiveType(
-                                                                                   inputAssemblyDescription.primitiveType);
+                        graphicsPipelineWrapper.primitiveType =
+                            toMtlPrimitiveType(
+                                inputAssemblyDescription.primitiveType);
                     } else {
                         result = FV_RESULT_FAILURE;
                     }
@@ -1091,8 +1109,8 @@ void MetalWrapper::graphicsPipelineDestroy(
 
         // Destroy pipeline
         if (pipeline != nullptr) {
-            pipeline->depthStencilState   = nil;
-            pipeline->renderPipelineState = nil;
+            FV_MTL_RELEASE(pipeline->depthStencilState);
+            FV_MTL_RELEASE(pipeline->renderPipelineState);
         }
 
         graphicsPipelines.remove(*handle);
@@ -1212,6 +1230,22 @@ void MetalWrapper::renderPassDestroy(FvRenderPass renderPass) {
     const Handle *handle = (const Handle *)renderPass;
 
     if (handle != nullptr) {
+        // Get render pass
+        RenderPassWrapper *renderPassWrapper = renderPasses.get(*handle);
+        if (renderPassWrapper != nullptr) {
+            // Get subpasses in render pass
+            for (size_t i = 0; i < renderPassWrapper->subpasses.size(); ++i) {
+                // Release render pass descriptor and render pipeline descriptor
+                FV_MTL_RELEASE(renderPassWrapper->subpasses[i].mtlRenderPass);
+                FV_MTL_RELEASE(renderPassWrapper->subpasses[i]
+                                   .mtlPipelineDescriptor.vertexFunction);
+                FV_MTL_RELEASE(renderPassWrapper->subpasses[i]
+                               .mtlPipelineDescriptor.fragmentFunction);
+                FV_MTL_RELEASE(
+                    renderPassWrapper->subpasses[i].mtlPipelineDescriptor);
+            }
+        }
+
         renderPasses.remove(*handle);
     }
 }
@@ -1256,9 +1290,8 @@ MetalWrapper::shaderModuleCreate(FvShaderModule *shaderModule,
             printf("%s\n",
                    [errString cStringUsingEncoding:NSUTF8StringEncoding]);
         }
-        
-        [options release];
-        options = nil;
+
+        FV_MTL_RELEASE(options);
     }
 
     return result;
@@ -1271,7 +1304,7 @@ void MetalWrapper::shaderModuleDestroy(FvShaderModule shaderModule) {
         // Destroy library
         id<MTLLibrary> *lib = libraries.get(*handle);
         if (lib != nullptr) {
-            *lib = nil;
+            FV_MTL_RELEASE(*lib);
         }
 
         // Remove from handle manager

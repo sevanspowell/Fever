@@ -268,9 +268,9 @@ class MetalWrapper {
     PersistentHandleDataStore<CommandBufferWrapper> commandBuffers;
     PersistentHandleDataStore<SemaphoreWrapper> semaphores;
 
-    typedef std::vector<id<CAMetalDrawable>> Swapchain;
+    // typedef std::vector<id<CAMetalDrawable>> Swapchain;
     // PersistentHandleDataStore<Swapchain> swapchains;
-    Swapchain currentSwapchain;
+    // Swapchain currentSwapchain;
 
     id<CAMetalDrawable> currentDrawable;
     id<MTLCommandQueue> currentCommandQueue;

@@ -601,6 +601,8 @@ typedef struct FvPresentInfo {
  */
 extern void fvQueuePresent(const FvPresentInfo *presentInfo);
 
+extern void fvDeviceWaitIdle();
+
 FV_DEFINE_HANDLE(FvSurface);
 
 #if FV_PLATFORM_OSX

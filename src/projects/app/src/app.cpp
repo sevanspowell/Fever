@@ -91,8 +91,7 @@ class HelloTriangleApplication {
     }
 
     void run() {
-        initWindow();
-        initFever();
+        // initWindow();
         mainLoop();
     }
 
@@ -100,64 +99,9 @@ class HelloTriangleApplication {
     const uint32_t WINDOW_WIDTH  = 800;
     const uint32_t WINDOW_HEIGHT = 600;
 
-    void initWindow() {
-        // Initialize SDL2
-        SDL_InitSubSystem(SDL_INIT_VIDEO);
-
-        // Setup window properties
-        SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
-        SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
-        SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
-        SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
-
-        SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-        SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-
-        SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-
-        uint32_t flags = 0x0;
-        flags |= SDL_WINDOW_OPENGL;
-        flags |= SDL_WINDOW_RESIZABLE;
-
-        // Create window
-        window = SDL_CreateWindow("Test bed", SDL_WINDOWPOS_CENTERED,
-                                  SDL_WINDOWPOS_CENTERED, 800, 600, flags);
-
-        if (window == nullptr) {
-            std::stringstream err;
-            err << "Could not create window: " << SDL_GetError();
-            throw std::runtime_error(err.str());
-        }
-
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-                            SDL_GL_CONTEXT_PROFILE_CORE);
-    }
+    void initWindow() {}
 
     void initFever() {
-        // Create surface
-        SDL_SysWMinfo windowInfo;
-        SDL_VERSION(&windowInfo.version);
-        if (!SDL_GetWindowWMInfo(window, &windowInfo)) {
-            throw std::runtime_error("Failed to get SDL2 window info.");
-        }
-
-#if FV_PLATFORM_OSX
-        if (getOSXSurface(surface.replace(), windowInfo) != FV_RESULT_SUCCESS) {
-            throw std::runtime_error("Failed to get OSX surface.");
-        }
-#endif
-
-        // Initialize fever
-        FvInitInfo initInfo;
-        initInfo.surface = surface;
-
-        if (fvInit(&initInfo) != FV_RESULT_SUCCESS) {
-            throw std::runtime_error("Failed to initialize Fever library.");
-        }
-
         createRenderPass();
         createSwapchain();
         createGraphicsPipeline();
@@ -425,35 +369,27 @@ class HelloTriangleApplication {
         fvQueuePresent(&presentInfo);
     }
 
-    void shutdownFever() { fvShutdown(); }
-
     void mainLoop() {
         SDL_Event event;
 
         // Grab events from platform
-        int shouldQuit = 0;
+        bool shouldQuit = false;
         while (!shouldQuit) {
-            while (SDL_PollEvent(&event)) {
+            while (SDL_PollEvent(&event) && !shouldQuit) {
                 switch (event.type) {
                 case SDL_QUIT: {
-                    shouldQuit = 1;
+                    shouldQuit = true;
                     break;
                 }
                 }
             }
 
             drawFrame();
-
-            // Swap display buffers
-            // TODO Do this but for metal? Swap Metal, not GL buffers
-            // SDL_GL_SwapWindow(window);
         }
-
-        SDL_DestroyWindow(window);
 
         window = nullptr;
 
-        shutdownFever();
+        fvDeviceWaitIdle();
     }
 
     static std::vector<char> readFile(const std::string &filename) {
@@ -477,7 +413,6 @@ class HelloTriangleApplication {
     }
 
     SDL_Window *window;
-    FDeleter<FvSurface> surface{fvDestroySurface};
     FDeleter<FvPipelineLayout> pipelineLayout{fvPipelineLayoutDestroy};
     FDeleter<FvRenderPass> renderPass{fvRenderPassDestroy};
     FDeleter<FvGraphicsPipeline> graphicsPipeline{fvGraphicsPipelineDestroy};
@@ -492,10 +427,57 @@ class HelloTriangleApplication {
 };
 
 int main(void) {
-    HelloTriangleApplication app;
 
     try {
-        app.run();
+        // Initialize SDL2
+        SDL_Init(SDL_INIT_VIDEO);
+
+        uint32_t flags = 0x0;
+        flags |= SDL_WINDOW_RESIZABLE;
+
+        // Create window
+        SDL_Window *window =
+            SDL_CreateWindow("Test bed", SDL_WINDOWPOS_CENTERED,
+                             SDL_WINDOWPOS_CENTERED, 800, 600, flags);
+
+        if (window == nullptr) {
+            std::stringstream err;
+            err << "Could not create window: " << SDL_GetError();
+            throw std::runtime_error(err.str());
+        }
+
+        // Create surface
+        FDeleter<FvSurface> surface{fvDestroySurface};
+
+        SDL_SysWMinfo windowInfo;
+        SDL_VERSION(&windowInfo.version);
+        if (!SDL_GetWindowWMInfo(window, &windowInfo)) {
+            throw std::runtime_error("Failed to get SDL2 window info.");
+        }
+
+#if FV_PLATFORM_OSX
+        if (getOSXSurface(surface.replace(), windowInfo) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to get OSX surface.");
+        }
+#endif
+
+        // Initialize fever
+        FvInitInfo initInfo;
+        initInfo.surface = surface;
+
+        if (fvInit(&initInfo) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to initialize Fever library.");
+        }
+        while (true) {
+            HelloTriangleApplication app;
+
+            app.run();
+        }
+
+        fvShutdown();
+
+        SDL_DestroyWindow(window);
+        SDL_Quit();
     } catch (const std::runtime_error &err) {
         std::cerr << err.what() << std::endl;
         return EXIT_FAILURE;

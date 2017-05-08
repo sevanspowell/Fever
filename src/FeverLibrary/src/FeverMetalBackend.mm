@@ -94,11 +94,11 @@ void fvGetSwapchainImage(FvSwapchain swapchain, FvImage *swapchainImage) {
 }
 
 FvResult fvAcquireNextImage(FvSwapchain swapchain,
-                        FvSemaphore imageAvailableSemaphore,
-                        uint32_t *imageIndex) {
+                            FvSemaphore imageAvailableSemaphore,
+                            uint32_t *imageIndex) {
     if (metalWrapper != nullptr) {
-        return metalWrapper->acquireNextImage(swapchain, imageAvailableSemaphore,
-                                       imageIndex);
+        return metalWrapper->acquireNextImage(
+            swapchain, imageAvailableSemaphore, imageIndex);
     } else {
         return FV_RESULT_FAILURE;
     }
@@ -325,4 +325,13 @@ FvResult fvCreateCocoaSurface(FvSurface *surface,
     return result;
 }
 
-void fvDestroySurface(FvSurface surface) { surface = nullptr; }
+void fvDestroySurface(FvSurface surface) {
+    CAMetalLayer *metalLayer = (CAMetalLayer *)surface;
+
+    [metalLayer release];
+    metalLayer = nil;
+}
+
+void fvDeviceWaitIdle() {
+    
+}

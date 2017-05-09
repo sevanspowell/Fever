@@ -504,6 +504,7 @@ extern void fvCmdBindGraphicsPipeline(FvCommandBuffer commandBuffer,
  * \pre All offsets must be valid offsets into their corresponding buffers
  * (offset < size of buffer elements).
  *
+ * \param commandBuffer The command buffer in which to record the command.
  * \param firstBinding The index of the first binding to be updated by the
  * function.
  * \param bindingCount The number of bindings to update with the same number of
@@ -518,6 +519,22 @@ extern void fvCmdBindVertexBuffers(FvCommandBuffer commandBuffer,
                                    const FvSize *offsets);
 
 /**
+ * Bind an index buffer to a command buffer.
+ *
+ * \pre \p offset less than size of \p buffer.
+ * \pre \p buffer must be an index buffer created with
+ * FV_BUFFER_USAGE_INDEX_BUFFER flag.
+ *
+ * \param commandBuffer The command buffer in which to record the command.
+ * \param buffer Index buffer to bind to the command buffer.
+ * \param offset Offset within index buffer to start reading indices from (in
+ * bytes).
+ * \param indexType FvIndexType, type of the indices (16 or 32 bits).
+ */
+extern void fvCmdBindIndexBuffer(FvCommandBuffer commandBuffer, FvBuffer buffer,
+                                 FvSize offset, FvIndexType indexType);
+
+/**
  * Record a non-indexed draw call into a command buffer.
  *
  * \param commandBuffer CommandBuffer to record draw call into.
@@ -529,6 +546,21 @@ extern void fvCmdBindVertexBuffers(FvCommandBuffer commandBuffer,
 extern void fvCmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
                       uint32_t instanceCount, uint32_t firstVertex,
                       uint32_t firstInstance);
+
+/**
+ * Record an indexed draw call into a command buffer.
+ *
+ * \param commandBuffer CommandBuffer to record draw call into.
+ * \param indexCount Number of indicesto draw.
+ * \param instanceCount Number of instances to draw.
+ * \param firstIndex Base index within the index buffer to start drawing from.
+ * \param vertexOffset Value added to the vertex index before indexing into the
+ * vertex buffer.
+ * \param firstInstance Instance id of the first instance to draw.
+ */
+extern void fvCmdDrawIndexed(FvCommandBuffer commandBuffer, uint32_t indexCount,
+                             uint32_t instanceCount, uint32_t firstIndex,
+                             int32_t vertexOffset, uint32_t firstInstance);
 
 FV_DEFINE_HANDLE(FvSemaphore);
 

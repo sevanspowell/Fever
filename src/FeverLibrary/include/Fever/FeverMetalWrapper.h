@@ -65,24 +65,51 @@ struct FramebufferWrapper {
     std::vector<ImageViewWrapper> attachments;
 };
 
-struct DrawCall {
+typedef enum DrawCallType {
+    DRAW_CALL_TYPE_NON_INDEXED,
+    DRAW_CALL_TYPE_INDEXED,
+} DrawCallType;
+
+struct DrawCallNonIndexed {
+    DrawCallType type;
     uint32_t vertexCount;
     uint32_t instanceCount;
     uint32_t firstVertex;
     uint32_t firstInstance;
 };
 
+struct DrawCallIndexed {
+    DrawCallType type;
+    uint32_t indexCount;
+    uint32_t instanceCount;
+    uint32_t firstIndex;
+    int32_t vertexOffset;
+    uint32_t firstInstance;
+};
+
+union DrawCall {
+    DrawCallType type;
+    DrawCallNonIndexed nonIndexed;
+    DrawCallIndexed indexed;
+};
+
 struct BufferWrapper {
     id<MTLBuffer> mtlBuffer;
 
+    // Relevant to vertex buffers
     FvSize bindingPoint;
+
+    // Relevant to index buffers
+    MTLIndexType mtlIndexType;
+
+    // Relevant to either
     FvSize offset;
 };
 
 struct CommandBufferWrapper {
     CommandBufferWrapper()
         : commandQueue(nil), readyForSubmit(false),
-          graphicsPipeline(FV_NULL_HANDLE) {}
+          graphicsPipeline(FV_NULL_HANDLE), indexBuffer(FV_NULL_HANDLE) {}
 
     id<MTLCommandQueue> commandQueue;
     // FvGraphicsPipeline graphicsPipelineHandle;
@@ -94,6 +121,7 @@ struct CommandBufferWrapper {
     DrawCall drawCall;
 
     std::vector<FvBuffer> vertexBuffers;
+    FvBuffer indexBuffer;
 };
 
 struct SemaphoreWrapper {
@@ -192,9 +220,16 @@ class MetalWrapper {
                               uint32_t firstBinding, uint32_t bindingCount,
                               const FvBuffer *buffers, const FvSize *offsets);
 
+    void cmdBindIndexBuffer(FvCommandBuffer commandBuffer, FvBuffer buffer,
+                            FvSize offset, FvIndexType indexType);
+
     void cmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
                  uint32_t instanceCount, uint32_t firstVertex,
                  uint32_t firstInstance);
+
+    void cmdDrawIndexed(FvCommandBuffer commandBuffer, uint32_t indexCount,
+                        uint32_t instanceCount, uint32_t firstIndex,
+                        int32_t vertexOffset, uint32_t firstInstance);
 
     void cmdBeginRenderPass(FvCommandBuffer commandBuffer,
                             const FvRenderPassBeginInfo *renderPassInfo);
@@ -249,6 +284,8 @@ class MetalWrapper {
     void shaderModuleDestroy(FvShaderModule shaderModule);
 
   private:
+    static MTLIndexType toMtlIndexType(FvIndexType indexType);
+
     static MTLStepFunction toMtlStepFunction(FvVertexInputRate inputRate);
 
     static MTLVertexFormat toMtlVertexFormat(FvVertexFormat format);

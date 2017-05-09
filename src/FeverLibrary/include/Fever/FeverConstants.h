@@ -243,3 +243,8 @@ typedef enum FvVertexFormat {
     FV_VERTEX_FORMAT_UINT3,
     FV_VERTEX_FORMAT_UINT4,
 } FvVertexFormat;
+
+typedef enum FvIndexType {
+    FV_INDEX_TYPE_UINT16,
+    FV_INDEX_TYPE_UINT32,
+} FvIndexType;

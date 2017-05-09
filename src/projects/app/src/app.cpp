@@ -66,9 +66,12 @@ struct Vertex {
     }
 };
 
-const std::vector<Vertex> vertices = {{{0.0f, 0.5f}, {1.0f, 0.0f, 0.0f}},
-                                      {{-0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}},
-                                      {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}}};
+const std::vector<Vertex> vertices = {{{-0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}},
+                                      {{0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}},
+                                      {{-0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+                                      {{0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};
+
+const std::vector<uint16_t> indices = {0, 2, 1, 1, 3, 0};
 
 /// For automatically freeing Fever resources
 template <typename T> class FDeleter {
@@ -147,6 +150,7 @@ class HelloTriangleApplication {
         createFramebuffer();
         createCommandPool();
         createVertexBuffer();
+        createIndexBuffer();
         createCommandBuffer();
         createSemaphores();
     }
@@ -223,6 +227,18 @@ class HelloTriangleApplication {
         }
     }
 
+    void createIndexBuffer() {
+        FvBufferCreateInfo bufferInfo = {};
+        bufferInfo.size               = sizeof(indices[0]) * indices.size();
+        bufferInfo.usage              = FV_BUFFER_USAGE_INDEX_BUFFER;
+        bufferInfo.data               = indices.data();
+
+        if (fvBufferCreate(indexBuffer.replace(), &bufferInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create vertex buffer!");
+        }
+    }
+
     void createImageView() {
         FvImageViewCreateInfo imageViewInfo{};
         imageViewInfo.image    = swapchainImage;
@@ -289,7 +305,11 @@ class HelloTriangleApplication {
             FvSize offsets[]         = {0};
             fvCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
-            fvCmdDraw(commandBuffer, vertices.size(), 1, 0, 0);
+            fvCmdBindIndexBuffer(commandBuffer, indexBuffer, 0,
+                                 FV_INDEX_TYPE_UINT16);
+
+            //fvCmdDraw(commandBuffer, vertices.size(), 1, 0, 0);
+            fvCmdDrawIndexed(commandBuffer, indices.size(), 1, 0, 0, 0);
         }
 
         fvCmdEndRenderPass(commandBuffer);
@@ -302,7 +322,7 @@ class HelloTriangleApplication {
     void createGraphicsPipeline() {
         std::vector<char> shaderCode =
 
-        readFile("src/projects/app/assets/hello-vertex-buffers.metal");
+            readFile("src/projects/app/assets/hello-vertex-buffers.metal");
         shaderCode.push_back('\0');
 
         FDeleter<FvShaderModule> shaderModule{fvShaderModuleDestroy};
@@ -331,14 +351,16 @@ class HelloTriangleApplication {
                                                            fragShaderStageInfo};
 
         FvPipelineVertexInputDescription vertexInputInfo = {};
-        
-        auto bindingDescription = Vertex::getBindingDescription();
+
+        auto bindingDescription    = Vertex::getBindingDescription();
         auto attributeDescriptions = Vertex::getAttributeDescriptions();
-        
-        vertexInputInfo.vertexBindingDescriptionCount    = 1;
-        vertexInputInfo.vertexBindingDescriptions        = &bindingDescription;
-        vertexInputInfo.vertexAttributeDescriptionCount  = attributeDescriptions.size();
-        vertexInputInfo.vertexAttributeDescriptions      = attributeDescriptions.data();
+
+        vertexInputInfo.vertexBindingDescriptionCount = 1;
+        vertexInputInfo.vertexBindingDescriptions     = &bindingDescription;
+        vertexInputInfo.vertexAttributeDescriptionCount =
+            attributeDescriptions.size();
+        vertexInputInfo.vertexAttributeDescriptions =
+            attributeDescriptions.data();
 
         FvPipelineInputAssemblyDescription inputAssembly = {};
         inputAssembly.primitiveType          = FV_PRIMITIVE_TYPE_TRIANGLE_LIST;
@@ -520,8 +542,9 @@ class HelloTriangleApplication {
     FvImage swapchainImage;
     FDeleter<FvSemaphore> imageAvailableSemaphore{fvSemaphoreDestroy};
     FDeleter<FvSemaphore> renderFinishedSemaphore{fvSemaphoreDestroy};
-    FDeleter<FvBuffer> vertexBuffer{fvBufferDestroy};
     FDeleter<FvImageView> imageView{fvImageViewDestroy};
+    FDeleter<FvBuffer> vertexBuffer{fvBufferDestroy};
+    FDeleter<FvBuffer> indexBuffer{fvBufferDestroy};
 };
 
 int main(void) {

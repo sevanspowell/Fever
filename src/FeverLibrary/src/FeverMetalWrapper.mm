@@ -371,7 +371,8 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                     [encoder setScissorRect:pipeline->scissor];
                     [encoder setViewport:pipeline->viewport];
                     // Make draw call
-                    DrawCall dc = commandBufferWrapper->drawCall;
+                    DrawCallNonIndexed dc =
+                        commandBufferWrapper->drawCall.nonIndexed;
                     [encoder drawPrimitives:pipeline->primitiveType
                                 vertexStart:dc.firstVertex
                                 vertexCount:dc.vertexCount
@@ -415,13 +416,41 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                                          offset:vertexBufferWrapper->offset
                                         atIndex:vertexBufferWrapper->
                                                 bindingPoint];
-                            // Make draw call
-                            DrawCall dc = commandBufferWrapper->drawCall;
-                            [encoder drawPrimitives:pipeline->primitiveType
-                                        vertexStart:dc.firstVertex
-                                        vertexCount:dc.vertexCount
-                                      instanceCount:dc.instanceCount
-                                       baseInstance:dc.firstInstance];
+
+                            if (commandBufferWrapper->drawCall.type ==
+                                DRAW_CALL_TYPE_INDEXED) {
+                                // Get index buffer from command buffer wrapper
+                                const BufferWrapper *indexBuf = buffers.get(
+                                    *((const Handle *)
+                                          commandBufferWrapper->indexBuffer));
+
+                                if (indexBuf != nullptr) {
+                                    // Make indexed draw call
+                                    DrawCallIndexed dc =
+                                        commandBufferWrapper->drawCall.indexed;
+                                    [encoder
+                                        drawIndexedPrimitives:
+                                            pipeline->primitiveType
+                                                   indexCount:dc.indexCount
+                                                    indexType:indexBuf
+                                                                  ->mtlIndexType
+                                                  indexBuffer:indexBuf
+                                                                  ->mtlBuffer
+                                            indexBufferOffset:indexBuf->offset
+                                                instanceCount:dc.instanceCount
+                                                   baseVertex:dc.vertexOffset
+                                                 baseInstance:dc.firstInstance];
+                                }
+                            } else {
+                                // Make non-indexed draw call
+                                DrawCallNonIndexed dc =
+                                    commandBufferWrapper->drawCall.nonIndexed;
+                                [encoder drawPrimitives:pipeline->primitiveType
+                                            vertexStart:dc.firstVertex
+                                            vertexCount:dc.vertexCount
+                                          instanceCount:dc.instanceCount
+                                           baseInstance:dc.firstInstance];
+                            }
                             // End encoding
                             [encoder endEncoding];
                         }
@@ -598,6 +627,28 @@ void MetalWrapper::cmdBindVertexBuffers(FvCommandBuffer commandBuffer,
     }
 }
 
+void MetalWrapper::cmdBindIndexBuffer(FvCommandBuffer commandBuffer,
+                                      FvBuffer buffer, FvSize offset,
+                                      FvIndexType indexType) {
+    // Get command buffer
+    CommandBufferWrapper *commandBufferWrapper =
+        commandBuffers.get(*((const Handle *)commandBuffer));
+
+    // Get index buffer wrapper
+    BufferWrapper *indexBufferWrapper = buffers.get(*((const Handle *)buffer));
+
+    if (commandBufferWrapper == nullptr || indexBufferWrapper == nullptr) {
+        return;
+    }
+
+    // Setup index buffer
+    indexBufferWrapper->mtlIndexType = toMtlIndexType(indexType);
+    indexBufferWrapper->offset       = offset;
+
+    // Bind index buffer to command buffer
+    commandBufferWrapper->indexBuffer = buffer;
+}
+
 void MetalWrapper::cmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
                            uint32_t instanceCount, uint32_t firstVertex,
                            uint32_t firstInstance) {
@@ -612,10 +663,30 @@ void MetalWrapper::cmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
     }
 
     if (commandBufferWrapper != nullptr) {
-        commandBufferWrapper->drawCall.vertexCount   = vertexCount;
-        commandBufferWrapper->drawCall.instanceCount = instanceCount;
-        commandBufferWrapper->drawCall.firstVertex   = firstVertex;
-        commandBufferWrapper->drawCall.firstInstance = firstInstance;
+        commandBufferWrapper->drawCall.type = DRAW_CALL_TYPE_NON_INDEXED;
+        commandBufferWrapper->drawCall.nonIndexed.vertexCount   = vertexCount;
+        commandBufferWrapper->drawCall.nonIndexed.instanceCount = instanceCount;
+        commandBufferWrapper->drawCall.nonIndexed.firstVertex   = firstVertex;
+        commandBufferWrapper->drawCall.nonIndexed.firstInstance = firstInstance;
+    }
+}
+
+void MetalWrapper::cmdDrawIndexed(FvCommandBuffer commandBuffer,
+                                  uint32_t indexCount, uint32_t instanceCount,
+                                  uint32_t firstIndex, int32_t vertexOffset,
+                                  uint32_t firstInstance) {
+
+    // Get command buffer
+    CommandBufferWrapper *commandBufferWrapper =
+        commandBuffers.get(*((const Handle *)commandBuffer));
+
+    if (commandBufferWrapper != nullptr) {
+        commandBufferWrapper->drawCall.type = DRAW_CALL_TYPE_INDEXED;
+        commandBufferWrapper->drawCall.indexed.indexCount    = indexCount;
+        commandBufferWrapper->drawCall.indexed.instanceCount = instanceCount;
+        commandBufferWrapper->drawCall.indexed.firstIndex    = firstIndex;
+        commandBufferWrapper->drawCall.indexed.vertexOffset  = vertexOffset;
+        commandBufferWrapper->drawCall.indexed.firstInstance = firstInstance;
     }
 }
 
@@ -1526,6 +1597,25 @@ void MetalWrapper::shaderModuleDestroy(FvShaderModule shaderModule) {
         // Remove from handle manager
         libraries.remove(*handle);
     }
+}
+
+MTLIndexType MetalWrapper::toMtlIndexType(FvIndexType indexType) {
+    MTLIndexType mtlIndexType = MTLIndexTypeUInt32;
+
+    switch (indexType) {
+    case FV_INDEX_TYPE_UINT16: {
+        mtlIndexType = MTLIndexTypeUInt16;
+        break;
+    }
+    case FV_INDEX_TYPE_UINT32: {
+        mtlIndexType = MTLIndexTypeUInt32;
+        break;
+    }
+    default:
+        break;
+    }
+
+    return mtlIndexType;
 }
 
 MTLStepFunction MetalWrapper::toMtlStepFunction(FvVertexInputRate inputRate) {

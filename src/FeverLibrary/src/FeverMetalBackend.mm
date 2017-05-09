@@ -361,3 +361,21 @@ void fvBufferDestroy(FvBuffer buffer) {
         return metalWrapper->bufferDestroy(buffer);
     }
 }
+
+void fvCmdBindIndexBuffer(FvCommandBuffer commandBuffer, FvBuffer buffer,
+                          FvSize offset, FvIndexType indexType) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->cmdBindIndexBuffer(commandBuffer, buffer, offset,
+                                                indexType);
+    }
+}
+
+void fvCmdDrawIndexed(FvCommandBuffer commandBuffer, uint32_t indexCount,
+                      uint32_t instanceCount, uint32_t firstIndex,
+                      int32_t vertexOffset, uint32_t firstInstance) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->cmdDrawIndexed(commandBuffer, indexCount,
+                                            instanceCount, firstIndex,
+                                            vertexOffset, firstInstance);
+    }
+}

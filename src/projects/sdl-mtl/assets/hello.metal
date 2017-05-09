@@ -8,9 +8,9 @@ struct VertexOut {
 };
 
 constant float2 positions[3] = {
-    float2(0.0f, 1.0f),
-    float2(1.0f, 0.0f),
-    float2(1.0f, 1.0f)
+    float2(0.0f, -0.5f),
+    float2(0.5f, 0.5f),
+    float2(-0.5f, 0.5f)
 };
 
 constant float3 colors[3] = {
@@ -22,14 +22,12 @@ constant float3 colors[3] = {
 vertex VertexOut vertFunc(unsigned int vid [[vertex_id]]) {
     VertexOut out;
 
-    unsigned int vertId = vid;
-
-    out.color = colors[vertId];
-    out.position = float4(positions[vertId], 0.0f, 1.0f);
+    out.position = float4(positions[vid], 0.0f, 1.0f);
+    out.color = colors[vid];
 
     return out;
 }
 
 fragment float4 fragFunc(VertexOut inFrag [[stage_in]]) {
-    return float4(inFrag.color, 1.0f);
+    return float4(1, 0, 0, 1.0f);
 }

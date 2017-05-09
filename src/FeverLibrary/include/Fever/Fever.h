@@ -24,6 +24,9 @@
 #define FV_NULL_HANDLE 0
 #define FV_DEFINE_HANDLE(object) typedef struct object##_t *object;
 
+/** For use with memory sizes and offset values. */
+typedef uint64_t FvSize;
+
 typedef union FvClearColor {
     float float32[4];
     int32_t int32[4];
@@ -61,20 +64,20 @@ typedef struct FvRect2D {
     FvExtent2D extent;
 } FvRect2D;
 
-/* /\** Structure specifying creation parameters for a buffer. *\/ */
-/* typedef struct FvBufferCreateInfo { */
-/*     FvBufferType type; /\** Type of the buffer. *\/ */
-/*     const void *data;  /\** Buffer data. *\/ */
-/*     size_t size;       /\** Size of the buffer data in bytes. *\/ */
-/* } FvBufferCreateInfo; */
+/** Structure specifying creation parameters for a buffer. */
+typedef struct FvBufferCreateInfo {
+    FvBufferUsage usage; /** Bitmask indicating how buffer will be used. */
+    const void *data;    /** Buffer data. */
+    size_t size;         /** Size of the buffer data in bytes. */
+} FvBufferCreateInfo;
 
-/* /\** Opaque handle to buffer object. *\/ */
-/* FV_DEFINE_HANDLE(FvBuffer); */
+/** Opaque handle to buffer object. */
+FV_DEFINE_HANDLE(FvBuffer);
 
-/* extern void fvBufferCreate(FvBuffer *buffer, */
-/*                            const FvBufferCreateInfo *createInfo); */
+extern FvResult fvBufferCreate(FvBuffer *buffer,
+                               const FvBufferCreateInfo *createInfo);
 
-/* extern void fvBufferDestroy(FvBuffer buffer); */
+extern void fvBufferDestroy(FvBuffer buffer);
 
 /** Opaque handle to shader object. */
 FV_DEFINE_HANDLE(FvShaderModule);
@@ -246,9 +249,9 @@ typedef struct FvVertexInputAttributeDescription {
     uint32_t location;
     /** Index of binding in array of bindings */
     uint32_t binding;
-    /** Format of the vertext attribute (number of color channels of format
+    /** Format of the vertex attribute (number of color channels of format
      * should match number of components in shader data type) */
-    FvFormat format;
+    FvVertexFormat format;
     /** Number of bytes from start of per-vertex data to begin reading from */
     uint32_t offset;
 } FvVertexInputAttributeDescription;
@@ -465,6 +468,9 @@ FV_DEFINE_HANDLE(FvCommandBuffer);
 extern FvResult fvCommandBufferCreate(FvCommandBuffer *commandBuffer,
                                       FvCommandPool commandPool);
 
+extern void fvCommandBufferDestroy(FvCommandBuffer commandBuffer,
+                                   FvCommandPool commandPool);
+
 extern void fvCommandBufferBegin(FvCommandBuffer commandBuffer);
 
 extern FvResult fvCommandBufferEnd(FvCommandBuffer commandBuffer);
@@ -490,6 +496,45 @@ extern void fvCmdBindGraphicsPipeline(FvCommandBuffer commandBuffer,
                                       FvGraphicsPipeline graphicsPipeline);
 
 /**
+ * Binds vertex buffers to a command buffer.
+ *
+ * \pre \p bindingCount is equal to the number of buffers and offsets provided.
+ * \pre All buffers must have been created with FV_BUFFER_USAGE_VERTEX_BUFFER
+ * flag.
+ * \pre All offsets must be valid offsets into their corresponding buffers
+ * (offset < size of buffer elements).
+ *
+ * \param commandBuffer The command buffer in which to record the command.
+ * \param firstBinding The index of the first binding to be updated by the
+ * function.
+ * \param bindingCount The number of bindings to update with the same number of
+ * buffers (num buffers == bindingCount).
+ * \param buffers An array of buffers to bind to the command buffer.
+ * \param offsets An array of offsets indicating how far the data should be read
+ * from the start of the corresponding buffer.
+ */
+extern void fvCmdBindVertexBuffers(FvCommandBuffer commandBuffer,
+                                   uint32_t firstBinding, uint32_t bindingCount,
+                                   const FvBuffer *buffers,
+                                   const FvSize *offsets);
+
+/**
+ * Bind an index buffer to a command buffer.
+ *
+ * \pre \p offset less than size of \p buffer.
+ * \pre \p buffer must be an index buffer created with
+ * FV_BUFFER_USAGE_INDEX_BUFFER flag.
+ *
+ * \param commandBuffer The command buffer in which to record the command.
+ * \param buffer Index buffer to bind to the command buffer.
+ * \param offset Offset within index buffer to start reading indices from (in
+ * bytes).
+ * \param indexType FvIndexType, type of the indices (16 or 32 bits).
+ */
+extern void fvCmdBindIndexBuffer(FvCommandBuffer commandBuffer, FvBuffer buffer,
+                                 FvSize offset, FvIndexType indexType);
+
+/**
  * Record a non-indexed draw call into a command buffer.
  *
  * \param commandBuffer CommandBuffer to record draw call into.
@@ -502,11 +547,28 @@ extern void fvCmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
                       uint32_t instanceCount, uint32_t firstVertex,
                       uint32_t firstInstance);
 
+/**
+ * Record an indexed draw call into a command buffer.
+ *
+ * \param commandBuffer CommandBuffer to record draw call into.
+ * \param indexCount Number of indicesto draw.
+ * \param instanceCount Number of instances to draw.
+ * \param firstIndex Base index within the index buffer to start drawing from.
+ * \param vertexOffset Value added to the vertex index before indexing into the
+ * vertex buffer.
+ * \param firstInstance Instance id of the first instance to draw.
+ */
+extern void fvCmdDrawIndexed(FvCommandBuffer commandBuffer, uint32_t indexCount,
+                             uint32_t instanceCount, uint32_t firstIndex,
+                             int32_t vertexOffset, uint32_t firstInstance);
+
 FV_DEFINE_HANDLE(FvSemaphore);
 
 FvResult fvSemaphoreCreate(FvSemaphore *semaphore);
 
 void fvSemaphoreDestroy(FvSemaphore semaphore);
+
+FV_DEFINE_HANDLE(FvSwapchain);
 
 typedef struct FvSwapchainCreateInfo {
     /** Format of each pixel in the image */
@@ -517,9 +579,8 @@ typedef struct FvSwapchainCreateInfo {
     uint32_t arrayLayers;
     /** How the image will be used (bitmask of FvImageUsage) */
     FvImageUsage usage;
+    FvSwapchain oldSwapchain;
 } FvSwapchainCreateInfo;
-
-FV_DEFINE_HANDLE(FvSwapchain);
 
 extern FvResult fvCreateSwapchain(FvSwapchain *swapchain,
                                   const FvSwapchainCreateInfo *createInfo);
@@ -556,30 +617,28 @@ extern FvResult fvAcquireNextImage(FvSwapchain swapchain,
 /* extern void fvAcquireNextImage(uint32_t *imageIndex); */
 
 typedef struct FvSubmitInfo {
-    /* /\** Number of semaphores to wait on *\/ */
-    /* uint32_t waitSemaphoreCount; */
-    /* /\** Array of semaphores to wait on before executing command buffers in
-     */
-    /*  * submission *\/ */
-    /* const FvSemaphore *waitSemaphores; */
+    /** Number of semaphores to wait on */
+    uint32_t waitSemaphoreCount;
+    /** Array of semaphores to wait on before executing command buffers in
+     * submission */
+    const FvSemaphore *waitSemaphores;
+    /** Number of command buffers */
+    uint32_t commandBufferCount;
+    /** Command buffers to submit */
+    const FvCommandBuffer *commandBuffers;
+    /** Number of semaphores to be signaled once commands have completed
+     * execution  */
+    uint32_t signalSemaphoreCount;
+    /** Array of semaphores to be signaled once commands have completed
+     * execution */
+    const FvSemaphore *signalSemaphores;
+
     /* /\** Array of bitmasked pipeline stages. Each entry corresponds to a wait
      */
     /*  * semaphore. Waiting will occur on each semaphore at the given stages of
      */
     /*  * the pipeline. *\/ */
     /* const FvPipelineStage *waitStagesMask; */
-
-    /** Number of command buffers */
-    uint32_t commandBufferCount;
-    /** Command buffers to submit */
-    const FvCommandBuffer *commandBuffers;
-
-    /* /\** Number of semaphores to be signaled once commands have completed */
-    /*  * execution  *\/ */
-    /* uint32_t signalSemaphoreCount; */
-    /* /\** Array of semaphores to be signaled once commands have completed */
-    /*  * execution *\/ */
-    /* const FvSemaphore *signalSemaphores; */
 } FvSubmitInfo;
 
 /**
@@ -589,10 +648,10 @@ extern FvResult fvQueueSubmit(uint32_t submissionsCount,
                               const FvSubmitInfo *submissions);
 
 typedef struct FvPresentInfo {
-    /*     /\** Number of semaphores to wait on before presentation *\/ */
-    /*     uint32_t waitSemaphoreCount; */
-    /*     /\** Array of semaphores to wait on before presentation *\/ */
-    /*     const FvSemaphore *waitSemaphores; */
+    /** Number of semaphores to wait on before presentation */
+    uint32_t waitSemaphoreCount;
+    /** Array of semaphores to wait on before presentation */
+    const FvSemaphore *waitSemaphores;
     uint32_t swapchainCount;
     FvSwapchain *swapchains;
     uint32_t *imageIndices;
@@ -602,6 +661,8 @@ typedef struct FvPresentInfo {
  * Queue an image for presentation.
  */
 extern void fvQueuePresent(const FvPresentInfo *presentInfo);
+
+extern void fvDeviceWaitIdle();
 
 FV_DEFINE_HANDLE(FvSurface);
 

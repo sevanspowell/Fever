@@ -54,6 +54,7 @@ struct GraphicsPipelineWrapper {
     MTLViewport viewport;
     MTLScissorRect scissor;
     MTLPrimitiveType primitiveType;
+    FvPipelineVertexInputDescription vertexInputDescription;
 
     std::vector<FvAttachmentReference> inputAttachments;
     std::vector<FvAttachmentReference> colorAttachments;
@@ -64,17 +65,51 @@ struct FramebufferWrapper {
     std::vector<ImageViewWrapper> attachments;
 };
 
-struct DrawCall {
+typedef enum DrawCallType {
+    DRAW_CALL_TYPE_NON_INDEXED,
+    DRAW_CALL_TYPE_INDEXED,
+} DrawCallType;
+
+struct DrawCallNonIndexed {
+    DrawCallType type;
     uint32_t vertexCount;
     uint32_t instanceCount;
     uint32_t firstVertex;
     uint32_t firstInstance;
 };
 
+struct DrawCallIndexed {
+    DrawCallType type;
+    uint32_t indexCount;
+    uint32_t instanceCount;
+    uint32_t firstIndex;
+    int32_t vertexOffset;
+    uint32_t firstInstance;
+};
+
+union DrawCall {
+    DrawCallType type;
+    DrawCallNonIndexed nonIndexed;
+    DrawCallIndexed indexed;
+};
+
+struct BufferWrapper {
+    id<MTLBuffer> mtlBuffer;
+
+    // Relevant to vertex buffers
+    FvSize bindingPoint;
+
+    // Relevant to index buffers
+    MTLIndexType mtlIndexType;
+
+    // Relevant to either
+    FvSize offset;
+};
+
 struct CommandBufferWrapper {
     CommandBufferWrapper()
         : commandQueue(nil), readyForSubmit(false),
-          graphicsPipeline(FV_NULL_HANDLE) {}
+          graphicsPipeline(FV_NULL_HANDLE), indexBuffer(FV_NULL_HANDLE) {}
 
     id<MTLCommandQueue> commandQueue;
     // FvGraphicsPipeline graphicsPipelineHandle;
@@ -84,12 +119,39 @@ struct CommandBufferWrapper {
 
     FvGraphicsPipeline graphicsPipeline;
     DrawCall drawCall;
+
+    std::vector<FvBuffer> vertexBuffers;
+    FvBuffer indexBuffer;
 };
 
 struct SemaphoreWrapper {
-    SemaphoreWrapper() : isSignalled(false) {}
+  public:
+    SemaphoreWrapper() { semaphore = dispatch_semaphore_create(0); }
 
-    bool isSignalled;
+    /**
+     * Signals (increments) the semaphore.
+     *
+     * Increment the semaphore. If the previous value was less than zero, this
+     * method will wake a thread currently waiting.
+     */
+    void signal() { dispatch_semaphore_signal(semaphore); }
+
+    /**
+     * Waits for (decrements) the semaphore.
+     *
+     * If the resulting value of the semaphore is less than zero, this method
+     * will block until the semaphore is signalled.
+     */
+    void wait() { dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER); }
+
+    void release() { dispatch_release(semaphore); }
+
+  private:
+    dispatch_semaphore_t semaphore;
+};
+
+struct SwapchainWrapper {
+    FvExtent3D extent;
 };
 
 class MetalWrapper {
@@ -104,6 +166,8 @@ class MetalWrapper {
     static const uint32_t MAX_NUM_COMMAND_BUFFERS    = 64;
     static const uint32_t MAX_NUM_DRAWABLES          = 32;
     static const uint32_t MAX_NUM_SEMAPHORES         = 32;
+    static const uint32_t MAX_NUM_SWAPCHAINS         = 16;
+    static const uint32_t MAX_NUM_BUFFERS            = 256;
 
     MetalWrapper()
         : metalLayer(NULL), device(nil), libraries(MAX_NUM_LIBRARIES),
@@ -113,11 +177,17 @@ class MetalWrapper {
           framebuffers(MAX_NUM_FRAMEBUFFERS),
           commandQueues(MAX_NUM_COMMAND_QUEUES),
           commandBuffers(MAX_NUM_COMMAND_BUFFERS),
-          semaphores(MAX_NUM_SEMAPHORES) {}
+          semaphores(MAX_NUM_SEMAPHORES), swapchains(MAX_NUM_SWAPCHAINS),
+          buffers(MAX_NUM_BUFFERS) {}
 
     FvResult init(const FvInitInfo *initInfo);
 
     void shutdown();
+
+    FvResult bufferCreate(FvBuffer *buffer,
+                          const FvBufferCreateInfo *createInfo);
+
+    void bufferDestroy(FvBuffer buffer);
 
     FvResult semaphoreCreate(FvSemaphore *semaphore);
 
@@ -146,9 +216,20 @@ class MetalWrapper {
     void cmdBindGraphicsPipeline(FvCommandBuffer commandBuffer,
                                  FvGraphicsPipeline graphicsPipeline);
 
+    void cmdBindVertexBuffers(FvCommandBuffer commandBuffer,
+                              uint32_t firstBinding, uint32_t bindingCount,
+                              const FvBuffer *buffers, const FvSize *offsets);
+
+    void cmdBindIndexBuffer(FvCommandBuffer commandBuffer, FvBuffer buffer,
+                            FvSize offset, FvIndexType indexType);
+
     void cmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
                  uint32_t instanceCount, uint32_t firstVertex,
                  uint32_t firstInstance);
+
+    void cmdDrawIndexed(FvCommandBuffer commandBuffer, uint32_t indexCount,
+                        uint32_t instanceCount, uint32_t firstIndex,
+                        int32_t vertexOffset, uint32_t firstInstance);
 
     void cmdBeginRenderPass(FvCommandBuffer commandBuffer,
                             const FvRenderPassBeginInfo *renderPassInfo);
@@ -203,6 +284,12 @@ class MetalWrapper {
     void shaderModuleDestroy(FvShaderModule shaderModule);
 
   private:
+    static MTLIndexType toMtlIndexType(FvIndexType indexType);
+
+    static MTLStepFunction toMtlStepFunction(FvVertexInputRate inputRate);
+
+    static MTLVertexFormat toMtlVertexFormat(FvVertexFormat format);
+
     static MTLLoadAction toMtlLoadAction(FvLoadOp loadOp);
 
     static MTLStoreAction toMtlStoreAction(FvStoreOp storeOp);
@@ -241,10 +328,8 @@ class MetalWrapper {
     PersistentHandleDataStore<id<MTLCommandQueue>> commandQueues;
     PersistentHandleDataStore<CommandBufferWrapper> commandBuffers;
     PersistentHandleDataStore<SemaphoreWrapper> semaphores;
-
-    typedef std::vector<id<CAMetalDrawable>> Swapchain;
-    // PersistentHandleDataStore<Swapchain> swapchains;
-    Swapchain currentSwapchain;
+    PersistentHandleDataStore<SwapchainWrapper> swapchains;
+    PersistentHandleDataStore<BufferWrapper> buffers;
 
     id<CAMetalDrawable> currentDrawable;
     id<MTLCommandQueue> currentCommandQueue;

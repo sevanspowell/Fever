@@ -5,7 +5,13 @@ project(FeverGraphicsLibrary VERSION 0.0.1 LANGUAGES C CXX)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../cmake/modules")
 
 # Find required libraries
-######### GLEW ########## 
+######### GLM ###########
+find_package(GLM REQUIRED)
+add_library(glm INTERFACE)
+set_property(TARGET glm PROPERTY
+  INTERFACE_INCLUDE_DIRECTORIES ${GLM_INCLUDE_DIRS})
+
+######### GLEW ##########
 find_package(GLEW REQUIRED)
 add_library(glew SHARED IMPORTED)
 set_property(TARGET glew PROPERTY
@@ -13,7 +19,7 @@ set_property(TARGET glew PROPERTY
 set_property(TARGET glew PROPERTY
   IMPORTED_LOCATION ${GLEW_LIBRARIES})
 
-######### SDL2 ########## 
+######### SDL2 ##########
 find_package(SDL2 REQUIRED)
 add_library(sdl2 SHARED IMPORTED)
 set_property(TARGET sdl2 PROPERTY
@@ -21,14 +27,14 @@ set_property(TARGET sdl2 PROPERTY
 set_property(TARGET sdl2 PROPERTY
   IMPORTED_LOCATION ${SDL2_LIBRARY})
 
-######### STB Image ########### 
+######### STB Image ###########
 set(STB_BASE_DIR "libs/stb_image")
 find_package(STB REQUIRED)
 add_library(stb INTERFACE)
 set_property(TARGET stb PROPERTY
   INTERFACE_INCLUDE_DIRECTORIES ${STB_INCLUDE_DIRS})
 
-######### Metal ########## 
+######### Metal ##########
 if (APPLE)
   find_library(METAL_LIBRARY Metal)
   find_library(QUARTZCORE_FRAMEWORK QuartzCore)
@@ -40,3 +46,4 @@ enable_testing()
 add_subdirectory(libs/googletest EXCLUDE_FROM_ALL)
 add_subdirectory(FeverLibrary)
 add_subdirectory(projects/app)
+add_subdirectory(projects/sdl-mtl)

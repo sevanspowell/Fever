@@ -94,11 +94,11 @@ void fvGetSwapchainImage(FvSwapchain swapchain, FvImage *swapchainImage) {
 }
 
 FvResult fvAcquireNextImage(FvSwapchain swapchain,
-                        FvSemaphore imageAvailableSemaphore,
-                        uint32_t *imageIndex) {
+                            FvSemaphore imageAvailableSemaphore,
+                            uint32_t *imageIndex) {
     if (metalWrapper != nullptr) {
-        return metalWrapper->acquireNextImage(swapchain, imageAvailableSemaphore,
-                                       imageIndex);
+        return metalWrapper->acquireNextImage(
+            swapchain, imageAvailableSemaphore, imageIndex);
     } else {
         return FV_RESULT_FAILURE;
     }
@@ -123,6 +123,15 @@ void fvCmdBindGraphicsPipeline(FvCommandBuffer commandBuffer,
                                FvGraphicsPipeline graphicsPipeline) {
     if (metalWrapper != nullptr) {
         metalWrapper->cmdBindGraphicsPipeline(commandBuffer, graphicsPipeline);
+    }
+}
+
+void fvCmdBindVertexBuffers(FvCommandBuffer commandBuffer,
+                            uint32_t firstBinding, uint32_t bindingCount,
+                            const FvBuffer *buffers, const FvSize *offsets) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->cmdBindVertexBuffers(commandBuffer, firstBinding,
+                                           bindingCount, buffers, offsets);
     }
 }
 
@@ -156,6 +165,9 @@ FvResult fvCommandBufferCreate(FvCommandBuffer *commandBuffer,
         return FV_RESULT_FAILURE;
     }
 }
+
+void fvCommandBufferDestroy(FvCommandBuffer commandBuffer,
+                            FvCommandPool commandPool) {}
 
 void fvCommandBufferBegin(FvCommandBuffer commandBuffer) {
     if (metalWrapper != nullptr) {
@@ -325,4 +337,45 @@ FvResult fvCreateCocoaSurface(FvSurface *surface,
     return result;
 }
 
-void fvDestroySurface(FvSurface surface) { surface = nullptr; }
+void fvDestroySurface(FvSurface surface) {
+    CAMetalLayer *metalLayer = (CAMetalLayer *)surface;
+
+    [metalLayer release];
+    metalLayer = nil;
+}
+
+void fvDeviceWaitIdle() {}
+
+FvResult fvBufferCreate(FvBuffer *buffer,
+                        const FvBufferCreateInfo *createInfo) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->bufferCreate(buffer, createInfo);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+void fvBufferDestroy(FvBuffer buffer) {
+    assert(metalWrapper != nullptr);
+    if (metalWrapper != nullptr) {
+        return metalWrapper->bufferDestroy(buffer);
+    }
+}
+
+void fvCmdBindIndexBuffer(FvCommandBuffer commandBuffer, FvBuffer buffer,
+                          FvSize offset, FvIndexType indexType) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->cmdBindIndexBuffer(commandBuffer, buffer, offset,
+                                                indexType);
+    }
+}
+
+void fvCmdDrawIndexed(FvCommandBuffer commandBuffer, uint32_t indexCount,
+                      uint32_t instanceCount, uint32_t firstIndex,
+                      int32_t vertexOffset, uint32_t firstInstance) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->cmdDrawIndexed(commandBuffer, indexCount,
+                                            instanceCount, firstIndex,
+                                            vertexOffset, firstInstance);
+    }
+}

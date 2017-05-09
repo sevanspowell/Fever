@@ -15,10 +15,10 @@
  *===----------------------------------------------------------------------===*/
 #pragma once
 
-typedef enum FvBufferType {
-    FV_BUFFER_TYPE_VERTEX,
-    FV_BUFFER_TYPE_INDEX,
-} FvBufferType;
+typedef enum FvBufferUsage {
+    FV_BUFFER_USAGE_VERTEX_BUFFER = 1 << 0,
+    FV_BUFFER_USAGE_INDEX_BUFFER  = 1 << 1,
+} FvBufferUsage;
 
 typedef enum FvPrimitiveType {
     FV_PRIMITIVE_TYPE_POINT_LIST,
@@ -53,11 +53,11 @@ typedef enum FvImageType {
 } FvImageType;
 
 typedef enum FvImageUsage {
-    FV_IMAGE_USAGE_UNKNOWN = 0,
+    FV_IMAGE_USAGE_UNKNOWN       = 0,
     FV_IMAGE_USAGE_RENDER_TARGET = 1 << 0,
-    FV_IMAGE_USAGE_SHADER_READ = 1 << 1,
-    FV_IMAGE_USAGE_SHADER_WRITE = 1 << 2,
-    FV_IMAGE_USAGE_IMAGE_VIEW = 1 << 3,
+    FV_IMAGE_USAGE_SHADER_READ   = 1 << 1,
+    FV_IMAGE_USAGE_SHADER_WRITE  = 1 << 2,
+    FV_IMAGE_USAGE_IMAGE_VIEW    = 1 << 3,
 } FvImageUsage;
 
 typedef enum FvImageViewType {
@@ -213,3 +213,38 @@ typedef enum FvResult {
     FV_RESULT_SUCCESS = 1 << 0,
     FV_RESULT_FAILURE = 1 << 1
 } FvResult;
+
+typedef enum FvVertexFormat {
+    FV_VERTEX_FORMAT_UCHAR2,
+    FV_VERTEX_FORMAT_UCHAR3,
+    FV_VERTEX_FORMAT_UCHAR4,
+    FV_VERTEX_FORMAT_CHAR2,
+    FV_VERTEX_FORMAT_CHAR3,
+    FV_VERTEX_FORMAT_CHAR4,
+    FV_VERTEX_FORMAT_USHORT2,
+    FV_VERTEX_FORMAT_USHORT3,
+    FV_VERTEX_FORMAT_USHORT4,
+    FV_VERTEX_FORMAT_SHORT2,
+    FV_VERTEX_FORMAT_SHORT3,
+    FV_VERTEX_FORMAT_SHORT4,
+    FV_VERTEX_FORMAT_HALF2,
+    FV_VERTEX_FORMAT_HALF3,
+    FV_VERTEX_FORMAT_HALF4,
+    FV_VERTEX_FORMAT_FLOAT,
+    FV_VERTEX_FORMAT_FLOAT2,
+    FV_VERTEX_FORMAT_FLOAT3,
+    FV_VERTEX_FORMAT_FLOAT4,
+    FV_VERTEX_FORMAT_INT,
+    FV_VERTEX_FORMAT_INT2,
+    FV_VERTEX_FORMAT_INT3,
+    FV_VERTEX_FORMAT_INT4,
+    FV_VERTEX_FORMAT_UINT,
+    FV_VERTEX_FORMAT_UINT2,
+    FV_VERTEX_FORMAT_UINT3,
+    FV_VERTEX_FORMAT_UINT4,
+} FvVertexFormat;
+
+typedef enum FvIndexType {
+    FV_INDEX_TYPE_UINT16,
+    FV_INDEX_TYPE_UINT32,
+} FvIndexType;

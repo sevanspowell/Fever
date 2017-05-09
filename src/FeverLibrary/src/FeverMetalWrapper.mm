@@ -26,12 +26,55 @@ FvResult MetalWrapper::init(const FvInitInfo *initInfo) {
 
 void MetalWrapper::shutdown() { FV_MTL_RELEASE(device); }
 
+FvResult MetalWrapper::bufferCreate(FvBuffer *buffer,
+                                    const FvBufferCreateInfo *createInfo) {
+    FvResult result = FV_RESULT_FAILURE;
+
+    if (buffer != nullptr && createInfo != nullptr) {
+        id<MTLBuffer> mtlBuffer = nil;
+
+        if (createInfo->data == nullptr) {
+            mtlBuffer =
+                [device newBufferWithLength:createInfo->size options:nil];
+        } else {
+            mtlBuffer = [device newBufferWithBytes:createInfo->data
+                                            length:createInfo->size
+                                           options:nil];
+        }
+
+        BufferWrapper bufferWrapper;
+        bufferWrapper.mtlBuffer = mtlBuffer;
+
+        const Handle *handle = buffers.add(bufferWrapper);
+
+        if (handle != nullptr) {
+            *buffer = (FvBuffer)handle;
+            result  = FV_RESULT_SUCCESS;
+        }
+    }
+
+    return result;
+}
+
+void MetalWrapper::bufferDestroy(FvBuffer buffer) {
+    const Handle *handle = (const Handle *)buffer;
+
+    if (handle != nullptr) {
+        BufferWrapper *bufferWrapper = buffers.get(*handle);
+
+        if (bufferWrapper != nullptr) {
+            FV_MTL_RELEASE(bufferWrapper->mtlBuffer);
+        }
+
+        buffers.remove(*handle);
+    }
+}
+
 FvResult MetalWrapper::semaphoreCreate(FvSemaphore *semaphore) {
     FvResult result = FV_RESULT_FAILURE;
 
     if (semaphore != nullptr) {
         SemaphoreWrapper semaphoreWrapper;
-        semaphoreWrapper.isSignalled = false;
 
         const Handle *handle = semaphores.add(semaphoreWrapper);
 
@@ -48,6 +91,12 @@ void MetalWrapper::semaphoreDestroy(FvSemaphore semaphore) {
     const Handle *handle = (const Handle *)semaphore;
 
     if (handle != nullptr) {
+        SemaphoreWrapper *semaphoreWrapper = semaphores.get(*handle);
+
+        if (semaphoreWrapper != nullptr) {
+            semaphoreWrapper->release();
+        }
+
         semaphores.remove(*handle);
     }
 }
@@ -58,49 +107,64 @@ FvResult MetalWrapper::acquireNextImage(FvSwapchain swapchain,
     // TODO Get the swapchain to use
 
     // Find index of first available image in swapchain
-    uint32_t availableImageIndex = 0;
-    bool foundIndex              = false;
-    for (uint32_t i = 0; i < currentSwapchain.size(); ++i) {
-        if (currentSwapchain[i] == nil) {
-            availableImageIndex = i;
-            foundIndex          = true;
-        }
-    }
+    // uint32_t availableImageIndex = 0;
+    // bool foundIndex              = false;
+    // for (uint32_t i = 0; i < currentSwapchain.size(); ++i) {
+    //     if (currentSwapchain[i] == nil) {
+    //         availableImageIndex = i;
+    //         foundIndex          = true;
+    //     }
+    // }
 
     // If can't find index, add a new image to swapchain
     // NOTE we also restrict the number of swapchain images to 3 as Metal is
     // by-default triple-buffered
-    if (foundIndex == false && currentSwapchain.size() < 3) {
-        currentSwapchain.push_back(nil);
-        availableImageIndex = currentSwapchain.size() - 1;
-        foundIndex          = true;
-    }
+    // if (foundIndex == false && currentSwapchain.size() < 3) {
+    //     currentSwapchain.push_back(nil);
+    //     availableImageIndex = currentSwapchain.size() - 1;
+    //     foundIndex          = true;
+    // }
 
-    availableImageIndex = 0;
-    foundIndex          = true;
+    // foundIndex = true;
 
-    if (foundIndex == false) {
-        // Not enough images free, can't acquire another
+    // if (foundIndex == false) {
+    //     // Not enough images free, can't acquire another
+    //     return FV_RESULT_FAILURE;
+    // }
+
+    // // Get next drawable and add to swapchain
+    // currentSwapchain[availableImageIndex] = [metalLayer nextDrawable];
+    // currentDrawable = currentSwapchain[availableImageIndex];
+    const Handle *handle = (const Handle *)swapchain;
+
+    if (handle == nullptr) {
         return FV_RESULT_FAILURE;
     }
 
-    // Get next drawable and add to swapchain
-    currentSwapchain[availableImageIndex] = [metalLayer nextDrawable];
-    currentDrawable = currentSwapchain[availableImageIndex];
+    SwapchainWrapper *swapchainWrapper = swapchains.get(*handle);
+
+    CGSize drawableSize;
+    drawableSize.width  = swapchainWrapper->extent.width;
+    drawableSize.height = swapchainWrapper->extent.height;
+
+    metalLayer.drawableSize = drawableSize;
+
+    currentDrawable = [metalLayer nextDrawable];
 
     if (imageIndex != nullptr) {
-        *imageIndex = availableImageIndex;
+        // *imageIndex = availableImageIndex;
+        *imageIndex = 0;
     }
 
     // Signal semaphore immediately
     // (Metal nextDrawable is blocking and so when it returns, image is ready)
-    const Handle *handle = (const Handle *)imageAvailableSemaphore;
+    handle = (const Handle *)imageAvailableSemaphore;
 
     if (handle != nullptr) {
         SemaphoreWrapper *semaphoreWrapper = semaphores.get(*handle);
 
         if (semaphoreWrapper != nullptr) {
-            semaphoreWrapper->isSignalled = true;
+            semaphoreWrapper->signal();
         }
     }
 
@@ -110,16 +174,33 @@ FvResult MetalWrapper::acquireNextImage(FvSwapchain swapchain,
 FvResult
 MetalWrapper::createSwapchain(FvSwapchain *swapchain,
                               const FvSwapchainCreateInfo *createInfo) {
-    FvResult result = FV_RESULT_SUCCESS;
+    if (createInfo == nullptr || swapchain == nullptr) {
+        return FV_RESULT_FAILURE;
+    }
 
-    // TODO Actually create swapchain - or not, Metal has no concept of multiple
-    // swapchains
+    SwapchainWrapper swapchainWrapper;
+    swapchainWrapper.extent = createInfo->extent;
 
-    return result;
+    // Store swapchain wrapper and return handle
+    const Handle *handle = swapchains.add(swapchainWrapper);
+
+    if (handle != nullptr) {
+        *swapchain = (FvSwapchain)handle;
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+
+    return FV_RESULT_SUCCESS;
 }
 
 void MetalWrapper::destroySwapchain(FvSwapchain swapchain) {
-    // TODO Actually destroy swapchain
+    const Handle *handle = (const Handle *)swapchain;
+
+    if (handle != nullptr) {
+        // SwapchainWrapper *swapchainWrapper = swapchains.get(*handle);
+
+        swapchains.remove(*handle);
+    }
 }
 
 void MetalWrapper::getSwapchainImage(FvSwapchain swapchain,
@@ -138,25 +219,49 @@ void MetalWrapper::getSwapchainImage(FvSwapchain swapchain,
 }
 
 void MetalWrapper::queuePresent(const FvPresentInfo *presentInfo) {
-
     if (presentInfo != nullptr && presentInfo->imageIndices != nullptr) {
-        uint32_t imageIndex = presentInfo->imageIndices[0];
+        // Wait for semaphores
+        for (uint32_t i = 0; i < presentInfo->waitSemaphoreCount; ++i) {
+            FvSemaphore semaphore = presentInfo->waitSemaphores[i];
 
-        // Make separate command buffer to schedule drawable presentation and
-        // submit it
-        id<MTLCommandBuffer> commandBuffer =
-            [currentCommandQueue commandBuffer];
+            // Get internal semaphore
+            const Handle *handle = (const Handle *)semaphore;
 
-        [commandBuffer presentDrawable:currentDrawable];
+            if (handle != nullptr) {
+                SemaphoreWrapper *semaphoreWrapper = semaphores.get(*handle);
 
-        [commandBuffer commit];
+                if (semaphoreWrapper != nullptr) {
+                    semaphoreWrapper->wait();
+                }
+            }
+        }
+
+        // TODO: Expand for multiple presentation images
+        // uint32_t imageIndex = presentInfo->imageIndices[0];
+
+        @autoreleasepool {
+            // Make separate command buffer to schedule drawable presentation
+            // and submit it
+            id<MTLCommandBuffer> commandBuffer =
+                [currentCommandQueue commandBuffer];
+
+            [commandBuffer presentDrawable:currentDrawable];
+
+            [commandBuffer commit];
+
+            currentDrawable = nil;
+
+            currentCommandQueue = nil;
+        }
 
         // Can now re-use drawable, so free it from swapchain
+        /*
         for (uint32_t i = 0; i < currentSwapchain.size(); ++i) {
             if (i == imageIndex) {
                 currentSwapchain[i] = nil;
             }
         }
+        */
     }
 }
 
@@ -168,10 +273,37 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
 
     // Loop thru each submission
     for (uint32_t i = 0; i < submissionsCount; ++i) {
+
+        // Wait for semaphores
+        for (uint32_t j = 0; j < submissions[i].waitSemaphoreCount; ++j) {
+            FvSemaphore semaphore = submissions[i].waitSemaphores[j];
+
+            // Get internal semaphore
+            const Handle *handle = (const Handle *)semaphore;
+
+            if (handle != nullptr) {
+                SemaphoreWrapper *semaphoreWrapper = semaphores.get(*handle);
+
+                if (semaphoreWrapper != nullptr) {
+                    semaphoreWrapper->wait();
+                }
+            }
+        }
+
+        // Synchronization code from this excellent answer on SO:
+        // http://stackoverflow.com/a/20910658/
+        // Create a group of tasks (each command buffers work is a task)
+        // A group is created so we can be notified when they are ALL finished.
+        dispatch_group_t group = dispatch_group_create();
+
         // Submit each command buffer
-        for (uint32_t j = 0; j < submissions->commandBufferCount; ++j) {
+        for (uint32_t j = 0; j < submissions[i].commandBufferCount; ++j) {
+            // Enter the group (essentially adding a new task that will wait for
+            // completion)
+            dispatch_group_enter(group);
+
             FvCommandBuffer commandBufferHandle =
-                submissions->commandBuffers[j];
+                submissions[i].commandBuffers[j];
             const Handle *handle = (const Handle *)commandBufferHandle;
 
             // Get command buffer from handle
@@ -213,39 +345,168 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                 }
             }
 
-            // Create command buffer from it's command queue
-            // Command buffers are transient, single-use objects in Metal
-            // and so are created here at the last minute.
-            id<MTLCommandBuffer> commandBuffer =
-                [commandBufferWrapper->commandQueue commandBuffer];
+            @autoreleasepool {
+                // Create command buffer from it's command queue
+                // Command buffers are transient, single-use objects in Metal
+                // and so are created here at the last minute.
+                id<MTLCommandBuffer> commandBuffer =
+                    [commandBufferWrapper->commandQueue commandBuffer];
 
-            // Set current command queue
-            currentCommandQueue = commandBufferWrapper->commandQueue;
+                // Set current command queue
+                currentCommandQueue = commandBufferWrapper->commandQueue;
 
-            // Create command encoder from command buffer and render pass
-            // descriptor
-            id<MTLRenderCommandEncoder> encoder = [commandBuffer
-                renderCommandEncoderWithDescriptor:pipeline->renderPass];
-            // Set states
-            [encoder setCullMode:pipeline->cullMode];
-            [encoder setDepthStencilState:pipeline->depthStencilState];
-            [encoder setFrontFacingWinding:pipeline->windingOrder];
-            [encoder setRenderPipelineState:pipeline->renderPipelineState];
-            [encoder setScissorRect:pipeline->scissor];
-            [encoder setViewport:pipeline->viewport];
-            // Make draw call
-            DrawCall dc = commandBufferWrapper->drawCall;
-            [encoder drawPrimitives:pipeline->primitiveType
-                        vertexStart:dc.firstVertex
-                        vertexCount:dc.vertexCount
-                      instanceCount:dc.instanceCount
-                       baseInstance:dc.firstInstance];
-            // End encoding
-            [encoder endEncoding];
+                // Special case, no vertex buffer, can still encode commands
+                if (commandBufferWrapper->vertexBuffers.size() == 0) {
+                    // Create command encoder from command buffer and render
+                    // pass descriptor
+                    id<MTLRenderCommandEncoder> encoder = [commandBuffer
+                        renderCommandEncoderWithDescriptor:pipeline->
+                                                           renderPass];
+                    // Set states
+                    [encoder setCullMode:pipeline->cullMode];
+                    [encoder setDepthStencilState:pipeline->depthStencilState];
+                    [encoder setFrontFacingWinding:pipeline->windingOrder];
+                    [encoder
+                        setRenderPipelineState:pipeline->renderPipelineState];
+                    [encoder setScissorRect:pipeline->scissor];
+                    [encoder setViewport:pipeline->viewport];
+                    // Make draw call
+                    DrawCallNonIndexed dc =
+                        commandBufferWrapper->drawCall.nonIndexed;
+                    [encoder drawPrimitives:pipeline->primitiveType
+                                vertexStart:dc.firstVertex
+                                vertexCount:dc.vertexCount
+                              instanceCount:dc.instanceCount
+                               baseInstance:dc.firstInstance];
+                    // End encoding
+                    [encoder endEncoding];
+                } else {
+                    // otherwise, for each vertex buffer
+                    for (size_t iVertexBuffer = 0;
+                         iVertexBuffer <
+                         commandBufferWrapper->vertexBuffers.size();
+                         ++iVertexBuffer) {
+                        // Get vertex buffer
+                        const Handle *vertexBufferHandle =
+                            (const Handle *)commandBufferWrapper
+                                ->vertexBuffers[iVertexBuffer];
 
-            // Commit command buffer
-            [commandBuffer commit];
+                        const BufferWrapper *vertexBufferWrapper = nullptr;
+                        vertexBufferWrapper = buffers.get(*vertexBufferHandle);
+
+                        if (vertexBufferWrapper != nullptr) {
+                            // Create command encoder from command buffer and
+                            // render pass descriptor
+                            id<MTLRenderCommandEncoder> encoder = [commandBuffer
+                                renderCommandEncoderWithDescriptor:pipeline->
+                                                                   renderPass];
+                            // Set states
+                            [encoder setCullMode:pipeline->cullMode];
+                            [encoder setDepthStencilState:pipeline->
+                                                          depthStencilState];
+                            [encoder
+                                setFrontFacingWinding:pipeline->windingOrder];
+                            [encoder
+                                setRenderPipelineState:pipeline->
+                                                       renderPipelineState];
+                            [encoder setScissorRect:pipeline->scissor];
+                            [encoder setViewport:pipeline->viewport];
+                            [encoder
+                                setVertexBuffer:vertexBufferWrapper->mtlBuffer
+                                         offset:vertexBufferWrapper->offset
+                                        atIndex:vertexBufferWrapper->
+                                                bindingPoint];
+
+                            if (commandBufferWrapper->drawCall.type ==
+                                DRAW_CALL_TYPE_INDEXED) {
+                                // Get index buffer from command buffer wrapper
+                                const BufferWrapper *indexBuf = buffers.get(
+                                    *((const Handle *)
+                                          commandBufferWrapper->indexBuffer));
+
+                                if (indexBuf != nullptr) {
+                                    // Make indexed draw call
+                                    DrawCallIndexed dc =
+                                        commandBufferWrapper->drawCall.indexed;
+                                    [encoder
+                                        drawIndexedPrimitives:
+                                            pipeline->primitiveType
+                                                   indexCount:dc.indexCount
+                                                    indexType:indexBuf
+                                                                  ->mtlIndexType
+                                                  indexBuffer:indexBuf
+                                                                  ->mtlBuffer
+                                            indexBufferOffset:indexBuf->offset
+                                                instanceCount:dc.instanceCount
+                                                   baseVertex:dc.vertexOffset
+                                                 baseInstance:dc.firstInstance];
+                                }
+                            } else {
+                                // Make non-indexed draw call
+                                DrawCallNonIndexed dc =
+                                    commandBufferWrapper->drawCall.nonIndexed;
+                                [encoder drawPrimitives:pipeline->primitiveType
+                                            vertexStart:dc.firstVertex
+                                            vertexCount:dc.vertexCount
+                                          instanceCount:dc.instanceCount
+                                           baseInstance:dc.firstInstance];
+                            }
+                            // End encoding
+                            [encoder endEncoding];
+                        }
+                    }
+                }
+
+                [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> cb) {
+                  // Indicate that this task has finished
+                  dispatch_group_leave(group);
+                }];
+
+                // Commit command buffer
+                [commandBuffer commit];
+            }
         }
+
+        // A copy of the submission object is made here so that we use it,
+        // rather than the submissions pointer to access the submission object
+        // in the block below. If we use the pointer, it may no longer point to
+        // a valid object (the submission info) when the block begins.
+        //
+        // We can access and mutate the 'semaphores' member variable within
+        // block because blocks make a strong, mutable referenc to member
+        // variables used inside blocks. Blocks and Objects reference:
+        // https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/Blocks/Articles/bxVariables.html#//apple_ref/doc/uid/TP40007502-CH6-SW4
+
+        FvSubmitInfo submission = submissions[i];
+
+        // Notify us when all tasks are done
+        dispatch_group_notify(
+            group, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0),
+            ^{
+              // Signal semaphores on completion
+              for (uint32_t i = 0; i < submission.signalSemaphoreCount; ++i) {
+                  FvSemaphore semaphore = submission.signalSemaphores[i];
+
+                  // Get internal semaphore
+                  const Handle *handle = (const Handle *)semaphore;
+
+                  if (handle != nullptr) {
+                      SemaphoreWrapper *semaphoreWrapper =
+                          semaphores.get(*handle);
+
+                      if (semaphoreWrapper != nullptr) {
+                          semaphoreWrapper->signal();
+                      }
+                  }
+              }
+            });
+
+        // Make sure to release group. We can release here because: "The system
+        // holds a reference to the dispatch group while an asynchronous
+        // notification is pending, therefore it is valid to release the group
+        // after setting a notification block" from:
+        // https://developer.apple.com/library/mac/documentation/Darwin/Reference/ManPages/man3/dispatch_group_notify.3.html
+        dispatch_release(group);
     }
 
     return FV_RESULT_SUCCESS;
@@ -321,6 +582,73 @@ void MetalWrapper::cmdBindGraphicsPipeline(
     commandBufferWrapper->graphicsPipeline = graphicsPipeline;
 }
 
+void MetalWrapper::cmdBindVertexBuffers(FvCommandBuffer commandBuffer,
+                                        uint32_t firstBinding,
+                                        uint32_t bindingCount,
+                                        const FvBuffer *buffers,
+                                        const FvSize *offsets) {
+    // Get command buffer
+    CommandBufferWrapper *commandBufferWrapper = nullptr;
+
+    const Handle *commandBufferHandle = (const Handle *)commandBuffer;
+
+    if (commandBufferHandle != nullptr) {
+        commandBufferWrapper = commandBuffers.get(*commandBufferHandle);
+    }
+
+    if (commandBufferWrapper == nullptr || buffers == nullptr ||
+        offsets == nullptr) {
+        return;
+    }
+
+    // Loop thru each buffer to bind
+    for (uint32_t i = 0; i < bindingCount; ++i) {
+        // Get binding point and offset of buffer
+        FvSize bindingPoint = firstBinding + i;
+        FvSize offset       = offsets[i];
+
+        // Get buffer wrapper
+        BufferWrapper *bufferWrapper = nullptr;
+        const Handle *bufferHandle   = (const Handle *)buffers[i];
+        if (bufferHandle != nullptr) {
+            bufferWrapper = this->buffers.get(*bufferHandle);
+        }
+
+        assert(bufferWrapper != nullptr);
+        if (bufferWrapper != nullptr) {
+            // Fill out binding point and offset information
+            bufferWrapper->bindingPoint = bindingPoint;
+            bufferWrapper->offset       = offset;
+
+            // Attach vertex buffer to command buffer
+            commandBufferWrapper->vertexBuffers.push_back(
+                (FvBuffer)bufferHandle);
+        }
+    }
+}
+
+void MetalWrapper::cmdBindIndexBuffer(FvCommandBuffer commandBuffer,
+                                      FvBuffer buffer, FvSize offset,
+                                      FvIndexType indexType) {
+    // Get command buffer
+    CommandBufferWrapper *commandBufferWrapper =
+        commandBuffers.get(*((const Handle *)commandBuffer));
+
+    // Get index buffer wrapper
+    BufferWrapper *indexBufferWrapper = buffers.get(*((const Handle *)buffer));
+
+    if (commandBufferWrapper == nullptr || indexBufferWrapper == nullptr) {
+        return;
+    }
+
+    // Setup index buffer
+    indexBufferWrapper->mtlIndexType = toMtlIndexType(indexType);
+    indexBufferWrapper->offset       = offset;
+
+    // Bind index buffer to command buffer
+    commandBufferWrapper->indexBuffer = buffer;
+}
+
 void MetalWrapper::cmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
                            uint32_t instanceCount, uint32_t firstVertex,
                            uint32_t firstInstance) {
@@ -335,10 +663,30 @@ void MetalWrapper::cmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
     }
 
     if (commandBufferWrapper != nullptr) {
-        commandBufferWrapper->drawCall.vertexCount   = vertexCount;
-        commandBufferWrapper->drawCall.instanceCount = instanceCount;
-        commandBufferWrapper->drawCall.firstVertex   = firstVertex;
-        commandBufferWrapper->drawCall.firstInstance = firstInstance;
+        commandBufferWrapper->drawCall.type = DRAW_CALL_TYPE_NON_INDEXED;
+        commandBufferWrapper->drawCall.nonIndexed.vertexCount   = vertexCount;
+        commandBufferWrapper->drawCall.nonIndexed.instanceCount = instanceCount;
+        commandBufferWrapper->drawCall.nonIndexed.firstVertex   = firstVertex;
+        commandBufferWrapper->drawCall.nonIndexed.firstInstance = firstInstance;
+    }
+}
+
+void MetalWrapper::cmdDrawIndexed(FvCommandBuffer commandBuffer,
+                                  uint32_t indexCount, uint32_t instanceCount,
+                                  uint32_t firstIndex, int32_t vertexOffset,
+                                  uint32_t firstInstance) {
+
+    // Get command buffer
+    CommandBufferWrapper *commandBufferWrapper =
+        commandBuffers.get(*((const Handle *)commandBuffer));
+
+    if (commandBufferWrapper != nullptr) {
+        commandBufferWrapper->drawCall.type = DRAW_CALL_TYPE_INDEXED;
+        commandBufferWrapper->drawCall.indexed.indexCount    = indexCount;
+        commandBufferWrapper->drawCall.indexed.instanceCount = instanceCount;
+        commandBufferWrapper->drawCall.indexed.firstIndex    = firstIndex;
+        commandBufferWrapper->drawCall.indexed.vertexOffset  = vertexOffset;
+        commandBufferWrapper->drawCall.indexed.firstInstance = firstInstance;
     }
 }
 
@@ -404,7 +752,6 @@ FvResult MetalWrapper::commandBufferCreate(FvCommandBuffer *commandBuffer,
     if (handle != nullptr) {
         id<MTLCommandQueue> *tmp = commandQueues.get(*handle);
 
-        // Destroy command queue
         if (tmp != nullptr) {
             commandQueue = *tmp;
         }
@@ -490,7 +837,7 @@ void MetalWrapper::commandPoolDestroy(FvCommandPool commandPool) {
 
         // Destroy command queue
         if (commandQueue != nullptr) {
-            *commandQueue = nil;
+            FV_MTL_RELEASE(*commandQueue);
         }
 
         commandQueues.remove(*handle);
@@ -596,7 +943,7 @@ void MetalWrapper::imageViewDestroy(FvImageView imageView) {
 
         // Destroy texture view
         if (textureView != nullptr) {
-            textureView->texture = nil;
+            FV_MTL_RELEASE(textureView->texture);
         }
 
         textureViews.remove(*handle);
@@ -678,7 +1025,7 @@ void MetalWrapper::imageDestroy(FvImage image) {
 
         // Destroy texture
         if (imageWrapper != nullptr) {
-            imageWrapper->texture = nil;
+            FV_MTL_RELEASE(imageWrapper->texture);
         }
 
         textures.remove(*handle);
@@ -690,290 +1037,354 @@ FvResult MetalWrapper::graphicsPipelineCreate(
     const FvGraphicsPipelineCreateInfo *createInfo) {
     // TODO: Clean up, put into separate functions, deal with optional fields
     // early
-    FvResult result = FV_RESULT_FAILURE;
+    @autoreleasepool {
+        FvResult result = FV_RESULT_FAILURE;
 
-    if (graphicsPipeline != nullptr && createInfo != nullptr) {
-        // Create GraphicsPipelineWrapper
-        GraphicsPipelineWrapper graphicsPipelineWrapper;
-        graphicsPipelineWrapper.renderPass          = nullptr;
-        graphicsPipelineWrapper.cullMode            = MTLCullModeNone;
-        graphicsPipelineWrapper.windingOrder        = MTLWindingClockwise;
-        graphicsPipelineWrapper.depthClipMode       = MTLDepthClipModeClip;
-        graphicsPipelineWrapper.depthStencilState   = nil;
-        graphicsPipelineWrapper.renderPipelineState = nil;
+        if (graphicsPipeline != nullptr && createInfo != nullptr) {
+            // Create GraphicsPipelineWrapper
+            GraphicsPipelineWrapper graphicsPipelineWrapper;
+            graphicsPipelineWrapper.renderPass          = nullptr;
+            graphicsPipelineWrapper.cullMode            = MTLCullModeNone;
+            graphicsPipelineWrapper.windingOrder        = MTLWindingClockwise;
+            graphicsPipelineWrapper.depthClipMode       = MTLDepthClipModeClip;
+            graphicsPipelineWrapper.depthStencilState   = nil;
+            graphicsPipelineWrapper.renderPipelineState = nil;
+            graphicsPipelineWrapper.vertexInputDescription =
+                *createInfo->vertexInputDescription;
 
-        // Get subpass to use from render pass and index
-        Handle *renderPassHandle = (Handle *)createInfo->renderPass;
+            // Get subpass to use from render pass and index
+            Handle *renderPassHandle = (Handle *)createInfo->renderPass;
 
-        if (renderPassHandle != nullptr) {
-            RenderPassWrapper *renderPassWrapper =
-                renderPasses.get(*renderPassHandle);
+            if (renderPassHandle != nullptr) {
+                RenderPassWrapper *renderPassWrapper =
+                    renderPasses.get(*renderPassHandle);
 
-            if (renderPassWrapper != nullptr) {
-                SubpassWrapper subpassWrapper =
-                    renderPassWrapper->subpasses[createInfo->subpass];
+                if (renderPassWrapper != nullptr) {
+                    SubpassWrapper subpassWrapper =
+                        renderPassWrapper->subpasses[createInfo->subpass];
 
-                // Copy attachment descriptions to graphics pipeline from
-                // subpass
-                graphicsPipelineWrapper.inputAttachments =
-                    subpassWrapper.inputAttachments;
-                graphicsPipelineWrapper.colorAttachments =
-                    subpassWrapper.colorAttachments;
-                graphicsPipelineWrapper.depthStencilAttachment =
-                    subpassWrapper.depthStencilAttachment;
+                    // Copy attachment descriptions to graphics pipeline from
+                    // subpass
+                    graphicsPipelineWrapper.inputAttachments =
+                        subpassWrapper.inputAttachments;
+                    graphicsPipelineWrapper.colorAttachments =
+                        subpassWrapper.colorAttachments;
+                    graphicsPipelineWrapper.depthStencilAttachment =
+                        subpassWrapper.depthStencilAttachment;
 
-                // Copy render pass descriptor from subpass
-                graphicsPipelineWrapper.renderPass =
-                    subpassWrapper.mtlRenderPass;
+                    // Copy render pass descriptor from subpass
+                    graphicsPipelineWrapper.renderPass =
+                        subpassWrapper.mtlRenderPass;
 
-                // Fill out shader functions for Metal pipeline descriptor
-                MTLRenderPipelineDescriptor *mtlPipelineDescriptor =
-                    subpassWrapper.mtlPipelineDescriptor;
+                    // Fill out shader functions for Metal pipeline descriptor
+                    MTLRenderPipelineDescriptor *mtlPipelineDescriptor =
+                        subpassWrapper.mtlPipelineDescriptor;
 
-                if (createInfo->stages != nullptr) {
-                    // Loop thru shader stages and assign functions to
-                    // mtlPipelineDescriptor
-                    for (uint32_t i = 0; i < createInfo->stageCount; ++i) {
-                        FvPipelineShaderStageDescription shaderStage =
-                            createInfo->stages[i];
+                    if (createInfo->stages != nullptr) {
+                        // Loop thru shader stages and assign functions to
+                        // mtlPipelineDescriptor
+                        for (uint32_t i = 0; i < createInfo->stageCount; ++i) {
+                            FvPipelineShaderStageDescription shaderStage =
+                                createInfo->stages[i];
 
-                        Handle *shaderModuleHandle =
-                            (Handle *)shaderStage.shaderModule;
-                        if (shaderModuleHandle != nullptr) {
-                            id<MTLLibrary> *library =
-                                libraries.get(*shaderModuleHandle);
+                            Handle *shaderModuleHandle =
+                                (Handle *)shaderStage.shaderModule;
+                            if (shaderModuleHandle != nullptr) {
+                                id<MTLLibrary> *library =
+                                    libraries.get(*shaderModuleHandle);
 
-                            if (library != nullptr) {
-                                id<MTLFunction> func = [*library
-                                    newFunctionWithName:
-                                        @(shaderStage.entryFunctionName)];
+                                if (library != nullptr) {
+                                    id<MTLFunction> func = [*library
+                                        newFunctionWithName:
+                                            @(shaderStage.entryFunctionName)];
 
-                                if (func != nil) {
-                                    switch (shaderStage.stage) {
-                                    case FV_SHADER_STAGE_VERTEX:
-                                        mtlPipelineDescriptor.vertexFunction =
-                                            func;
-                                        result = FV_RESULT_SUCCESS;
-                                        break;
-                                    case FV_SHADER_STAGE_FRAGMENT:
-                                        mtlPipelineDescriptor.fragmentFunction =
-                                            func;
-                                        result = FV_RESULT_SUCCESS;
-                                        break;
-                                    default:
-                                        break;
+                                    if (func != nil) {
+                                        switch (shaderStage.stage) {
+                                        case FV_SHADER_STAGE_VERTEX:
+                                            mtlPipelineDescriptor
+                                                .vertexFunction = func;
+                                            result = FV_RESULT_SUCCESS;
+                                            break;
+                                        case FV_SHADER_STAGE_FRAGMENT:
+                                            mtlPipelineDescriptor
+                                                .fragmentFunction = func;
+                                            result = FV_RESULT_SUCCESS;
+                                            break;
+                                        default:
+                                            break;
+                                        }
+                                    } else {
+                                        printf(
+                                            "Failed to find function with name "
+                                            "'%s' in shader module.\n",
+                                            shaderStage.entryFunctionName);
                                     }
-                                } else {
-                                    printf("Failed to find function with name "
-                                           "'%s' in shader module.\n",
-                                           shaderStage.entryFunctionName);
                                 }
                             }
                         }
                     }
-                }
 
-                // Create color blend states for ColorBlendAttachmentState
-                if (createInfo->colorBlendStateDescription != nullptr &&
-                    createInfo->colorBlendStateDescription->attachments !=
-                        nullptr) {
-                    FvPipelineColorBlendStateDescription colorBlendState =
-                        *createInfo->colorBlendStateDescription;
+                    // Create color blend states for ColorBlendAttachmentState
+                    if (createInfo->colorBlendStateDescription != nullptr &&
+                        createInfo->colorBlendStateDescription->attachments !=
+                            nullptr) {
+                        FvPipelineColorBlendStateDescription colorBlendState =
+                            *createInfo->colorBlendStateDescription;
 
-                    // Loop through color attachments and set color blend states
-                    for (uint32_t i = 0; i < colorBlendState.attachmentCount;
-                         ++i) {
-                        mtlPipelineDescriptor.colorAttachments[i]
-                            .blendingEnabled = toObjCBool(
-                            colorBlendState.attachments[i].blendEnable);
-                        mtlPipelineDescriptor.colorAttachments[i]
-                            .sourceRGBBlendFactor = toMtlBlendFactor(
-                            colorBlendState.attachments[i].srcColorBlendFactor);
-                        mtlPipelineDescriptor.colorAttachments[i]
-                            .destinationRGBBlendFactor = toMtlBlendFactor(
-                            colorBlendState.attachments[i].dstColorBlendFactor);
-                        mtlPipelineDescriptor.colorAttachments[i]
-                            .rgbBlendOperation = toMtlBlendOperation(
-                            colorBlendState.attachments[i].colorBlendOp);
-                        mtlPipelineDescriptor.colorAttachments[i]
-                            .sourceAlphaBlendFactor = toMtlBlendFactor(
-                            colorBlendState.attachments[i].srcAlphaBlendFactor);
-                        mtlPipelineDescriptor.colorAttachments[i]
-                            .destinationAlphaBlendFactor = toMtlBlendFactor(
-                            colorBlendState.attachments[i].dstAlphaBlendFactor);
-                        mtlPipelineDescriptor.colorAttachments[i]
-                            .alphaBlendOperation = toMtlBlendOperation(
-                            colorBlendState.attachments[i].alphaBlendOp);
+                        // Loop through color attachments and set color blend
+                        // states
+                        for (uint32_t i = 0;
+                             i < colorBlendState.attachmentCount; ++i) {
+                            mtlPipelineDescriptor.colorAttachments[i]
+                                .blendingEnabled = toObjCBool(
+                                colorBlendState.attachments[i].blendEnable);
+                            mtlPipelineDescriptor.colorAttachments[i]
+                                .sourceRGBBlendFactor =
+                                toMtlBlendFactor(colorBlendState.attachments[i]
+                                                     .srcColorBlendFactor);
+                            mtlPipelineDescriptor.colorAttachments[i]
+                                .destinationRGBBlendFactor =
+                                toMtlBlendFactor(colorBlendState.attachments[i]
+                                                     .dstColorBlendFactor);
+                            mtlPipelineDescriptor.colorAttachments[i]
+                                .rgbBlendOperation = toMtlBlendOperation(
+                                colorBlendState.attachments[i].colorBlendOp);
+                            mtlPipelineDescriptor.colorAttachments[i]
+                                .sourceAlphaBlendFactor =
+                                toMtlBlendFactor(colorBlendState.attachments[i]
+                                                     .srcAlphaBlendFactor);
+                            mtlPipelineDescriptor.colorAttachments[i]
+                                .destinationAlphaBlendFactor =
+                                toMtlBlendFactor(colorBlendState.attachments[i]
+                                                     .dstAlphaBlendFactor);
+                            mtlPipelineDescriptor.colorAttachments[i]
+                                .alphaBlendOperation = toMtlBlendOperation(
+                                colorBlendState.attachments[i].alphaBlendOp);
+                        }
                     }
-                }
 
-                // We've now done all the work required to make a
-                // MTLRenderPipelineState object:
-                NSError *err                                      = nil;
-                id<MTLRenderPipelineState> mtlRenderPipelineState = [device
-                    newRenderPipelineStateWithDescriptor:mtlPipelineDescriptor
-                                                   error:&err];
+                    // Create a vertex descriptor
+                    MTLVertexDescriptor *mtlVertexDescriptor =
+                        [[MTLVertexDescriptor alloc] init];
+                    const FvPipelineVertexInputDescription *vertexInputInfo =
+                        createInfo->vertexInputDescription;
+                    for (uint32_t iBindingDesc = 0;
+                         iBindingDesc <
+                         vertexInputInfo->vertexBindingDescriptionCount;
+                         ++iBindingDesc) {
+                        FvVertexInputBindingDescription bindingDesc =
+                            vertexInputInfo
+                                ->vertexBindingDescriptions[iBindingDesc];
 
-                if (mtlRenderPipelineState != nil) {
-                    graphicsPipelineWrapper.renderPipelineState =
-                        mtlRenderPipelineState;
-                } else {
-                    NSString *errString =
-                        [NSString stringWithFormat:@"%@", err];
+                        mtlVertexDescriptor.layouts[iBindingDesc].stepFunction =
+                            toMtlStepFunction(bindingDesc.inputRate);
+                        mtlVertexDescriptor.layouts[iBindingDesc].stride =
+                            bindingDesc.stride;
+                        // mtlVertexDescriptor.layouts[iBindingDesc].stepRate =
+                        //     1; // Defaults to 1
+                    }
+                    for (uint32_t iAttributeDesc = 0;
+                         iAttributeDesc <
+                         vertexInputInfo->vertexAttributeDescriptionCount;
+                         ++iAttributeDesc) {
+                        FvVertexInputAttributeDescription attributeDesc =
+                            vertexInputInfo
+                                ->vertexAttributeDescriptions[iAttributeDesc];
 
-                    printf(
-                        "Failed to create render pipeline state: %s\n",
-                        [errString cStringUsingEncoding:NSUTF8StringEncoding]);
+                        mtlVertexDescriptor.attributes[iAttributeDesc].format =
+                            toMtlVertexFormat(attributeDesc.format);
+                        mtlVertexDescriptor.attributes[iAttributeDesc].offset =
+                            attributeDesc.offset;
+                        mtlVertexDescriptor.attributes[iAttributeDesc]
+                            .bufferIndex = attributeDesc.binding;
+                    }
 
-                    result = FV_RESULT_FAILURE;
-                }
+                    // Set vertex descriptor
+                    mtlPipelineDescriptor.vertexDescriptor =
+                        mtlVertexDescriptor;
 
-                MTLDepthStencilDescriptor *mtlDepthStencilDesc =
-                    [[MTLDepthStencilDescriptor alloc] init];
-                id<MTLDepthStencilState> depthStencilState = nil;
-                // Create depth stencil states from DepthStencilDescription
-                if (createInfo->depthStencilDescription != nullptr) {
-                    FvPipelineDepthStencilStateDescription depthStencilDesc =
-                        *createInfo->depthStencilDescription;
+                    // We've now done all the work required to make a
+                    // MTLRenderPipelineState object:
+                    NSError *err = nil;
+                    id<MTLRenderPipelineState> mtlRenderPipelineState =
+                        [device newRenderPipelineStateWithDescriptor:
+                                    mtlPipelineDescriptor
+                                                               error:&err];
 
-                    mtlDepthStencilDesc.depthCompareFunction =
-                        toMtlCompareFunction(depthStencilDesc.depthCompareFunc);
-                    mtlDepthStencilDesc.depthWriteEnabled =
-                        toObjCBool(depthStencilDesc.depthWriteEnable);
+                    FV_MTL_RELEASE(mtlVertexDescriptor);
 
-                    mtlDepthStencilDesc.backFaceStencil
-                        .stencilFailureOperation = toMtlStencilOperation(
-                        depthStencilDesc.backFaceStencil.stencilFailOp);
-                    mtlDepthStencilDesc.backFaceStencil.depthFailureOperation =
-                        toMtlStencilOperation(
-                            depthStencilDesc.backFaceStencil.depthFailOp);
-                    mtlDepthStencilDesc.backFaceStencil
-                        .depthStencilPassOperation = toMtlStencilOperation(
-                        depthStencilDesc.backFaceStencil.depthStencilPassOp);
-                    mtlDepthStencilDesc.backFaceStencil.stencilCompareFunction =
-                        toMtlCompareFunction(depthStencilDesc.backFaceStencil
-                                                 .stencilCompareFunc);
-                    mtlDepthStencilDesc.backFaceStencil.readMask =
-                        depthStencilDesc.backFaceStencil.readMask;
-                    mtlDepthStencilDesc.backFaceStencil.writeMask =
-                        depthStencilDesc.backFaceStencil.writeMask;
+                    if (mtlRenderPipelineState != nil) {
+                        graphicsPipelineWrapper.renderPipelineState =
+                            mtlRenderPipelineState;
+                    } else {
+                        NSString *errString =
+                            [NSString stringWithFormat:@"%@", err];
 
-                    mtlDepthStencilDesc.frontFaceStencil
-                        .stencilFailureOperation = toMtlStencilOperation(
-                        depthStencilDesc.frontFaceStencil.stencilFailOp);
-                    mtlDepthStencilDesc.frontFaceStencil.depthFailureOperation =
-                        toMtlStencilOperation(
-                            depthStencilDesc.frontFaceStencil.depthFailOp);
-                    mtlDepthStencilDesc.frontFaceStencil
-                        .depthStencilPassOperation = toMtlStencilOperation(
-                        depthStencilDesc.frontFaceStencil.depthStencilPassOp);
-                    mtlDepthStencilDesc.frontFaceStencil
-                        .stencilCompareFunction = toMtlCompareFunction(
-                        depthStencilDesc.frontFaceStencil.stencilCompareFunc);
-                    mtlDepthStencilDesc.frontFaceStencil.readMask =
-                        depthStencilDesc.frontFaceStencil.readMask;
-                    mtlDepthStencilDesc.frontFaceStencil.writeMask =
-                        depthStencilDesc.frontFaceStencil.writeMask;
-                }
+                        printf("Failed to create render pipeline state: %s\n",
+                               [errString
+                                   cStringUsingEncoding:NSUTF8StringEncoding]);
 
-                // Create depth stencil state from default mtlDepthStencilDesc
-                // if no depthStencilDescription provided (Metal requires a
-                // depth stencil state)
-                depthStencilState = [device
-                    newDepthStencilStateWithDescriptor:mtlDepthStencilDesc];
-
-                if (depthStencilState != nil) {
-                    graphicsPipelineWrapper.depthStencilState =
-                        depthStencilState;
-                } else {
-                    printf("Failed to create depth stencil state.\n");
-
-                    result = FV_RESULT_FAILURE;
-                }
-
-                // Fill out rasterizer info
-                if (createInfo->rasterizerDescription != nullptr) {
-                    FvPipelineRasterizerDescription rasterizer =
-                        *createInfo->rasterizerDescription;
-
-                    graphicsPipelineWrapper.cullMode =
-                        toMtlCullMode(rasterizer.cullMode);
-                    graphicsPipelineWrapper.windingOrder =
-                        toMtlWindingOrder(rasterizer.frontFacing);
-                    graphicsPipelineWrapper.depthClipMode =
-                        rasterizer.depthClampEnable ? MTLDepthClipModeClamp
-                                                    : MTLDepthClipModeClip;
-                } else {
-                    result = FV_RESULT_FAILURE;
-                }
-
-                // Fill out viewport and scissor info
-                if (createInfo->viewportDescription != nullptr) {
-                    FvPipelineViewportDescription viewportDescription =
-                        *createInfo->viewportDescription;
-
-                    graphicsPipelineWrapper.viewport.originX =
-                        viewportDescription.viewport.x;
-                    graphicsPipelineWrapper.viewport.originY =
-                        viewportDescription.viewport.y;
-                    graphicsPipelineWrapper.viewport.width =
-                        viewportDescription.viewport.width;
-                    graphicsPipelineWrapper.viewport.height =
-                        viewportDescription.viewport.height;
-                    graphicsPipelineWrapper.viewport.znear =
-                        viewportDescription.viewport.minDepth;
-                    graphicsPipelineWrapper.viewport.zfar =
-                        viewportDescription.viewport.maxDepth;
-
-                    graphicsPipelineWrapper.scissor.x =
-                        viewportDescription.scissor.offset.x;
-                    graphicsPipelineWrapper.scissor.y =
-                        viewportDescription.scissor.offset.y;
-                    graphicsPipelineWrapper.scissor.width =
-                        viewportDescription.scissor.extent.width;
-                    graphicsPipelineWrapper.scissor.height =
-                        viewportDescription.scissor.extent.height;
-                } else {
-                    result = FV_RESULT_FAILURE;
-                }
-
-                if (createInfo->inputAssemblyDescription != nullptr) {
-                    FvPipelineInputAssemblyDescription
-                        inputAssemblyDescription =
-                            *createInfo->inputAssemblyDescription;
-
-                    // Metal doesn't allow you to turn off primitive restart
-                    // AFAIK
-                    if (inputAssemblyDescription.primitiveRestartEnable ==
-                        false) {
-                        printf("Primitive restart cannot be false in Metal "
-                               "backed.\n");
                         result = FV_RESULT_FAILURE;
                     }
 
-                    graphicsPipelineWrapper.primitiveType = toMtlPrimitiveType(
-                        inputAssemblyDescription.primitiveType);
+                    MTLDepthStencilDescriptor *mtlDepthStencilDesc =
+                        [[MTLDepthStencilDescriptor alloc] init];
+                    id<MTLDepthStencilState> depthStencilState = nil;
+                    // Create depth stencil states from DepthStencilDescription
+                    if (createInfo->depthStencilDescription != nullptr) {
+                        FvPipelineDepthStencilStateDescription
+                            depthStencilDesc =
+                                *createInfo->depthStencilDescription;
+
+                        mtlDepthStencilDesc.depthCompareFunction =
+                            toMtlCompareFunction(
+                                depthStencilDesc.depthCompareFunc);
+                        mtlDepthStencilDesc.depthWriteEnabled =
+                            toObjCBool(depthStencilDesc.depthWriteEnable);
+
+                        mtlDepthStencilDesc.backFaceStencil
+                            .stencilFailureOperation = toMtlStencilOperation(
+                            depthStencilDesc.backFaceStencil.stencilFailOp);
+                        mtlDepthStencilDesc.backFaceStencil
+                            .depthFailureOperation = toMtlStencilOperation(
+                            depthStencilDesc.backFaceStencil.depthFailOp);
+                        mtlDepthStencilDesc.backFaceStencil
+                            .depthStencilPassOperation = toMtlStencilOperation(
+                            depthStencilDesc.backFaceStencil
+                                .depthStencilPassOp);
+                        mtlDepthStencilDesc.backFaceStencil
+                            .stencilCompareFunction = toMtlCompareFunction(
+                            depthStencilDesc.backFaceStencil
+                                .stencilCompareFunc);
+                        mtlDepthStencilDesc.backFaceStencil.readMask =
+                            depthStencilDesc.backFaceStencil.readMask;
+                        mtlDepthStencilDesc.backFaceStencil.writeMask =
+                            depthStencilDesc.backFaceStencil.writeMask;
+
+                        mtlDepthStencilDesc.frontFaceStencil
+                            .stencilFailureOperation = toMtlStencilOperation(
+                            depthStencilDesc.frontFaceStencil.stencilFailOp);
+                        mtlDepthStencilDesc.frontFaceStencil
+                            .depthFailureOperation = toMtlStencilOperation(
+                            depthStencilDesc.frontFaceStencil.depthFailOp);
+                        mtlDepthStencilDesc.frontFaceStencil
+                            .depthStencilPassOperation = toMtlStencilOperation(
+                            depthStencilDesc.frontFaceStencil
+                                .depthStencilPassOp);
+                        mtlDepthStencilDesc.frontFaceStencil
+                            .stencilCompareFunction = toMtlCompareFunction(
+                            depthStencilDesc.frontFaceStencil
+                                .stencilCompareFunc);
+                        mtlDepthStencilDesc.frontFaceStencil.readMask =
+                            depthStencilDesc.frontFaceStencil.readMask;
+                        mtlDepthStencilDesc.frontFaceStencil.writeMask =
+                            depthStencilDesc.frontFaceStencil.writeMask;
+                    }
+
+                    // Create depth stencil state from default
+                    // mtlDepthStencilDesc
+                    // if no depthStencilDescription provided (Metal requires a
+                    // depth stencil state)
+                    depthStencilState = [device
+                        newDepthStencilStateWithDescriptor:mtlDepthStencilDesc];
+
+                    // No longer need depthStencil descriptor anymore
+                    FV_MTL_RELEASE(mtlDepthStencilDesc);
+
+                    if (depthStencilState != nil) {
+                        graphicsPipelineWrapper.depthStencilState =
+                            depthStencilState;
+                    } else {
+                        printf("Failed to create depth stencil state.\n");
+
+                        result = FV_RESULT_FAILURE;
+                    }
+
+                    // Fill out rasterizer info
+                    if (createInfo->rasterizerDescription != nullptr) {
+                        FvPipelineRasterizerDescription rasterizer =
+                            *createInfo->rasterizerDescription;
+
+                        graphicsPipelineWrapper.cullMode =
+                            toMtlCullMode(rasterizer.cullMode);
+                        graphicsPipelineWrapper.windingOrder =
+                            toMtlWindingOrder(rasterizer.frontFacing);
+                        graphicsPipelineWrapper.depthClipMode =
+                            rasterizer.depthClampEnable ? MTLDepthClipModeClamp
+                                                        : MTLDepthClipModeClip;
+                    } else {
+                        result = FV_RESULT_FAILURE;
+                    }
+
+                    // Fill out viewport and scissor info
+                    if (createInfo->viewportDescription != nullptr) {
+                        FvPipelineViewportDescription viewportDescription =
+                            *createInfo->viewportDescription;
+
+                        graphicsPipelineWrapper.viewport.originX =
+                            viewportDescription.viewport.x;
+                        graphicsPipelineWrapper.viewport.originY =
+                            viewportDescription.viewport.y;
+                        graphicsPipelineWrapper.viewport.width =
+                            viewportDescription.viewport.width;
+                        graphicsPipelineWrapper.viewport.height =
+                            viewportDescription.viewport.height;
+                        graphicsPipelineWrapper.viewport.znear =
+                            viewportDescription.viewport.minDepth;
+                        graphicsPipelineWrapper.viewport.zfar =
+                            viewportDescription.viewport.maxDepth;
+
+                        graphicsPipelineWrapper.scissor.x =
+                            viewportDescription.scissor.offset.x;
+                        graphicsPipelineWrapper.scissor.y =
+                            viewportDescription.scissor.offset.y;
+                        graphicsPipelineWrapper.scissor.width =
+                            viewportDescription.scissor.extent.width;
+                        graphicsPipelineWrapper.scissor.height =
+                            viewportDescription.scissor.extent.height;
+                    } else {
+                        result = FV_RESULT_FAILURE;
+                    }
+
+                    if (createInfo->inputAssemblyDescription != nullptr) {
+                        FvPipelineInputAssemblyDescription
+                            inputAssemblyDescription =
+                                *createInfo->inputAssemblyDescription;
+
+                        // Metal doesn't allow you to turn off primitive restart
+                        // AFAIK
+                        if (inputAssemblyDescription.primitiveRestartEnable ==
+                            false) {
+                            printf("Primitive restart cannot be false in Metal "
+                                   "backed.\n");
+                            result = FV_RESULT_FAILURE;
+                        }
+
+                        graphicsPipelineWrapper.primitiveType =
+                            toMtlPrimitiveType(
+                                inputAssemblyDescription.primitiveType);
+                    } else {
+                        result = FV_RESULT_FAILURE;
+                    }
+                }
+            }
+
+            if (result == FV_RESULT_SUCCESS) {
+                // Store graphics pipeline wrapper and return handle as graphics
+                // pipeline
+                const Handle *handle =
+                    graphicsPipelines.add(graphicsPipelineWrapper);
+
+                if (handle != nullptr) {
+                    *graphicsPipeline = (FvGraphicsPipeline)handle;
                 } else {
                     result = FV_RESULT_FAILURE;
                 }
             }
         }
 
-        if (result == FV_RESULT_SUCCESS) {
-            // Store graphics pipeline wrapper and return handle as graphics
-            // pipeline
-            const Handle *handle =
-                graphicsPipelines.add(graphicsPipelineWrapper);
-
-            if (handle != nullptr) {
-                *graphicsPipeline = (FvGraphicsPipeline)handle;
-            } else {
-                result = FV_RESULT_FAILURE;
-            }
-        }
+        return result;
     }
-
-    return result;
 }
 
 void MetalWrapper::graphicsPipelineDestroy(
@@ -985,8 +1396,8 @@ void MetalWrapper::graphicsPipelineDestroy(
 
         // Destroy pipeline
         if (pipeline != nullptr) {
-            pipeline->depthStencilState   = nil;
-            pipeline->renderPipelineState = nil;
+            FV_MTL_RELEASE(pipeline->depthStencilState);
+            FV_MTL_RELEASE(pipeline->renderPipelineState);
         }
 
         graphicsPipelines.remove(*handle);
@@ -1106,6 +1517,22 @@ void MetalWrapper::renderPassDestroy(FvRenderPass renderPass) {
     const Handle *handle = (const Handle *)renderPass;
 
     if (handle != nullptr) {
+        // Get render pass
+        RenderPassWrapper *renderPassWrapper = renderPasses.get(*handle);
+        if (renderPassWrapper != nullptr) {
+            // Get subpasses in render pass
+            for (size_t i = 0; i < renderPassWrapper->subpasses.size(); ++i) {
+                // Release render pass descriptor and render pipeline descriptor
+                FV_MTL_RELEASE(renderPassWrapper->subpasses[i].mtlRenderPass);
+                FV_MTL_RELEASE(renderPassWrapper->subpasses[i]
+                                   .mtlPipelineDescriptor.vertexFunction);
+                FV_MTL_RELEASE(renderPassWrapper->subpasses[i]
+                                   .mtlPipelineDescriptor.fragmentFunction);
+                FV_MTL_RELEASE(
+                    renderPassWrapper->subpasses[i].mtlPipelineDescriptor);
+            }
+        }
+
         renderPasses.remove(*handle);
     }
 }
@@ -1150,6 +1577,8 @@ MetalWrapper::shaderModuleCreate(FvShaderModule *shaderModule,
             printf("%s\n",
                    [errString cStringUsingEncoding:NSUTF8StringEncoding]);
         }
+
+        FV_MTL_RELEASE(options);
     }
 
     return result;
@@ -1162,12 +1591,169 @@ void MetalWrapper::shaderModuleDestroy(FvShaderModule shaderModule) {
         // Destroy library
         id<MTLLibrary> *lib = libraries.get(*handle);
         if (lib != nullptr) {
-            *lib = nil;
+            FV_MTL_RELEASE(*lib);
         }
 
         // Remove from handle manager
         libraries.remove(*handle);
     }
+}
+
+MTLIndexType MetalWrapper::toMtlIndexType(FvIndexType indexType) {
+    MTLIndexType mtlIndexType = MTLIndexTypeUInt32;
+
+    switch (indexType) {
+    case FV_INDEX_TYPE_UINT16: {
+        mtlIndexType = MTLIndexTypeUInt16;
+        break;
+    }
+    case FV_INDEX_TYPE_UINT32: {
+        mtlIndexType = MTLIndexTypeUInt32;
+        break;
+    }
+    default:
+        break;
+    }
+
+    return mtlIndexType;
+}
+
+MTLStepFunction MetalWrapper::toMtlStepFunction(FvVertexInputRate inputRate) {
+    MTLStepFunction stepFunction = MTLStepFunctionConstant;
+
+    switch (inputRate) {
+    case FV_VERTEX_INPUT_RATE_VERTEX: {
+        stepFunction = MTLStepFunctionPerVertex;
+        break;
+    }
+    case FV_VERTEX_INPUT_RATE_INSTANCE: {
+        stepFunction = MTLStepFunctionPerInstance;
+        break;
+    }
+    default:
+        break;
+    }
+
+    return stepFunction;
+}
+
+MTLVertexFormat MetalWrapper::toMtlVertexFormat(FvVertexFormat format) {
+    MTLVertexFormat vertexFormat = MTLVertexFormatInvalid;
+
+    switch (format) {
+    case FV_VERTEX_FORMAT_UCHAR2: {
+        vertexFormat = MTLVertexFormatUChar2;
+        break;
+    }
+    case FV_VERTEX_FORMAT_UCHAR3: {
+        vertexFormat = MTLVertexFormatUChar3;
+        break;
+    }
+    case FV_VERTEX_FORMAT_UCHAR4: {
+        vertexFormat = MTLVertexFormatUChar4;
+        break;
+    }
+    case FV_VERTEX_FORMAT_CHAR2: {
+        vertexFormat = MTLVertexFormatChar2;
+        break;
+    }
+    case FV_VERTEX_FORMAT_CHAR3: {
+        vertexFormat = MTLVertexFormatChar3;
+        break;
+    }
+    case FV_VERTEX_FORMAT_CHAR4: {
+        vertexFormat = MTLVertexFormatChar4;
+        break;
+    }
+    case FV_VERTEX_FORMAT_USHORT2: {
+        vertexFormat = MTLVertexFormatUShort2;
+        break;
+    }
+    case FV_VERTEX_FORMAT_USHORT3: {
+        vertexFormat = MTLVertexFormatUShort3;
+        break;
+    }
+    case FV_VERTEX_FORMAT_USHORT4: {
+        vertexFormat = MTLVertexFormatUShort4;
+        break;
+    }
+    case FV_VERTEX_FORMAT_SHORT2: {
+        vertexFormat = MTLVertexFormatShort2;
+        break;
+    }
+    case FV_VERTEX_FORMAT_SHORT3: {
+        vertexFormat = MTLVertexFormatShort3;
+        break;
+    }
+    case FV_VERTEX_FORMAT_SHORT4: {
+        vertexFormat = MTLVertexFormatShort4;
+        break;
+    }
+    case FV_VERTEX_FORMAT_HALF2: {
+        vertexFormat = MTLVertexFormatHalf2;
+        break;
+    }
+    case FV_VERTEX_FORMAT_HALF3: {
+        vertexFormat = MTLVertexFormatHalf3;
+        break;
+    }
+    case FV_VERTEX_FORMAT_HALF4: {
+        vertexFormat = MTLVertexFormatHalf4;
+        break;
+    }
+    case FV_VERTEX_FORMAT_FLOAT: {
+        vertexFormat = MTLVertexFormatFloat;
+        break;
+    }
+    case FV_VERTEX_FORMAT_FLOAT2: {
+        vertexFormat = MTLVertexFormatFloat2;
+        break;
+    }
+    case FV_VERTEX_FORMAT_FLOAT3: {
+        vertexFormat = MTLVertexFormatFloat3;
+        break;
+    }
+    case FV_VERTEX_FORMAT_FLOAT4: {
+        vertexFormat = MTLVertexFormatFloat4;
+        break;
+    }
+    case FV_VERTEX_FORMAT_INT: {
+        vertexFormat = MTLVertexFormatInt;
+        break;
+    }
+    case FV_VERTEX_FORMAT_INT2: {
+        vertexFormat = MTLVertexFormatInt2;
+        break;
+    }
+    case FV_VERTEX_FORMAT_INT3: {
+        vertexFormat = MTLVertexFormatInt3;
+        break;
+    }
+    case FV_VERTEX_FORMAT_INT4: {
+        vertexFormat = MTLVertexFormatInt4;
+        break;
+    }
+    case FV_VERTEX_FORMAT_UINT: {
+        vertexFormat = MTLVertexFormatUInt;
+        break;
+    }
+    case FV_VERTEX_FORMAT_UINT2: {
+        vertexFormat = MTLVertexFormatUInt2;
+        break;
+    }
+    case FV_VERTEX_FORMAT_UINT3: {
+        vertexFormat = MTLVertexFormatUInt3;
+        break;
+    }
+    case FV_VERTEX_FORMAT_UINT4: {
+        vertexFormat = MTLVertexFormatUInt4;
+        break;
+    }
+    default:
+        break;
+    };
+
+    return vertexFormat;
 }
 
 MTLLoadAction MetalWrapper::toMtlLoadAction(FvLoadOp loadOp) {

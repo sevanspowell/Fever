@@ -248,3 +248,7 @@ typedef enum FvIndexType {
     FV_INDEX_TYPE_UINT16,
     FV_INDEX_TYPE_UINT32,
 } FvIndexType;
+
+typedef enum FvDescriptorType {
+    FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+} FvDescriptorType;

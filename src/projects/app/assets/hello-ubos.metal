@@ -12,12 +12,19 @@ struct VertexOut {
     float3 color;
 };
 
+struct UniformBufferObject {
+    float4x4 model;
+    float4x4 view;
+    float4x4 proj;
+};
+
 vertex VertexOut vertFunc(VertexIn vert [[stage_in]],
-                          unsigned int vid [[vertex_id]]) {
+                          unsigned int vid [[vertex_id]],
+                          const device UniformBufferObject &ubo [[buffer(1)]]) { // Change to buffer(1)?
     VertexOut out;
 
     out.color = vert.color;
-    out.position = float4(vert.position, 0.0f, 1.0f);
+    out.position = ubo.proj * ubo.view * ubo.model * float4(vert.position, 0.0f, 1.0f);
 
     return out;
 }

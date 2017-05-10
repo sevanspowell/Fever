@@ -12,6 +12,7 @@
  * website (https://vulkan-tutorial.com).
  *===----------------------------------------------------------------------===*/
 #include <array>
+#include <chrono>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -25,7 +26,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <Fever/Fever.h>
 #include <Fever/FeverPlatform.h>
@@ -72,6 +75,12 @@ const std::vector<Vertex> vertices = {{{-0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}},
                                       {{0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};
 
 const std::vector<uint16_t> indices = {0, 2, 1, 1, 3, 0};
+
+struct UniformBufferObject {
+    glm::mat4 model;
+    glm::mat4 view;
+    glm::mat4 proj;
+};
 
 /// For automatically freeing Fever resources
 template <typename T> class FDeleter {
@@ -146,11 +155,15 @@ class HelloTriangleApplication {
         createSwapchain();
         createImageView();
         createRenderPass();
+        createDescriptorSetLayout();
         createGraphicsPipeline();
         createFramebuffer();
         createCommandPool();
         createVertexBuffer();
         createIndexBuffer();
+        createUniformBuffer();
+        createDescriptorPool();
+        createDescriptorSet();
         createCommandBuffer();
         createSemaphores();
     }
@@ -239,6 +252,40 @@ class HelloTriangleApplication {
         }
     }
 
+    void createUniformBuffer() {
+        FvBufferCreateInfo bufferInfo = {};
+        bufferInfo.size               = sizeof(UniformBufferObject);
+        bufferInfo.usage              = FV_BUFFER_USAGE_INDEX_BUFFER;
+        bufferInfo.data = nullptr; // Add data in updateUniformBuffer
+
+        if (fvBufferCreate(uniformBuffer .replace(), &bufferInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create vertex buffer!");
+        }
+    }
+
+    void updateUniformBuffer() {
+        static auto startTime = std::chrono::high_resolution_clock::now();
+
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        float time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                         currentTime - startTime)
+                         .count() /
+                     1000.0f;
+
+        UniformBufferObject ubo = {};
+        ubo.model = glm::rotate(glm::mat4(), time * glm::radians(90.0f),
+                                glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f),
+                               glm::vec3(0.0f, 0.0f, 0.0f),
+                               glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.proj =
+            glm::perspective(glm::radians(45.0f),
+                             outputWidth / (float)outputHeight, 0.1f, 10.0f);
+
+        fvBufferReplaceData(uniformBuffer, &ubo, sizeof(ubo));
+    }
+
     void createImageView() {
         FvImageViewCreateInfo imageViewInfo{};
         imageViewInfo.image    = swapchainImage;
@@ -308,7 +355,10 @@ class HelloTriangleApplication {
             fvCmdBindIndexBuffer(commandBuffer, indexBuffer, 0,
                                  FV_INDEX_TYPE_UINT16);
 
-            //fvCmdDraw(commandBuffer, vertices.size(), 1, 0, 0);
+            fvCmdBindDescriptorSets(commandBuffer, pipelineLayout, 0, 1,
+                                    &descriptorSet);
+
+            // fvCmdDraw(commandBuffer, vertices.size(), 1, 0, 0);
             fvCmdDrawIndexed(commandBuffer, indices.size(), 1, 0, 0, 0);
         }
 
@@ -319,10 +369,71 @@ class HelloTriangleApplication {
         }
     }
 
+    void createDescriptorSetLayout() {
+        FvDescriptorSetLayoutBinding uboLayoutBinding = {};
+        uboLayoutBinding.binding                      = 1;
+        uboLayoutBinding.descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboLayoutBinding.descriptorCount = 1;
+        uboLayoutBinding.stageFlags      = FV_SHADER_STAGE_VERTEX;
+
+        FvDescriptorSetLayoutCreateInfo layoutInfo = {};
+        layoutInfo.bindingCount                    = 1;
+        layoutInfo.bindings                        = &uboLayoutBinding;
+
+        if (fvDescriptorSetLayoutCreate(descriptorSetLayout.replace(),
+                                        &layoutInfo) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create descriptor set layout!");
+        }
+    }
+
+    void createDescriptorPool() {
+        FvDescriptorPoolSize poolSize = {};
+        poolSize.descriptorType       = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSize.descriptorCount      = 1;
+
+        FvDescriptorPoolCreateInfo poolInfo = {};
+        poolInfo.poolSizeCount              = 1;
+        poolInfo.poolSizes                  = &poolSize;
+        poolInfo.maxSets                    = 1;
+
+        if (fvDescriptorPoolCreate(descriptorPool.replace(), &poolInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create descriptor pool!");
+        }
+    }
+
+    void createDescriptorSet() {
+        FvDescriptorSetLayout layouts[]       = {descriptorSetLayout};
+        FvDescriptorSetAllocateInfo allocInfo = {};
+        allocInfo.descriptorPool              = descriptorPool;
+        allocInfo.descriptorSetCount          = 1;
+        allocInfo.setLayouts                  = layouts;
+
+        if (fvAllocateDescriptorSets(&descriptorSet, &allocInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to allocate descriptor set!");
+        }
+
+        FvDescriptorBufferInfo bufferInfo = {};
+        bufferInfo.buffer                 = uniformBuffer;
+        bufferInfo.offset                 = 0;
+        bufferInfo.range                  = sizeof(UniformBufferObject);
+
+        FvWriteDescriptorSet descriptorWrite = {};
+        descriptorWrite.dstSet               = descriptorSet;
+        descriptorWrite.dstBinding           = 1;
+        descriptorWrite.dstArrayElement      = 0;
+        descriptorWrite.descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrite.descriptorCount = 1;
+        descriptorWrite.bufferInfo      = &bufferInfo;
+
+        fvUpdateDescriptorSets(1, &descriptorWrite);
+    }
+
     void createGraphicsPipeline() {
         std::vector<char> shaderCode =
 
-            readFile("src/projects/app/assets/hello-vertex-buffers.metal");
+            readFile("src/projects/app/assets/hello-ubos.metal");
         shaderCode.push_back('\0');
 
         FDeleter<FvShaderModule> shaderModule{fvShaderModuleDestroy};
@@ -399,8 +510,10 @@ class HelloTriangleApplication {
         colorBlending.attachmentCount                      = 1;
         colorBlending.attachments = &colorBlendAttachment;
 
+        FvDescriptorSetLayout setLayouts[]            = {descriptorSetLayout};
         FvPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-        pipelineLayoutInfo.setLayoutCount             = 0;
+        pipelineLayoutInfo.setLayoutCount             = 1;
+        pipelineLayoutInfo.setLayouts                 = setLayouts;
         pipelineLayoutInfo.pushConstantRangeCount     = 0;
 
         if (fvPipelineLayoutCreate(pipelineLayout.replace(),
@@ -500,6 +613,7 @@ class HelloTriangleApplication {
                 }
             }
 
+            updateUniformBuffer();
             drawFrame();
         }
 
@@ -545,6 +659,11 @@ class HelloTriangleApplication {
     FDeleter<FvImageView> imageView{fvImageViewDestroy};
     FDeleter<FvBuffer> vertexBuffer{fvBufferDestroy};
     FDeleter<FvBuffer> indexBuffer{fvBufferDestroy};
+    FDeleter<FvDescriptorSetLayout> descriptorSetLayout{
+        fvDescriptorSetLayoutDestroy};
+    FDeleter<FvBuffer> uniformBuffer{fvBufferDestroy};
+    FDeleter<FvDescriptorPool> descriptorPool{fvDescriptorPoolDestroy};
+    FvDescriptorSet descriptorSet;
 };
 
 int main(void) {

@@ -79,6 +79,12 @@ extern FvResult fvBufferCreate(FvBuffer *buffer,
 
 extern void fvBufferDestroy(FvBuffer buffer);
 
+/** Replace the contents of a buffer with new data.
+ *
+ * \pre \p dataSize is less than the size of the buffer.
+ */
+extern void fvBufferReplaceData(FvBuffer buffer, void *data, size_t dataSize);
+
 /** Opaque handle to shader object. */
 FV_DEFINE_HANDLE(FvShaderModule);
 
@@ -269,8 +275,122 @@ typedef struct FvPipelineVertexInputDescription {
     const FvVertexInputAttributeDescription *vertexAttributeDescriptions;
 } FvPipelineVertexInputDescription;
 
-FV_DEFINE_HANDLE(FvPipelineLayout);
 FV_DEFINE_HANDLE(FvDescriptorSetLayout);
+
+/** Descriptor set layout binding information */
+typedef struct FvDescriptorSetLayoutBinding {
+    /** Binding point. */
+    uint32_t binding;
+    /** Type of the descriptor. */
+    FvDescriptorType descriptorType;
+    /** Number of descriptors contained in the binding, this appears as an array
+     * in the shader. */
+    uint32_t descriptorCount;
+    /** Bitmask specifying which stages of the shader pipeline can use the
+     * resource(s) attached to this binding. */
+    FvShaderStage stageFlags;
+} FvDescriptorSetLayoutBinding;
+
+typedef struct FvDescriptorSetLayoutCreateInfo {
+    /** Number of elements in \p bindings. */
+    uint32_t bindingCount;
+    /** Array of descriptor set layout binding structures. */
+    const FvDescriptorSetLayoutBinding *bindings;
+} FvDescriptorSetLayoutCreateInfo;
+
+extern FvResult
+fvDescriptorSetLayoutCreate(FvDescriptorSetLayout *descriptorSetLayout,
+                            const FvDescriptorSetLayoutCreateInfo *createInfo);
+
+extern void
+fvDescriptorSetLayoutDestroy(FvDescriptorSetLayout descriptorSetLayout);
+
+FV_DEFINE_HANDLE(FvDescriptorPool);
+
+/** Structure to specify the number of descriptor sets that can be contained
+ * within a descriptor pool. */
+typedef struct FvDescriptorPoolSize {
+    /** Type of the descriptor. */
+    FvDescriptorType descriptorType;
+    /** Number of descriptors to allocate memory for. */
+    uint32_t descriptorCount;
+} FvDescriptorPoolSize;
+
+/** Structure to define the properties of a new descriptor pool. */
+typedef struct FvDescriptorPoolCreateInfo {
+    /** Maximum number of descriptor sets that can be allocated from the pool.
+     */
+    uint32_t maxSets;
+    /** Number of elements in \p poolSizes array. */
+    uint32_t poolSizeCount;
+    /** Array of structures describing size of each pool. */
+    const FvDescriptorPoolSize *poolSizes;
+} FvDescriptorPoolCreateInfo;
+
+extern FvResult
+fvDescriptorPoolCreate(FvDescriptorPool *descriptorPool,
+                       const FvDescriptorPoolCreateInfo *createInfo);
+
+extern void fvDescriptorPoolDestroy(FvDescriptorPool descriptorPool);
+
+FV_DEFINE_HANDLE(FvDescriptorSet);
+
+/** Structure used to create and allocate space for descriptor sets. */
+typedef struct FvDescriptorSetAllocateInfo {
+    /** Descriptor pool to allocate descriptor sets from. */
+    FvDescriptorPool descriptorPool;
+    /** Number of descriptor sets in \p setLayouts array. */
+    uint32_t descriptorSetCount;
+    /** Array of descriptor set layouts to allocate memory for. */
+    FvDescriptorSetLayout *setLayouts;
+} FvDescriptorSetAllocatInfo;
+
+/**
+ * Allocate one to many descriptor sets.
+ *
+ * \param allocateInfo Information used to properly allocate descriptor sets.
+ * \param [out] descriptorSets Allocated descriptor sets ready to write to.
+ * \return FV_RESULT_SUCCESS on success, FV_RESULT_FAILURE on failure.
+ */
+extern FvResult
+fvAllocateDescriptorSets(FvDescriptorSet *descriptorSets,
+                         const FvDescriptorSetAllocateInfo *allocateInfo );
+
+/** Information about the buffer tied to a descriptor set. */
+typedef struct FvDescriptorBufferInfo {
+    /** Buffer to attach to descriptor set. */
+    FvBuffer buffer;
+    /** Offset in bytes from start of buffer to begin accessing memory from. */
+    FvSize offset;
+    /** Descriptor set is allowed to access this many bytes from the buffer. */
+    FvSize range;
+} FvDescriptorBufferInfo;
+
+/** Structure giving information on a data write to a descriptor set. */
+typedef struct FvWriteDescriptorSet {
+    /** Destination descriptor set of this write. */
+    FvDescriptorSet dstSet;
+    /** Descriptor binding within destination descriptor set to write to. */
+    uint32_t dstBinding;
+    /** If descriptor binding is an array, this is the element in the array to
+     * write to. */
+    uint32_t dstArrayElement;
+    /** Type of the descriptor to update. Must be same as descriptor type in
+     * FvDescriptorSetLayoutBinding struct. */
+    FvDescriptorType descriptorType;
+    /** Number of descriptors to update. */
+    uint32_t descriptorCount;
+    /** An array of FvDescriptorBufferInfo structures that will be used as the
+     * data source in the write. */
+    const FvDescriptorBufferInfo *bufferInfo;
+} FvWriteDescriptorSet;
+
+/** Update the contents of one to many descriptor sets. */
+extern void
+fvUpdateDescriptorSets(uint32_t descriptorWriteCount,
+                       const FvWriteDescriptorSet *descriptorWrites);
+
+FV_DEFINE_HANDLE(FvPipelineLayout);
 
 typedef struct FvPushConstantRange {
     /** Bitmask of shader stages that access this range of push constants */
@@ -496,7 +616,7 @@ extern void fvCmdBindGraphicsPipeline(FvCommandBuffer commandBuffer,
                                       FvGraphicsPipeline graphicsPipeline);
 
 /**
- * Binds vertex buffers to a command buffer.
+ * Bind vertex buffers to a command buffer.
  *
  * \pre \p bindingCount is equal to the number of buffers and offsets provided.
  * \pre All buffers must have been created with FV_BUFFER_USAGE_VERTEX_BUFFER
@@ -517,6 +637,22 @@ extern void fvCmdBindVertexBuffers(FvCommandBuffer commandBuffer,
                                    uint32_t firstBinding, uint32_t bindingCount,
                                    const FvBuffer *buffers,
                                    const FvSize *offsets);
+
+/**
+ * Bind a series of descriptor sets to a command buffer.
+ *
+ * \param commandBuffer The command buffer in which to record the command.
+ * \param layout Pipeline layout object.
+ * \param firstSet Index of the first descriptor set to be bound in \p
+ * descriptorSets array.
+ * \param descriptorSetCount Number of descriptor sets in \p descriptorSets
+ * array.
+ * \param descriptorSets Array of descriptor sets to bind to command buffer.
+ */
+extern void fvCmdBindDescriptorSets(FvCommandBuffer commandBuffer,
+                                    FvPipelineLayout layout, uint32_t firstSet,
+                                    uint32_t descriptorSetCount,
+                                    const FvDescriptorSet *descriptorSets);
 
 /**
  * Bind an index buffer to a command buffer.

@@ -26,6 +26,181 @@ FvResult MetalWrapper::init(const FvInitInfo *initInfo) {
 
 void MetalWrapper::shutdown() { FV_MTL_RELEASE(device); }
 
+FvResult MetalWrapper::descriptorPoolCreate(
+    FvDescriptorPool *descriptorPool,
+    const FvDescriptorPoolCreateInfo *createInfo) {
+    FvResult result = FV_RESULT_FAILURE;
+
+    if (descriptorPool != nullptr && createInfo != nullptr) {
+        DescriptorPoolWrapper descriptorPoolWrapper;
+
+        descriptorPoolWrapper.maxSets = createInfo->maxSets;
+
+        for (uint32_t i = 0; i < createInfo->poolSizeCount; ++i) {
+            DescriptorPoolWrapper::PoolInfo poolInfo;
+
+            poolInfo.descriptorType  = createInfo->poolSizes[i].descriptorType;
+            poolInfo.descriptorCount = createInfo->poolSizes[i].descriptorCount;
+
+            descriptorPoolWrapper.poolInfos.push_back(poolInfo);
+        }
+
+        const Handle *handle = descriptorPools.add(descriptorPoolWrapper);
+
+        if (handle != nullptr) {
+            *descriptorPool = (FvDescriptorPool)handle;
+            result          = FV_RESULT_SUCCESS;
+        }
+    }
+
+    return result;
+}
+
+void MetalWrapper::descriptorPoolDestroy(FvDescriptorPool descriptorPool) {
+    const Handle *handle = (const Handle *)descriptorPool;
+
+    if (handle != nullptr) {
+        // Free descriptor sets associated with pool
+        DescriptorPoolWrapper *descriptorPoolWrapper =
+            descriptorPools.get(*handle);
+
+        if (descriptorPoolWrapper != nullptr) {
+            for (uint32_t i = 0;
+                 i < descriptorPoolWrapper->pool.descriptorSets.size(); ++i) {
+                // Remove descriptor set from internal store
+                descriptorSets.remove(*((const Handle *)descriptorPoolWrapper
+                                            ->pool.descriptorSets[i]));
+            }
+        }
+
+        // Remove descriptor pool from internal store
+        descriptorPools.remove(*handle);
+    }
+}
+
+FvResult MetalWrapper::allocateDescriptorSets(
+    FvDescriptorSet *descriptorSets,
+    const FvDescriptorSetAllocateInfo *allocateInfo) {
+    FvResult result = FV_RESULT_FAILURE;
+
+    if (descriptorSets != nullptr && allocateInfo != nullptr) {
+        // Get descriptor pool to allocate from
+        const Handle *handle = (const Handle *)allocateInfo->descriptorPool;
+
+        if (handle != nullptr) {
+            DescriptorPoolWrapper *descriptorPoolWrapper =
+                descriptorPools.get(*handle);
+
+            if (descriptorPoolWrapper != nullptr) {
+                // Fill the descriptor set with set layouts
+                for (uint32_t i = 0; i < allocateInfo->descriptorSetCount;
+                     ++i) {
+                    DescriptorSetWrapper descriptorSetWrapper;
+
+                    descriptorSetWrapper.descriptorSetLayout =
+                        allocateInfo->setLayouts[i];
+
+                    // Add descriptor set to internal store
+                    const Handle *handle =
+                        this->descriptorSets.add(descriptorSetWrapper);
+
+                    if (handle != nullptr) {
+                        // Only add to pool if less than max number of
+                        // descriptor sets allowed
+                        if (descriptorPoolWrapper->pool.descriptorSets.size() <=
+                            descriptorPoolWrapper->maxSets) {
+                            // Return handle
+                            descriptorSets[i] = (FvDescriptorSet)handle;
+
+                            // Add handle to descriptor pool
+                            descriptorPoolWrapper->pool.descriptorSets
+                                .push_back((FvDescriptorSet)handle);
+
+                            result = FV_RESULT_SUCCESS;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
+void MetalWrapper::updateDescriptorSets(
+    uint32_t descriptorWriteCount,
+    const FvWriteDescriptorSet *descriptorWrites) {
+    for (uint32_t i = 0; i < descriptorWriteCount; ++i) {
+        FvWriteDescriptorSet write = descriptorWrites[i];
+
+        // Get descriptor set
+        DescriptorSetWrapper *descSet =
+            descriptorSets.get(*((const Handle *)write.dstSet));
+
+        // Get descriptor set layout
+        DescriptorSetLayoutWrapper *descSetLayout = descriptorSetLayouts.get(
+            *((const Handle *)descSet->descriptorSetLayout));
+
+        // Find binding in descriptor set
+        FvDescriptorSetLayoutBinding *descSetBinding = nullptr;
+        for (uint32_t j = 0;
+             j < descSetLayout->descriptorSetLayoutBindings.size(); ++j) {
+            descSetBinding = &descSetLayout->descriptorSetLayoutBindings[j];
+
+            if (descSetBinding->binding == write.dstBinding) {
+                break;
+            } else {
+                descSetBinding = nullptr;
+            }
+        }
+
+        // If we found binding in descriptor set
+        if (descSetBinding != nullptr) {
+            // Create buffer binding info struct
+            DescriptorBufferBinding bufferBinding;
+            bufferBinding.binding    = *descSetBinding;
+            bufferBinding.bufferInfo = *(write.bufferInfo);
+
+            // Add binding to descriptor set
+            descSet->bufferBindings.push_back(bufferBinding);
+        }
+    }
+}
+
+FvResult MetalWrapper::descriptorSetLayoutCreate(
+    FvDescriptorSetLayout *descriptorSetLayout,
+    const FvDescriptorSetLayoutCreateInfo *createInfo) {
+    FvResult result = FV_RESULT_FAILURE;
+
+    if (descriptorSetLayout != nullptr && createInfo != nullptr) {
+        DescriptorSetLayoutWrapper descriptorSetLayoutWrapper;
+
+        for (uint32_t i = 0; i < createInfo->bindingCount; ++i) {
+            descriptorSetLayoutWrapper.descriptorSetLayoutBindings.push_back(
+                createInfo->bindings[i]);
+        }
+
+        const Handle *handle =
+            descriptorSetLayouts.add(descriptorSetLayoutWrapper);
+
+        if (handle != nullptr) {
+            *descriptorSetLayout = (FvDescriptorSetLayout)handle;
+            result               = FV_RESULT_SUCCESS;
+        }
+    }
+
+    return result;
+}
+
+void MetalWrapper::descriptorSetLayoutDestroy(
+    FvDescriptorSetLayout descriptorSetLayout) {
+    const Handle *handle = (const Handle *)descriptorSetLayout;
+
+    if (handle != nullptr) {
+        descriptorSetLayouts.remove(*handle);
+    }
+}
+
 FvResult MetalWrapper::bufferCreate(FvBuffer *buffer,
                                     const FvBufferCreateInfo *createInfo) {
     FvResult result = FV_RESULT_FAILURE;
@@ -67,6 +242,23 @@ void MetalWrapper::bufferDestroy(FvBuffer buffer) {
         }
 
         buffers.remove(*handle);
+    }
+}
+
+void MetalWrapper::bufferReplaceData(FvBuffer buffer, void *data,
+                                     size_t dataSize) {
+    // Get buffer wrapper
+    BufferWrapper *bufferWrapper = buffers.get(*((const Handle *)buffer));
+
+    if (bufferWrapper != nullptr) {
+        // Get buffer data pointer
+        void *bufferData = [bufferWrapper->mtlBuffer contents];
+        // Copy data to buffer
+        memcpy(bufferData, data, dataSize);
+        // Notify GPU that we modified buffer's contents (only applies if
+        // storage mode is managed)
+        // [bufferWrapper->mtlBuffer
+        //     didModifyRange:NSMakeRange((NSUInteger)bufferData, dataSize)];
     }
 }
 
@@ -370,6 +562,53 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                         setRenderPipelineState:pipeline->renderPipelineState];
                     [encoder setScissorRect:pipeline->scissor];
                     [encoder setViewport:pipeline->viewport];
+
+                    // Bind descriptor sets (uniform buffers)
+                    for (uint32_t iDescSet = 0;
+                         iDescSet < commandBufferWrapper->descriptorSets.size();
+                         ++iDescSet) {
+                        // Get descriptor set
+                        FvDescriptorSet descSet =
+                            commandBufferWrapper->descriptorSets[iDescSet];
+                        const DescriptorSetWrapper *descSetWrapper =
+                            descriptorSets.get(*((const Handle *)descSet));
+
+                        if (descSetWrapper != nullptr) {
+                            for (uint32_t iBinding = 0;
+                                 iBinding <
+                                 descSetWrapper->bufferBindings.size();
+                                 ++iBinding) {
+                                DescriptorBufferBinding bufferBinding =
+                                    descSetWrapper->bufferBindings[iBinding];
+
+                                // Get buffer to bind
+                                BufferWrapper *bufferWrapper = buffers.get(
+                                    *((const Handle *)
+                                          bufferBinding.bufferInfo.buffer));
+
+                                if (bufferWrapper != nullptr) {
+                                    FvShaderStage stageFlags =
+                                        bufferBinding.binding.stageFlags;
+                                    id<MTLBuffer> mtlBufferToBind =
+                                        bufferWrapper->mtlBuffer;
+                                    FvSize offset =
+                                        bufferBinding.bufferInfo.offset;
+                                    uint32_t bindingPoint =
+                                        bufferBinding.binding.binding;
+
+                                    if (stageFlags & FV_SHADER_STAGE_VERTEX) {
+                                        [encoder setVertexBuffer:mtlBufferToBind
+                                                          offset:offset
+                                                         atIndex:bindingPoint];
+                                    }
+                                    if (stageFlags & FV_SHADER_STAGE_FRAGMENT) {
+                                        [encoder setFragmentBuffer:mtlBufferToBind offset:offset atIndex:bindingPoint];
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Make draw call
                     DrawCallNonIndexed dc =
                         commandBufferWrapper->drawCall.nonIndexed;
@@ -416,6 +655,53 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                                          offset:vertexBufferWrapper->offset
                                         atIndex:vertexBufferWrapper->
                                                 bindingPoint];
+                        
+                            // Bind descriptor sets (uniform buffers)
+                            for (uint32_t iDescSet = 0;
+                                 iDescSet < commandBufferWrapper->descriptorSets.size();
+                                 ++iDescSet) {
+                                // Get descriptor set
+                                FvDescriptorSet descSet =
+                                commandBufferWrapper->descriptorSets[iDescSet];
+                                const DescriptorSetWrapper *descSetWrapper =
+                                descriptorSets.get(*((const Handle *)descSet));
+                                
+                                if (descSetWrapper != nullptr) {
+                                    for (uint32_t iBinding = 0;
+                                         iBinding <
+                                         descSetWrapper->bufferBindings.size();
+                                         ++iBinding) {
+                                        DescriptorBufferBinding bufferBinding =
+                                        descSetWrapper->bufferBindings[iBinding];
+                                        
+                                        // Get buffer to bind
+                                        BufferWrapper *bufferWrapper = buffers.get(
+                                                                                   *((const Handle *)
+                                                                                     bufferBinding.bufferInfo.buffer));
+                                        
+                                        if (bufferWrapper != nullptr) {
+                                            FvShaderStage stageFlags =
+                                            bufferBinding.binding.stageFlags;
+                                            id<MTLBuffer> mtlBufferToBind =
+                                            bufferWrapper->mtlBuffer;
+                                            FvSize offset =
+                                            bufferBinding.bufferInfo.offset;
+                                            uint32_t bindingPoint =
+                                            bufferBinding.binding.binding;
+                                            
+                                            if (stageFlags & FV_SHADER_STAGE_VERTEX) {
+                                                [encoder setVertexBuffer:mtlBufferToBind
+                                                                  offset:offset
+                                                                 atIndex:bindingPoint];
+                                            }
+                                            if (stageFlags & FV_SHADER_STAGE_FRAGMENT) {
+                                                [encoder setFragmentBuffer:mtlBufferToBind offset:offset atIndex:bindingPoint];
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
 
                             if (commandBufferWrapper->drawCall.type ==
                                 DRAW_CALL_TYPE_INDEXED) {
@@ -647,6 +933,23 @@ void MetalWrapper::cmdBindIndexBuffer(FvCommandBuffer commandBuffer,
 
     // Bind index buffer to command buffer
     commandBufferWrapper->indexBuffer = buffer;
+}
+
+void MetalWrapper::cmdBindDescriptorSets(
+    FvCommandBuffer commandBuffer, FvPipelineLayout layout, uint32_t firstSet,
+    uint32_t descriptorSetCount, const FvDescriptorSet *descriptorSets) {
+    // Get command buffer
+    CommandBufferWrapper *commandBufferWrapper =
+        commandBuffers.get(*((const Handle *)commandBuffer));
+
+    if (commandBufferWrapper == nullptr) {
+        return;
+    }
+
+    // Add each descriptor set to command buffer
+    for (uint32_t i = 0; i < descriptorSetCount; ++i) {
+        commandBufferWrapper->descriptorSets.push_back(descriptorSets[i]);
+    }
 }
 
 void MetalWrapper::cmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,

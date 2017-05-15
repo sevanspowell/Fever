@@ -48,6 +48,12 @@ typedef struct FvOffset2D {
     int32_t y;
 } FvOffset2D;
 
+typedef struct FvOffset3D {
+    int32_t x;
+    int32_t y;
+    int32_t z;
+} FvOffset3D;
+
 typedef struct FvExtent2D {
     uint32_t width;
     uint32_t height;
@@ -60,9 +66,14 @@ typedef struct FvExtent3D {
 } FvExtent3D;
 
 typedef struct FvRect2D {
-    FvOffset2D offset;
+    FvOffset2D origin;
     FvExtent2D extent;
 } FvRect2D;
+
+typedef struct FvRect3D {
+    FvOffset3D origin;
+    FvExtent3D extent;
+} FvRect3D;
 
 /** Structure specifying creation parameters for a buffer. */
 typedef struct FvBufferCreateInfo {
@@ -114,11 +125,11 @@ typedef struct FvImageCreateInfo {
     /** Dimensions of image */
     FvExtent3D extent;
     /** Number of mipmap levels */
-    uint32_t numMipmapLevels;
+    uint32_t mipLevels;
     /** Number of layers in image */
     uint32_t arrayLayers;
     /** Number of samples in each pixel */
-    FvSampleCount numSamples;
+    FvSampleCount samples;
     /** How the image will be used (bitmask of FvImageUsage) */
     FvImageUsage usage;
 } FvImageCreateInfo;
@@ -126,7 +137,80 @@ typedef struct FvImageCreateInfo {
 extern FvResult fvImageCreate(FvImage *image,
                               const FvImageCreateInfo *createInfo);
 
+/**
+ * Replace a region of the images data. Useful for uploading images loaded on
+ * the CPU to the GPU. Not synchronized with GPU access.
+ *
+ * \param image Image to replace contents of.
+ * \param region Region of the image to replace the data of.
+ * \param mipLevel Which mipmap level to replace (zero-based value).
+ * \param layer For an image with more than one layer, which layer to replace
+ * (zero-based value). For a cube image, \p level is a value in the range [0,
+ * 5]. For an array image, \p level is the index of an image in the array. For a
+ * cube array texture, level indicates the cube face and array index: level =
+ * cubeFace + arrayIndex * 6. For images with only one layer, this value should
+ * be 0.
+ * \param data Source data to upload to the image.
+ * \param bytesPerRow Stride (in bytes) between rows of the source data. Only
+ * applicable for texture types other than FV_IMAGE_TYPE_1D and
+ * FV_IMAGE_TYPE_1D_ARRAY (\p bytesPerRow must be 0 in cases where it is not
+ * applicable).
+ * \param bytesPerImage Stride (in bytes) between images in the source data,
+ * only applicable for FV_IMAGE_TYPE_3D images (\p bytesPerRow must be 0 in
+ * cases where it is not applicable).
+ */
+extern void fvImageReplaceRegion(FvImage image, FvRect3D region,
+                                 uint32_t mipLevel, uint32_t layer, void *data,
+                                 size_t bytesPerRow, size_t bytesPerImage);
+
 extern void fvImageDestroy(FvImage image);
+
+FV_DEFINE_HANDLE(FvSampler);
+
+typedef struct FvSamplerCreateInfo {
+    /** Maginification filter to use for texture lookups. */
+    FvFilter magFilter;
+    /** Minification filter to use for texture lookups. */
+    FvFilter minFilter;
+    /** The mipmap filter to use for texture lookups. */
+    FvSamplerMipmapMode mipmapMode;
+    /** Addressing mode for texture coordinates outside U coordinate range [0,
+     * 1]. */
+    FvSamplerAddressMode addressModeU;
+    /** Addressing mode for texture coordinates outside V coordinate range [0,
+     * 1]. */
+    FvSamplerAddressMode addressModeV;
+    /** Addressing mode for texture coordinates outside W coordinate range [0,
+     * 1]. */
+    FvSamplerAddressMode addressModeW;
+    /** Bias to be added to mipmap level-of-detail calculations. */
+    float mipLodBias;
+    /** Whether or not anisotropic filtering is enabled. */
+    bool anisotropyEnable;
+    /** Clamp the anisotropy at the value. */
+    float maxAnisotropy;
+    /** Enables comparison against a reference value during texture lookups. */
+    bool compareEnable;
+    /** Comparison function to apply to data before filtering. */
+    FvCompareFunc compareFunc;
+    /** Clamp the computed level of detail. \p minLod must be less than \p
+     * maxLod. */
+    float minLod;
+    /** Clamp the computed level of detail. \p minLod must be less than \p
+     * maxLod. */
+    float maxLod;
+    /** Color of the border to use in sampling. */
+    FvBorderColor borderColor;
+    /** False: range of image coordinates is [0, imageDimensionsXYZ].
+     *  True: range of image coordinates is [0, 1].
+     */
+    bool normalizedCoordinates;
+} FvSamplerCreateInfo;
+
+extern FvResult fvSamplerCreate(FvSampler *sampler,
+                                const FvSamplerCreateInfo *createInfo);
+
+extern void fvSamplerDestroy(FvSampler sampler);
 
 typedef struct FvStencilOperationState {
     /** Operation performed to update the values in the stencil attachment when
@@ -354,7 +438,7 @@ typedef struct FvDescriptorSetAllocateInfo {
  */
 extern FvResult
 fvAllocateDescriptorSets(FvDescriptorSet *descriptorSets,
-                         const FvDescriptorSetAllocateInfo *allocateInfo );
+                         const FvDescriptorSetAllocateInfo *allocateInfo);
 
 /** Information about the buffer tied to a descriptor set. */
 typedef struct FvDescriptorBufferInfo {
@@ -365,6 +449,16 @@ typedef struct FvDescriptorBufferInfo {
     /** Descriptor set is allowed to access this many bytes from the buffer. */
     FvSize range;
 } FvDescriptorBufferInfo;
+
+FV_DEFINE_HANDLE(FvImageView);
+
+/** Information about image tied to a descriptor set. */
+typedef struct FvDescriptorImageInfo {
+    /** Sampler to use to sample image. */
+    FvSampler sampler;
+    /** Image to attach to sampler. */
+    FvImageView imageView;
+} FvDescriptorImageInfo;
 
 /** Structure giving information on a data write to a descriptor set. */
 typedef struct FvWriteDescriptorSet {
@@ -381,8 +475,13 @@ typedef struct FvWriteDescriptorSet {
     /** Number of descriptors to update. */
     uint32_t descriptorCount;
     /** An array of FvDescriptorBufferInfo structures that will be used as the
-     * data source in the write. */
+     * data source in the write(if descriptor type is
+     * FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER). */
     const FvDescriptorBufferInfo *bufferInfo;
+    /** An array of FvDescriptorImageInfo structures that will be used as the
+     * data source in the write (if descriptor type is
+     * FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER). */
+    const FvDescriptorImageInfo *imageInfo;
 } FvWriteDescriptorSet;
 
 /** Update the contents of one to many descriptor sets. */
@@ -531,8 +630,6 @@ fvGraphicsPipelineCreate(FvGraphicsPipeline *graphicsPipeline,
                          const FvGraphicsPipelineCreateInfo *createInfo);
 
 extern void fvGraphicsPipelineDestroy(FvGraphicsPipeline graphicsPipeline);
-
-FV_DEFINE_HANDLE(FvImageView);
 
 /** Image views are used to access image data from shaders */
 typedef struct FvImageViewCreateInfo {

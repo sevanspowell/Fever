@@ -161,6 +161,11 @@ struct DescriptorBufferBinding {
     FvDescriptorSetLayoutBinding binding;
 };
 
+struct DescriptorImageBinding {
+    FvDescriptorImageInfo imageInfo;
+    FvDescriptorSetLayoutBinding binding;
+};
+
 struct DescriptorSetLayoutWrapper {
     std::vector<FvDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
 };
@@ -168,19 +173,16 @@ struct DescriptorSetLayoutWrapper {
 struct DescriptorSetWrapper {
     FvDescriptorSetLayout descriptorSetLayout;
     std::vector<DescriptorBufferBinding> bufferBindings;
+    std::vector<DescriptorImageBinding> imageBindings;
 };
 
 struct DescriptorPoolWrapper {
-    struct PoolInfo {
-        FvDescriptorType descriptorType;
-        uint32_t descriptorCount;
-    };
     struct Pool {
+        FvDescriptorType descriptorSetsType;
         std::vector<FvDescriptorSet> descriptorSets;
     };
 
-    std::vector<PoolInfo> poolInfos;
-    Pool pool;
+    std::vector<DescriptorPoolWrapper::Pool> pools;
     uint32_t maxSets;
 };
 
@@ -201,6 +203,7 @@ class MetalWrapper {
     static const uint32_t MAX_NUM_DESCRIPTOR_SET_LAYOUTS = 256;
     static const uint32_t MAX_NUM_DESCRIPTOR_POOLS       = 64;
     static const uint32_t MAX_NUM_DESCRIPTOR_SETS        = 512;
+    static const uint32_t MAX_NUM_SAMPLERS               = 512;
 
     MetalWrapper()
         : metalLayer(NULL), device(nil), libraries(MAX_NUM_LIBRARIES),
@@ -214,7 +217,7 @@ class MetalWrapper {
           buffers(MAX_NUM_BUFFERS),
           descriptorSetLayouts(MAX_NUM_DESCRIPTOR_SET_LAYOUTS),
           descriptorPools(MAX_NUM_DESCRIPTOR_POOLS),
-          descriptorSets(MAX_NUM_DESCRIPTOR_SETS) {}
+          descriptorSets(MAX_NUM_DESCRIPTOR_SETS), samplers(MAX_NUM_SAMPLERS) {}
 
     FvResult init(const FvInitInfo *initInfo);
 
@@ -321,7 +324,16 @@ class MetalWrapper {
 
     FvResult imageCreate(FvImage *image, const FvImageCreateInfo *createInfo);
 
+    void imageReplaceRegion(FvImage image, FvRect3D region, uint32_t mipLevel,
+                            uint32_t layer, void *data, size_t bytesPerRow,
+                            size_t bytesPerImage);
+
     void imageDestroy(FvImage image);
+
+    FvResult samplerCreate(FvSampler *sampler,
+                           const FvSamplerCreateInfo *createInfo);
+
+    void samplerDestroy(FvSampler sampler);
 
     FvResult
     graphicsPipelineCreate(FvGraphicsPipeline *graphicsPipeline,
@@ -377,6 +389,17 @@ class MetalWrapper {
 
     static MTLPrimitiveType toMtlPrimitiveType(FvPrimitiveType primitiveType);
 
+    static MTLSamplerAddressMode
+    toMtlSamplerAddressMode(FvSamplerAddressMode addressMode);
+
+    static MTLSamplerMinMagFilter toMtlMinMagFilter(FvMinMagFilter filter);
+
+    static MTLSamplerMipFilter
+    toMtlSamplerMipFilter(FvSamplerMipmapMode mipmapMode);
+
+    static MTLSamplerBorderColor
+    toMtlSamplerBorderColor(FvBorderColor borderColor);
+
     CAMetalLayer *metalLayer;
     id<MTLDevice> device;
 
@@ -394,6 +417,7 @@ class MetalWrapper {
     PersistentHandleDataStore<DescriptorSetLayoutWrapper> descriptorSetLayouts;
     PersistentHandleDataStore<DescriptorPoolWrapper> descriptorPools;
     PersistentHandleDataStore<DescriptorSetWrapper> descriptorSets;
+    PersistentHandleDataStore<id<MTLSamplerState>> samplers;
 
     id<CAMetalDrawable> currentDrawable;
     id<MTLCommandQueue> currentCommandQueue;

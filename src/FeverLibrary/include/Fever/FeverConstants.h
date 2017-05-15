@@ -251,4 +251,33 @@ typedef enum FvIndexType {
 
 typedef enum FvDescriptorType {
     FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 } FvDescriptorType;
+
+/** Filter to use for image lookups. */
+typedef enum FvMinMagFilter { FV_MIN_MAG_FILTER_NEAREST, FV_MIN_MAG_FILTER_LINEAR } FvFilter;
+
+/** Mipmap mode to use for texture lookups. */
+typedef enum FvSamplerMipmapMode {
+    FV_SAMPLER_MIPMAP_MODE_NEAREST,
+    FV_SAMPLER_MIPMAP_MODE_LINEAR,
+} FvSamplerMipmapMode;
+
+/** Behaviour of sampling with texture coordinates outside the texture. */
+typedef enum FvSamplerAddressMode {
+    FV_SAMPLER_ADDRESS_MODE_REPEAT,
+    FV_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT,
+    FV_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+    FV_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+    FV_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE,
+} FvSamplerAddressMode;
+
+/** Color of border used in texture lookups. */
+typedef enum FvBorderColor {
+    FV_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
+    FV_BORDER_COLOR_INT_TRANSPARENT_BLACK,
+    FV_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
+    FV_BORDER_COLOR_INT_OPAQUE_BLACK,
+    FV_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
+    FV_BORDER_COLOR_INT_OPAQUE_WHITE,
+} FvBorderColor;

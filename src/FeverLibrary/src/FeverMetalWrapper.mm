@@ -37,12 +37,11 @@ FvResult MetalWrapper::descriptorPoolCreate(
         descriptorPoolWrapper.maxSets = createInfo->maxSets;
 
         for (uint32_t i = 0; i < createInfo->poolSizeCount; ++i) {
-            DescriptorPoolWrapper::PoolInfo poolInfo;
+            DescriptorPoolWrapper::Pool pool;
 
-            poolInfo.descriptorType  = createInfo->poolSizes[i].descriptorType;
-            poolInfo.descriptorCount = createInfo->poolSizes[i].descriptorCount;
+            pool.descriptorSetsType = createInfo->poolSizes[i].descriptorType;
 
-            descriptorPoolWrapper.poolInfos.push_back(poolInfo);
+            descriptorPoolWrapper.pools.push_back(pool);
         }
 
         const Handle *handle = descriptorPools.add(descriptorPoolWrapper);
@@ -60,16 +59,20 @@ void MetalWrapper::descriptorPoolDestroy(FvDescriptorPool descriptorPool) {
     const Handle *handle = (const Handle *)descriptorPool;
 
     if (handle != nullptr) {
-        // Free descriptor sets associated with pool
         DescriptorPoolWrapper *descriptorPoolWrapper =
             descriptorPools.get(*handle);
 
         if (descriptorPoolWrapper != nullptr) {
-            for (uint32_t i = 0;
-                 i < descriptorPoolWrapper->pool.descriptorSets.size(); ++i) {
-                // Remove descriptor set from internal store
-                descriptorSets.remove(*((const Handle *)descriptorPoolWrapper
-                                            ->pool.descriptorSets[i]));
+            // Free descriptor sets associated with each pool
+            for (uint32_t i = 0; i < descriptorPoolWrapper->pools.size(); ++i) {
+                for (uint32_t j = 0;
+                     j < descriptorPoolWrapper->pools[i].descriptorSets.size();
+                     ++j) {
+                    // Remove descriptor set from internal store
+                    descriptorSets.remove(
+                        *((const Handle *)descriptorPoolWrapper->pools[i]
+                              .descriptorSets[j]));
+                }
             }
         }
 
@@ -97,26 +100,60 @@ FvResult MetalWrapper::allocateDescriptorSets(
                      ++i) {
                     DescriptorSetWrapper descriptorSetWrapper;
 
-                    descriptorSetWrapper.descriptorSetLayout =
+                    FvDescriptorSetLayout descriptorSetLayoutHandle =
                         allocateInfo->setLayouts[i];
+                    descriptorSetWrapper.descriptorSetLayout =
+                        descriptorSetLayoutHandle;
 
-                    // Add descriptor set to internal store
-                    const Handle *handle =
-                        this->descriptorSets.add(descriptorSetWrapper);
+                    // Get descriptor set layout wrapper
+                    DescriptorSetLayoutWrapper *descriptorSetLayoutWrapper =
+                        this->descriptorSetLayouts.get(
+                            *((const Handle *)descriptorSetLayoutHandle));
 
-                    if (handle != nullptr) {
-                        // Only add to pool if less than max number of
-                        // descriptor sets allowed
-                        if (descriptorPoolWrapper->pool.descriptorSets.size() <=
-                            descriptorPoolWrapper->maxSets) {
-                            // Return handle
-                            descriptorSets[i] = (FvDescriptorSet)handle;
+                    if (descriptorSetLayoutWrapper != nullptr) {
+                        // Loop thru each binding and ensure an appropriate pool
+                        // can be found to allocate the binding
+                        for (uint32_t j = 0;
+                             j < descriptorSetLayoutWrapper
+                                     ->descriptorSetLayoutBindings.size();
+                             ++j) {
+                            FvDescriptorType descriptorType =
+                                descriptorSetLayoutWrapper
+                                    ->descriptorSetLayoutBindings[j]
+                                    .descriptorType;
 
-                            // Add handle to descriptor pool
-                            descriptorPoolWrapper->pool.descriptorSets
-                                .push_back((FvDescriptorSet)handle);
+                            bool poolFound = false;
+                            for (uint32_t k = 0;
+                                 k < descriptorPoolWrapper->pools.size(); ++k) {
+                                if (descriptorType ==
+                                    descriptorPoolWrapper->pools[k]
+                                        .descriptorSetsType) {
+                                    poolFound = true;
+                                    // Add descriptor set to internal store
+                                    const Handle *handle =
+                                        this->descriptorSets.add(
+                                            descriptorSetWrapper);
 
-                            result = FV_RESULT_SUCCESS;
+                                    if (handle != nullptr) {
+                                        // Return handle
+                                        descriptorSets[i] =
+                                            (FvDescriptorSet)handle;
+
+                                        // Add handle to descriptor pool
+                                        descriptorPoolWrapper->pools[k]
+                                            .descriptorSets.push_back(
+                                                (FvDescriptorSet)handle);
+
+                                        result = FV_RESULT_SUCCESS;
+                                    }
+
+                                    break;
+                                }
+                            }
+
+                            if (!poolFound) {
+                                return FV_RESULT_FAILURE;
+                            }
                         }
                     }
                 }
@@ -147,7 +184,8 @@ void MetalWrapper::updateDescriptorSets(
              j < descSetLayout->descriptorSetLayoutBindings.size(); ++j) {
             descSetBinding = &descSetLayout->descriptorSetLayoutBindings[j];
 
-            if (descSetBinding->binding == write.dstBinding) {
+            if (descSetBinding->binding == write.dstBinding &&
+                descSetBinding->descriptorType == write.descriptorType) {
                 break;
             } else {
                 descSetBinding = nullptr;
@@ -156,13 +194,30 @@ void MetalWrapper::updateDescriptorSets(
 
         // If we found binding in descriptor set
         if (descSetBinding != nullptr) {
-            // Create buffer binding info struct
-            DescriptorBufferBinding bufferBinding;
-            bufferBinding.binding    = *descSetBinding;
-            bufferBinding.bufferInfo = *(write.bufferInfo);
+            switch (write.descriptorType) {
+            case FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER: {
+                // Create buffer binding info struct
+                DescriptorBufferBinding bufferBinding;
+                bufferBinding.binding    = *descSetBinding;
+                bufferBinding.bufferInfo = *(write.bufferInfo);
 
-            // Add binding to descriptor set
-            descSet->bufferBindings.push_back(bufferBinding);
+                // Add binding to descriptor set
+                descSet->bufferBindings.push_back(bufferBinding);
+                break;
+            }
+            case FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: {
+                // Create image binding info struct
+                DescriptorImageBinding imageBinding;
+                imageBinding.binding   = *descSetBinding;
+                imageBinding.imageInfo = *(write.imageInfo);
+
+                // Add binding to descriptor set
+                descSet->imageBindings.push_back(imageBinding);
+                break;
+            }
+            default:
+                break;
+            }
         }
     }
 }
@@ -563,7 +618,7 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                     [encoder setScissorRect:pipeline->scissor];
                     [encoder setViewport:pipeline->viewport];
 
-                    // Bind descriptor sets (uniform buffers)
+                    // Bind descriptor sets
                     for (uint32_t iDescSet = 0;
                          iDescSet < commandBufferWrapper->descriptorSets.size();
                          ++iDescSet) {
@@ -574,12 +629,14 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                             descriptorSets.get(*((const Handle *)descSet));
 
                         if (descSetWrapper != nullptr) {
-                            for (uint32_t iBinding = 0;
-                                 iBinding <
+                            // Bind buffers
+                            for (uint32_t iBufferBinding = 0;
+                                 iBufferBinding <
                                  descSetWrapper->bufferBindings.size();
-                                 ++iBinding) {
+                                 ++iBufferBinding) {
                                 DescriptorBufferBinding bufferBinding =
-                                    descSetWrapper->bufferBindings[iBinding];
+                                    descSetWrapper
+                                        ->bufferBindings[iBufferBinding];
 
                                 // Get buffer to bind
                                 BufferWrapper *bufferWrapper = buffers.get(
@@ -602,7 +659,52 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                                                          atIndex:bindingPoint];
                                     }
                                     if (stageFlags & FV_SHADER_STAGE_FRAGMENT) {
-                                        [encoder setFragmentBuffer:mtlBufferToBind offset:offset atIndex:bindingPoint];
+                                        [encoder
+                                            setFragmentBuffer:mtlBufferToBind
+                                                       offset:offset
+                                                      atIndex:bindingPoint];
+                                    }
+                                }
+                            }
+                            // Bind images
+                            for (uint32_t iImageBinding = 0;
+                                 iImageBinding <
+                                 descSetWrapper->imageBindings.size();
+                                 ++iImageBinding) {
+                                DescriptorImageBinding imageBinding =
+                                    descSetWrapper
+                                        ->imageBindings[iImageBinding];
+
+                                // Get image to bind
+                                ImageViewWrapper *imageViewWrapper =
+                                    textureViews.get(*(
+                                        (const Handle *)
+                                            imageBinding.imageInfo.imageView));
+
+                                if (imageViewWrapper != nullptr) {
+                                    FvShaderStage stageFlags =
+                                        imageBinding.binding.stageFlags;
+                                    id<MTLTexture> mtlImageToBind =
+                                        imageViewWrapper->texture;
+                                    uint32_t bindingPoint =
+                                        imageBinding.binding.binding;
+                                    id<MTLSamplerState> *mtlSamplerState =
+                                        samplers.get(*((const Handle *)imageBinding.imageInfo.sampler));
+
+                                    if (stageFlags & FV_SHADER_STAGE_VERTEX) {
+                                        [encoder setVertexTexture:mtlImageToBind
+                                                          atIndex:bindingPoint];
+                                        [encoder
+                                            setVertexSamplerState:*mtlSamplerState
+                                                     atIndex:bindingPoint];
+                                    }
+                                    if (stageFlags & FV_SHADER_STAGE_FRAGMENT) {
+                                        [encoder
+                                            setFragmentTexture:mtlImageToBind
+                                                       atIndex:bindingPoint];
+                                        [encoder
+                                            setFragmentSamplerState:*mtlSamplerState
+                                                       atIndex:bindingPoint];
                                     }
                                 }
                             }
@@ -655,53 +757,111 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                                          offset:vertexBufferWrapper->offset
                                         atIndex:vertexBufferWrapper->
                                                 bindingPoint];
-                        
+
                             // Bind descriptor sets (uniform buffers)
                             for (uint32_t iDescSet = 0;
-                                 iDescSet < commandBufferWrapper->descriptorSets.size();
+                                 iDescSet <
+                                 commandBufferWrapper->descriptorSets.size();
                                  ++iDescSet) {
                                 // Get descriptor set
                                 FvDescriptorSet descSet =
-                                commandBufferWrapper->descriptorSets[iDescSet];
+                                    commandBufferWrapper
+                                        ->descriptorSets[iDescSet];
                                 const DescriptorSetWrapper *descSetWrapper =
-                                descriptorSets.get(*((const Handle *)descSet));
-                                
+                                    descriptorSets.get(
+                                        *((const Handle *)descSet));
+
                                 if (descSetWrapper != nullptr) {
-                                    for (uint32_t iBinding = 0;
-                                         iBinding <
+                                    // Bind buffers
+                                    for (uint32_t iBufferBinding = 0;
+                                         iBufferBinding <
                                          descSetWrapper->bufferBindings.size();
-                                         ++iBinding) {
+                                         ++iBufferBinding) {
                                         DescriptorBufferBinding bufferBinding =
-                                        descSetWrapper->bufferBindings[iBinding];
-                                        
+                                            descSetWrapper->bufferBindings
+                                                [iBufferBinding];
+
                                         // Get buffer to bind
-                                        BufferWrapper *bufferWrapper = buffers.get(
-                                                                                   *((const Handle *)
-                                                                                     bufferBinding.bufferInfo.buffer));
-                                        
+                                        BufferWrapper *bufferWrapper =
+                                            buffers.get(
+                                                *((const Handle *)bufferBinding
+                                                      .bufferInfo.buffer));
+
                                         if (bufferWrapper != nullptr) {
                                             FvShaderStage stageFlags =
-                                            bufferBinding.binding.stageFlags;
+                                                bufferBinding.binding
+                                                    .stageFlags;
                                             id<MTLBuffer> mtlBufferToBind =
-                                            bufferWrapper->mtlBuffer;
+                                                bufferWrapper->mtlBuffer;
                                             FvSize offset =
-                                            bufferBinding.bufferInfo.offset;
+                                                bufferBinding.bufferInfo.offset;
                                             uint32_t bindingPoint =
-                                            bufferBinding.binding.binding;
+                                                bufferBinding.binding.binding;
+
+                                            if (stageFlags &
+                                                FV_SHADER_STAGE_VERTEX) {
+                                                [encoder
+                                                    setVertexBuffer:
+                                                        mtlBufferToBind
+                                                             offset:offset
+                                                            atIndex:
+                                                                bindingPoint];
+                                            }
+                                            if (stageFlags &
+                                                FV_SHADER_STAGE_FRAGMENT) {
+                                                [encoder
+                                                    setFragmentBuffer:
+                                                        mtlBufferToBind
+                                                               offset:offset
+                                                              atIndex:
+                                                                  bindingPoint];
+                                            }
+                                        }
+                                    }
+                                    // Bind images
+                                    for (uint32_t iImageBinding = 0;
+                                         iImageBinding <
+                                         descSetWrapper->imageBindings.size();
+                                         ++iImageBinding) {
+                                        DescriptorImageBinding imageBinding =
+                                            descSetWrapper
+                                                ->imageBindings[iImageBinding];
+
+                                        // Get image to bind
+                                        ImageViewWrapper *imageViewWrapper =
+                                            textureViews.get(
+                                                *((const Handle *)imageBinding
+                                                      .imageInfo.imageView));
+
+                                        if (imageViewWrapper != nullptr) {
+                                            FvShaderStage stageFlags =
+                                                imageBinding.binding.stageFlags;
+                                            id<MTLTexture> mtlImageToBind =
+                                                imageViewWrapper->texture;
+                                            uint32_t bindingPoint =
+                                                imageBinding.binding.binding;
+                                            id<MTLSamplerState> *mtlSamplerState =
+                                            samplers.get(*((const Handle *)imageBinding.imageInfo.sampler));
                                             
                                             if (stageFlags & FV_SHADER_STAGE_VERTEX) {
-                                                [encoder setVertexBuffer:mtlBufferToBind
-                                                                  offset:offset
-                                                                 atIndex:bindingPoint];
+                                                [encoder setVertexTexture:mtlImageToBind
+                                                                  atIndex:bindingPoint];
+                                                [encoder
+                                                 setVertexSamplerState:*mtlSamplerState
+                                                 atIndex:bindingPoint];
                                             }
                                             if (stageFlags & FV_SHADER_STAGE_FRAGMENT) {
-                                                [encoder setFragmentBuffer:mtlBufferToBind offset:offset atIndex:bindingPoint];
+                                                [encoder
+                                                 setFragmentTexture:mtlImageToBind
+                                                 atIndex:bindingPoint];
+                                                [encoder
+                                                 setFragmentSamplerState:*mtlSamplerState
+                                                 atIndex:bindingPoint];
                                             }
                                         }
                                     }
                                 }
                             }
-
 
                             if (commandBufferWrapper->drawCall.type ==
                                 DRAW_CALL_TYPE_INDEXED) {
@@ -1269,16 +1429,15 @@ FvResult MetalWrapper::imageCreate(FvImage *image,
                                                    createInfo->format)
                                          width:createInfo->extent.width
                                         height:createInfo->extent.height
-                                     mipmapped:createInfo->numMipmapLevels > 1
-                                                   ? YES
-                                                   : NO];
+                                     mipmapped:createInfo->mipLevels > 1 ? YES
+                                                                         : NO];
 
     } else {
         textureDesc = [MTLTextureDescriptor
             textureCubeDescriptorWithPixelFormat:toMtlPixelFormat(
                                                      createInfo->format)
                                             size:createInfo->extent.width
-                                       mipmapped:createInfo->numMipmapLevels > 1
+                                       mipmapped:createInfo->mipLevels > 1
                                                      ? YES
                                                      : NO];
     }
@@ -1292,8 +1451,8 @@ FvResult MetalWrapper::imageCreate(FvImage *image,
     textureDesc.width            = createInfo->extent.width;
     textureDesc.height           = createInfo->extent.height;
     textureDesc.depth            = createInfo->extent.depth;
-    textureDesc.mipmapLevelCount = createInfo->numMipmapLevels;
-    textureDesc.sampleCount      = toMtlSampleCount(createInfo->numSamples);
+    textureDesc.mipmapLevelCount = createInfo->mipLevels;
+    textureDesc.sampleCount      = toMtlSampleCount(createInfo->samples);
     textureDesc.arrayLength      = createInfo->arrayLayers;
     textureDesc.usage            = toMtlTextureUsage(createInfo->usage);
 
@@ -1320,6 +1479,36 @@ FvResult MetalWrapper::imageCreate(FvImage *image,
     return FV_RESULT_SUCCESS;
 }
 
+void MetalWrapper::imageReplaceRegion(FvImage image, FvRect3D region,
+                                      uint32_t mipLevel, uint32_t layer,
+                                      void *data, size_t bytesPerRow,
+                                      size_t bytesPerImage) {
+    // Get metal image object
+    const Handle *handle = (const Handle *)image;
+
+    if (handle != nullptr) {
+        ImageWrapper *imageWrapper = textures.get(*handle);
+
+        if (imageWrapper != nullptr) {
+            // Replace region
+            MTLRegion mtlRegion;
+            mtlRegion.origin.x    = region.origin.x;
+            mtlRegion.origin.y    = region.origin.y;
+            mtlRegion.origin.z    = region.origin.z;
+            mtlRegion.size.width  = region.extent.width;
+            mtlRegion.size.height = region.extent.height;
+            mtlRegion.size.depth  = region.extent.depth;
+
+            [imageWrapper->texture replaceRegion:mtlRegion
+                                     mipmapLevel:mipLevel
+                                           slice:layer
+                                       withBytes:data
+                                     bytesPerRow:bytesPerRow
+                                   bytesPerImage:bytesPerImage];
+        }
+    }
+}
+
 void MetalWrapper::imageDestroy(FvImage image) {
     const Handle *handle = (const Handle *)image;
 
@@ -1335,10 +1524,73 @@ void MetalWrapper::imageDestroy(FvImage image) {
     }
 }
 
+FvResult MetalWrapper::samplerCreate(FvSampler *sampler,
+                                     const FvSamplerCreateInfo *createInfo) {
+    FvResult result = FV_RESULT_FAILURE;
+
+    if (sampler != nullptr && createInfo != nullptr) {
+        MTLSamplerDescriptor *samplerDescriptor = [MTLSamplerDescriptor new];
+        // width
+        samplerDescriptor.sAddressMode =
+            toMtlSamplerAddressMode(createInfo->addressModeU);
+        // height
+        samplerDescriptor.tAddressMode =
+            toMtlSamplerAddressMode(createInfo->addressModeV);
+        // depth
+        samplerDescriptor.rAddressMode =
+            toMtlSamplerAddressMode(createInfo->addressModeW);
+        samplerDescriptor.minFilter = toMtlMinMagFilter(createInfo->minFilter);
+        samplerDescriptor.magFilter = toMtlMinMagFilter(createInfo->magFilter);
+        samplerDescriptor.mipFilter =
+            toMtlSamplerMipFilter(createInfo->mipmapMode);
+        samplerDescriptor.lodMinClamp   = createInfo->minLod;
+        samplerDescriptor.lodMaxClamp   = createInfo->maxLod;
+        samplerDescriptor.maxAnisotropy = createInfo->maxAnisotropy;
+        samplerDescriptor.normalizedCoordinates =
+            createInfo->normalizedCoordinates;
+        samplerDescriptor.compareFunction =
+            toMtlCompareFunction(createInfo->compareFunc);
+        samplerDescriptor.borderColor =
+            toMtlSamplerBorderColor(createInfo->borderColor);
+
+        id<MTLSamplerState> mtlSampler =
+            [device newSamplerStateWithDescriptor:samplerDescriptor];
+
+        FV_MTL_RELEASE(samplerDescriptor); // Done with sampler descriptor
+
+        // Store sampler and return handle
+        const Handle *handle = samplers.add(mtlSampler);
+
+        if (handle != nullptr) {
+            *sampler = (FvSampler)handle;
+            result   = FV_RESULT_SUCCESS;
+        }
+    }
+
+    return result;
+}
+
+void MetalWrapper::samplerDestroy(FvSampler sampler) {
+    const Handle *handle = (const Handle *)sampler;
+
+    if (handle != nullptr) {
+        id<MTLSamplerState> *mtlSampler = samplers.get(*handle);
+
+        if (mtlSampler != nullptr) {
+            // Ensure sampler's memory is freed
+            FV_MTL_RELEASE(*mtlSampler);
+        }
+
+        // Remove sampler from internal store
+        samplers.remove(*handle);
+    }
+}
+
 FvResult MetalWrapper::graphicsPipelineCreate(
     FvGraphicsPipeline *graphicsPipeline,
     const FvGraphicsPipelineCreateInfo *createInfo) {
-    // TODO: Clean up, put into separate functions, deal with optional fields
+    // TODO: Clean up, put into separate functions, deal with optional
+    // fields
     // early
     @autoreleasepool {
         FvResult result = FV_RESULT_FAILURE;
@@ -1366,7 +1618,8 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                     SubpassWrapper subpassWrapper =
                         renderPassWrapper->subpasses[createInfo->subpass];
 
-                    // Copy attachment descriptions to graphics pipeline from
+                    // Copy attachment descriptions to graphics pipeline
+                    // from
                     // subpass
                     graphicsPipelineWrapper.inputAttachments =
                         subpassWrapper.inputAttachments;
@@ -1379,7 +1632,8 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                     graphicsPipelineWrapper.renderPass =
                         subpassWrapper.mtlRenderPass;
 
-                    // Fill out shader functions for Metal pipeline descriptor
+                    // Fill out shader functions for Metal pipeline
+                    // descriptor
                     MTLRenderPipelineDescriptor *mtlPipelineDescriptor =
                         subpassWrapper.mtlPipelineDescriptor;
 
@@ -1417,24 +1671,26 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                                             break;
                                         }
                                     } else {
-                                        printf(
-                                            "Failed to find function with name "
-                                            "'%s' in shader module.\n",
-                                            shaderStage.entryFunctionName);
+                                        printf("Failed to find function with "
+                                               "name "
+                                               "'%s' in shader module.\n",
+                                               shaderStage.entryFunctionName);
                                     }
                                 }
                             }
                         }
                     }
 
-                    // Create color blend states for ColorBlendAttachmentState
+                    // Create color blend states for
+                    // ColorBlendAttachmentState
                     if (createInfo->colorBlendStateDescription != nullptr &&
                         createInfo->colorBlendStateDescription->attachments !=
                             nullptr) {
                         FvPipelineColorBlendStateDescription colorBlendState =
                             *createInfo->colorBlendStateDescription;
 
-                        // Loop through color attachments and set color blend
+                        // Loop through color attachments and set color
+                        // blend
                         // states
                         for (uint32_t i = 0;
                              i < colorBlendState.attachmentCount; ++i) {
@@ -1483,7 +1739,8 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                             toMtlStepFunction(bindingDesc.inputRate);
                         mtlVertexDescriptor.layouts[iBindingDesc].stride =
                             bindingDesc.stride;
-                        // mtlVertexDescriptor.layouts[iBindingDesc].stepRate =
+                        // mtlVertexDescriptor.layouts[iBindingDesc].stepRate
+                        // =
                         //     1; // Defaults to 1
                     }
                     for (uint32_t iAttributeDesc = 0;
@@ -1533,7 +1790,8 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                     MTLDepthStencilDescriptor *mtlDepthStencilDesc =
                         [[MTLDepthStencilDescriptor alloc] init];
                     id<MTLDepthStencilState> depthStencilState = nil;
-                    // Create depth stencil states from DepthStencilDescription
+                    // Create depth stencil states from
+                    // DepthStencilDescription
                     if (createInfo->depthStencilDescription != nullptr) {
                         FvPipelineDepthStencilStateDescription
                             depthStencilDesc =
@@ -1586,7 +1844,8 @@ FvResult MetalWrapper::graphicsPipelineCreate(
 
                     // Create depth stencil state from default
                     // mtlDepthStencilDesc
-                    // if no depthStencilDescription provided (Metal requires a
+                    // if no depthStencilDescription provided (Metal
+                    // requires a
                     // depth stencil state)
                     depthStencilState = [device
                         newDepthStencilStateWithDescriptor:mtlDepthStencilDesc];
@@ -1638,9 +1897,9 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                             viewportDescription.viewport.maxDepth;
 
                         graphicsPipelineWrapper.scissor.x =
-                            viewportDescription.scissor.offset.x;
+                            viewportDescription.scissor.origin.x;
                         graphicsPipelineWrapper.scissor.y =
-                            viewportDescription.scissor.offset.y;
+                            viewportDescription.scissor.origin.y;
                         graphicsPipelineWrapper.scissor.width =
                             viewportDescription.scissor.extent.width;
                         graphicsPipelineWrapper.scissor.height =
@@ -1654,11 +1913,13 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                             inputAssemblyDescription =
                                 *createInfo->inputAssemblyDescription;
 
-                        // Metal doesn't allow you to turn off primitive restart
+                        // Metal doesn't allow you to turn off primitive
+                        // restart
                         // AFAIK
                         if (inputAssemblyDescription.primitiveRestartEnable ==
                             false) {
-                            printf("Primitive restart cannot be false in Metal "
+                            printf("Primitive restart cannot be false in "
+                                   "Metal "
                                    "backed.\n");
                             result = FV_RESULT_FAILURE;
                         }
@@ -1673,7 +1934,8 @@ FvResult MetalWrapper::graphicsPipelineCreate(
             }
 
             if (result == FV_RESULT_SUCCESS) {
-                // Store graphics pipeline wrapper and return handle as graphics
+                // Store graphics pipeline wrapper and return handle as
+                // graphics
                 // pipeline
                 const Handle *handle =
                     graphicsPipelines.add(graphicsPipelineWrapper);
@@ -1720,9 +1982,11 @@ MetalWrapper::renderPassCreate(FvRenderPass *renderPass,
         for (uint32_t i = 0; i < createInfo->subpassCount; ++i) {
             FvSubpassDescription subpassDescription = createInfo->subpasses[i];
 
-            // Create subpass wrapper to store subpass information, we cannot
+            // Create subpass wrapper to store subpass information, we
+            // cannot
             // complete the analogous Metal structures until we get more
-            // information (such as texture and clear values), so we store them
+            // information (such as texture and clear values), so we store
+            // them
             // for later completion.
             SubpassWrapper subpassWrapper;
             subpassWrapper.mtlRenderPass = [MTLRenderPassDescriptor new];
@@ -1825,7 +2089,8 @@ void MetalWrapper::renderPassDestroy(FvRenderPass renderPass) {
         if (renderPassWrapper != nullptr) {
             // Get subpasses in render pass
             for (size_t i = 0; i < renderPassWrapper->subpasses.size(); ++i) {
-                // Release render pass descriptor and render pipeline descriptor
+                // Release render pass descriptor and render pipeline
+                // descriptor
                 FV_MTL_RELEASE(renderPassWrapper->subpasses[i].mtlRenderPass);
                 FV_MTL_RELEASE(renderPassWrapper->subpasses[i]
                                    .mtlPipelineDescriptor.vertexFunction);
@@ -2408,5 +2673,103 @@ MetalWrapper::toMtlPrimitiveType(FvPrimitiveType primitiveType) {
     }
 
     return type;
+}
+
+MTLSamplerAddressMode
+MetalWrapper::toMtlSamplerAddressMode(FvSamplerAddressMode addressMode) {
+    MTLSamplerAddressMode mtlSamplerAddressMode =
+        MTLSamplerAddressModeClampToEdge;
+
+    switch (addressMode) {
+    case FV_SAMPLER_ADDRESS_MODE_REPEAT: {
+        mtlSamplerAddressMode = MTLSamplerAddressModeRepeat;
+        break;
+    }
+    case FV_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT: {
+        mtlSamplerAddressMode = MTLSamplerAddressModeMirrorRepeat;
+        break;
+    }
+    case FV_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE: {
+        mtlSamplerAddressMode = MTLSamplerAddressModeClampToEdge;
+        break;
+    }
+    case FV_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER: {
+        mtlSamplerAddressMode = MTLSamplerAddressModeClampToBorderColor;
+        break;
+    }
+    case FV_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE: {
+        mtlSamplerAddressMode = MTLSamplerAddressModeMirrorClampToEdge;
+        break;
+    }
+    default:
+        break;
+    }
+
+    return mtlSamplerAddressMode;
+}
+
+MTLSamplerMinMagFilter MetalWrapper::toMtlMinMagFilter(FvMinMagFilter filter) {
+    MTLSamplerMinMagFilter mtlSamplerMinMagFilter =
+        MTLSamplerMinMagFilterNearest;
+
+    switch (filter) {
+    case FV_MIN_MAG_FILTER_NEAREST: {
+        mtlSamplerMinMagFilter = MTLSamplerMinMagFilterNearest;
+        break;
+    }
+    case FV_MIN_MAG_FILTER_LINEAR: {
+        mtlSamplerMinMagFilter = MTLSamplerMinMagFilterLinear;
+        break;
+    }
+    default:
+        break;
+    }
+
+    return mtlSamplerMinMagFilter;
+}
+
+MTLSamplerMipFilter
+MetalWrapper::toMtlSamplerMipFilter(FvSamplerMipmapMode mipmapMode) {
+    MTLSamplerMipFilter mtlSamplerMipFilter = MTLSamplerMipFilterNearest;
+
+    switch (mipmapMode) {
+    case FV_SAMPLER_MIPMAP_MODE_NEAREST: {
+        mtlSamplerMipFilter = MTLSamplerMipFilterNearest;
+        break;
+    }
+    case FV_SAMPLER_MIPMAP_MODE_LINEAR: {
+        mtlSamplerMipFilter = MTLSamplerMipFilterLinear;
+        break;
+    }
+    default:
+        break;
+    }
+
+    return mtlSamplerMipFilter;
+}
+
+MTLSamplerBorderColor
+MetalWrapper::toMtlSamplerBorderColor(FvBorderColor borderColor) {
+    MTLSamplerBorderColor mtlSamplerBorderColor =
+        MTLSamplerBorderColorOpaqueBlack;
+
+    switch (borderColor) {
+    case FV_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK: // Intentional fallthru
+    case FV_BORDER_COLOR_INT_TRANSPARENT_BLACK:
+        mtlSamplerBorderColor = MTLSamplerBorderColorTransparentBlack;
+        break;
+    case FV_BORDER_COLOR_FLOAT_OPAQUE_BLACK: // Intentional fallthru
+    case FV_BORDER_COLOR_INT_OPAQUE_BLACK:
+        mtlSamplerBorderColor = MTLSamplerBorderColorOpaqueBlack;
+        break;
+    case FV_BORDER_COLOR_FLOAT_OPAQUE_WHITE: // Intentional fallthru
+    case FV_BORDER_COLOR_INT_OPAQUE_WHITE:
+        mtlSamplerBorderColor = MTLSamplerBorderColorOpaqueWhite;
+        break;
+    default:
+        break;
+    }
+
+    return mtlSamplerBorderColor;
 }
 }

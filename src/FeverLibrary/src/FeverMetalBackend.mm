@@ -270,9 +270,33 @@ FvResult fvImageCreate(FvImage *image, const FvImageCreateInfo *createInfo) {
     }
 }
 
+void fvImageReplaceRegion(FvImage image, FvRect3D region, uint32_t mipLevel,
+                          uint32_t layer, void *data, size_t bytesPerRow,
+                          size_t bytesPerImage) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->imageReplaceRegion(
+            image, region, mipLevel, layer, data, bytesPerRow, bytesPerImage);
+    }
+}
+
 void fvImageDestroy(FvImage image) {
     if (metalWrapper != nullptr) {
         metalWrapper->imageDestroy(image);
+    }
+}
+
+FvResult fvSamplerCreate(FvSampler *sampler,
+                         const FvSamplerCreateInfo *createInfo) {
+    if (metalWrapper != nullptr) {
+        return metalWrapper->samplerCreate(sampler, createInfo);
+    } else {
+        return FV_RESULT_FAILURE;
+    }
+}
+
+void fvSamplerDestroy(FvSampler sampler) {
+    if (metalWrapper != nullptr) {
+        metalWrapper->samplerDestroy(sampler);
     }
 }
 

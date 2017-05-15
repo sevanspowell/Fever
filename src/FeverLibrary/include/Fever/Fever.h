@@ -238,6 +238,8 @@ typedef struct FvPipelineDepthStencilStateDescription {
     FvCompareFunc depthCompareFunc;
     /** True if depth writing to attachment is enabled, false otherwise. */
     bool depthWriteEnable;
+    /** True if stencil test should be enabled, false otherwise. */
+    bool stencilTestEnable;
     /** Stencil descriptor for back-facing primitives. */
     FvStencilOperationState backFaceStencil;
     /** Stencil descriptor for front-facing primitives. */
@@ -570,12 +572,12 @@ typedef struct FvSubpassDependency {
     uint32_t dstSubpass;
     /** Stage of the pipeline that first subpass should wait on */
     FvPipelineStage srcStageMask;
-    /** Bitmask of allowed access of first subpass */
-    FvAccessFlags srcAccessMask;
+    /** Bitmask of allowed access (FvAccessFlags) of first subpass */
+    int srcAccessMask;
     /** Stage of the pipeline that second subpass should wait on */
     FvPipelineStage dstStageMask;
-    /** Bitmask of allowed access of second subpass */
-    FvAccessFlags dstAccessMask;
+    /** Bitmask of allowed access (FvAccessFlags) of second subpass */
+    int dstAccessMask;
 } FvSubpassDependency;
 
 typedef struct FvRenderPassCreateInfo {

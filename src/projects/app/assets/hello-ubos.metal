@@ -3,7 +3,7 @@
 using namespace metal;
 
 struct VertexIn {
-    float2 position [[attribute(0)]];
+    float3 position [[attribute(0)]];
     float3 color [[attribute(1)]];
     float2 texCoord [[attribute(2)]];
 };
@@ -26,7 +26,7 @@ vertex VertexOut vertFunc(VertexIn vert [[stage_in]],
     VertexOut out;
 
     out.color = vert.color;
-    out.position = ubo.proj * ubo.view * ubo.model * float4(vert.position, 0.0f, 1.0f);
+    out.position = ubo.proj * ubo.view * ubo.model * float4(vert.position, 1.0f);
     out.texCoord = vert.texCoord;
 
     return out;

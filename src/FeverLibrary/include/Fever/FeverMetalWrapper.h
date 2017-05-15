@@ -37,7 +37,8 @@ struct SubpassWrapper {
 
     std::vector<FvAttachmentReference> inputAttachments;
     std::vector<FvAttachmentReference> colorAttachments;
-    std::vector<FvAttachmentReference> depthStencilAttachment;
+    std::vector<FvAttachmentReference> depthAttachment;
+    std::vector<FvAttachmentReference> stencilAttachment;
 };
 
 struct RenderPassWrapper {
@@ -58,7 +59,8 @@ struct GraphicsPipelineWrapper {
 
     std::vector<FvAttachmentReference> inputAttachments;
     std::vector<FvAttachmentReference> colorAttachments;
-    std::vector<FvAttachmentReference> depthStencilAttachment;
+    std::vector<FvAttachmentReference> depthAttachment;
+    std::vector<FvAttachmentReference> stencilAttachment;
 };
 
 struct FramebufferWrapper {

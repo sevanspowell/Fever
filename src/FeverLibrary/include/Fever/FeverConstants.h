@@ -39,6 +39,7 @@ typedef enum FvFormat {
     FV_FORMAT_INVALID,
     FV_FORMAT_RGBA8UNORM,
     FV_FORMAT_RGBA16FLOAT,
+    FV_FORMAT_DEPTH32FLOAT,
     FV_FORMAT_DEPTH32FLOAT_STENCIL8,
     FV_FORMAT_BGRA8UNORM,
     FV_FORMAT_R32_SFLOAT,
@@ -205,6 +206,7 @@ typedef enum FvPipelineStage {
 } FvPipelineStage;
 
 typedef enum FvAccessFlags {
+    FV_ACCESS_FLAGS_NONE                   = 0,
     FV_ACCESS_FLAGS_COLOR_ATTACHMENT_READ  = 1 << 0,
     FV_ACCESS_FLAGS_COLOR_ATTACHMENT_WRITE = 1 << 1,
 } FvAccessFlags;
@@ -255,7 +257,10 @@ typedef enum FvDescriptorType {
 } FvDescriptorType;
 
 /** Filter to use for image lookups. */
-typedef enum FvMinMagFilter { FV_MIN_MAG_FILTER_NEAREST, FV_MIN_MAG_FILTER_LINEAR } FvFilter;
+typedef enum FvMinMagFilter {
+    FV_MIN_MAG_FILTER_NEAREST,
+    FV_MIN_MAG_FILTER_LINEAR
+} FvFilter;
 
 /** Mipmap mode to use for texture lookups. */
 typedef enum FvSamplerMipmapMode {

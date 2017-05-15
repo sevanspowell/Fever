@@ -27,6 +27,7 @@
 #include <stb_image.h>
 
 #define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -38,7 +39,7 @@
 #endif
 
 struct Vertex {
-    glm::vec2 pos;
+    glm::vec3 pos;
     glm::vec3 color;
     glm::vec2 texCoord;
 
@@ -58,7 +59,7 @@ struct Vertex {
 
         attributeDescriptions[0].binding  = 0;
         attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format   = FV_VERTEX_FORMAT_FLOAT2;
+        attributeDescriptions[0].format   = FV_VERTEX_FORMAT_FLOAT3;
         attributeDescriptions[0].offset   = offsetof(Vertex, pos);
 
         attributeDescriptions[1].binding  = 0;
@@ -76,12 +77,17 @@ struct Vertex {
 };
 
 const std::vector<Vertex> vertices = {
-    {{-0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    {{0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    {{-0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
-    {{0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}}};
+    {{-0.5f, 0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+    {{-0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
+    {{0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}},
 
-const std::vector<uint16_t> indices = {0, 2, 1, 1, 3, 0};
+    {{-0.5f, 0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+    {{-0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
+    {{0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}}};
+
+const std::vector<uint16_t> indices = {0, 2, 1, 1, 3, 0, 4, 6, 5, 5, 7, 4};
 
 struct UniformBufferObject {
     glm::mat4 model;
@@ -164,8 +170,9 @@ class HelloTriangleApplication {
         createRenderPass();
         createDescriptorSetLayout();
         createGraphicsPipeline();
-        createFramebuffer();
         createCommandPool();
+        createDepthResources();
+        createFramebuffer();
         createTextureImage();
         createTextureImageView();
         createTextureSampler();
@@ -187,20 +194,46 @@ class HelloTriangleApplication {
         colorAttachment.stencilLoadOp           = FV_LOAD_OP_DONT_CARE;
         colorAttachment.stencilStoreOp          = FV_STORE_OP_DONT_CARE;
 
+        FvAttachmentDescription depthAttachment = {};
+        depthAttachment.format                  = FV_FORMAT_DEPTH32FLOAT;
+        depthAttachment.samples                 = FV_SAMPLE_COUNT_1;
+        depthAttachment.loadOp                  = FV_LOAD_OP_CLEAR;
+        depthAttachment.storeOp                 = FV_STORE_OP_DONT_CARE;
+        depthAttachment.stencilLoadOp           = FV_LOAD_OP_DONT_CARE;
+        depthAttachment.stencilStoreOp          = FV_STORE_OP_DONT_CARE;
+
         FvAttachmentReference colorAttachmentRef = {};
         colorAttachmentRef.attachment            = 0;
 
-        FvSubpassDescription subpass = {};
-        subpass.inputAttachmentCount = 0;
-        subpass.inputAttachments     = nullptr;
-        subpass.colorAttachmentCount = 1;
-        subpass.colorAttachments     = &colorAttachmentRef;
+        FvAttachmentReference depthAttachmentRef = {};
+        depthAttachmentRef.attachment            = 1;
+
+        FvSubpassDescription subpass   = {};
+        subpass.inputAttachmentCount   = 0;
+        subpass.inputAttachments       = nullptr;
+        subpass.colorAttachmentCount   = 1;
+        subpass.colorAttachments       = &colorAttachmentRef;
+        subpass.depthStencilAttachment = &depthAttachmentRef;
+
+        FvSubpassDependency dependency = {};
+        dependency.srcSubpass          = FV_SUBPASS_EXTERNAL;
+        dependency.dstSubpass          = 0;
+        dependency.srcStageMask  = FV_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT;
+        dependency.srcAccessMask = 0;
+        dependency.dstStageMask  = FV_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT;
+        dependency.dstAccessMask = FV_ACCESS_FLAGS_COLOR_ATTACHMENT_READ |
+                                   FV_ACCESS_FLAGS_COLOR_ATTACHMENT_WRITE;
+
+        std::array<FvAttachmentDescription, 2> attachments = {colorAttachment,
+                                                              depthAttachment};
 
         FvRenderPassCreateInfo renderPassInfo = {};
-        renderPassInfo.attachmentCount        = 1;
-        renderPassInfo.attachments            = &colorAttachment;
+        renderPassInfo.attachmentCount        = attachments.size();
+        renderPassInfo.attachments            = attachments.data();
         renderPassInfo.subpassCount           = 1;
         renderPassInfo.subpasses              = &subpass;
+        renderPassInfo.dependencyCount        = 1;
+        renderPassInfo.dependencies           = &dependency;
 
         if (fvRenderPassCreate(renderPass.replace(), &renderPassInfo) !=
             FV_RESULT_SUCCESS) {
@@ -232,6 +265,7 @@ class HelloTriangleApplication {
 
         createSwapchain();
         createImageView();
+        createDepthResources();
         createRenderPass();
         createGraphicsPipeline();
         createFramebuffer();
@@ -309,10 +343,12 @@ class HelloTriangleApplication {
     }
 
     void createFramebuffer() {
+        std::array<FvImageView, 2> attachments = {imageView, depthImageView};
+
         FvFramebufferCreateInfo framebufferInfo = {};
         framebufferInfo.renderPass              = renderPass;
-        framebufferInfo.attachmentCount         = 1;
-        framebufferInfo.attachments             = &imageView;
+        framebufferInfo.attachmentCount         = attachments.size();
+        framebufferInfo.attachments             = attachments.data();
         framebufferInfo.width                   = outputWidth;
         framebufferInfo.height                  = outputHeight;
         framebufferInfo.layers                  = 1;
@@ -373,10 +409,10 @@ class HelloTriangleApplication {
     }
 
     void createTextureImageView() {
-        FvImageViewCreateInfo imageViewInfo{};
-        imageViewInfo.image    = textureImage;
-        imageViewInfo.viewType = FV_IMAGE_VIEW_TYPE_2D;
-        imageViewInfo.format   = FV_FORMAT_RGBA8UNORM;
+        FvImageViewCreateInfo imageViewInfo = {};
+        imageViewInfo.image                 = textureImage;
+        imageViewInfo.viewType              = FV_IMAGE_VIEW_TYPE_2D;
+        imageViewInfo.format                = FV_FORMAT_RGBA8UNORM;
 
         if (fvImageViewCreate(textureImageView.replace(), &imageViewInfo) !=
             FV_RESULT_SUCCESS) {
@@ -422,9 +458,12 @@ class HelloTriangleApplication {
         renderPassInfo.renderPass            = renderPass;
         renderPassInfo.framebuffer           = framebuffer;
 
-        FvClearValue clearColor        = {0.0f, 0.0f, 0.0f, 1.0f};
-        renderPassInfo.clearValueCount = 1;
-        renderPassInfo.clearValues     = &clearColor;
+        std::array<FvClearValue, 2> clearValues = {};
+        clearValues[0].color        = {0.0f, 0.0f, 0.0f, 1.0f};
+        clearValues[1].depthStencil = {1.0f, 0};
+
+        renderPassInfo.clearValueCount = clearValues.size();
+        renderPassInfo.clearValues     = clearValues.data();
 
         fvCmdBeginRenderPass(commandBuffer, &renderPassInfo);
 
@@ -608,6 +647,11 @@ class HelloTriangleApplication {
         rasterizer.cullMode    = FV_CULL_MODE_BACK;
         rasterizer.frontFacing = FV_WINDING_ORDER_COUNTER_CLOCKWISE;
 
+        FvPipelineDepthStencilStateDescription depthStencil = {};
+        depthStencil.depthWriteEnable                       = true;
+        depthStencil.depthCompareFunc  = FV_COMPARE_FUNC_LESS;
+        depthStencil.stencilTestEnable = false;
+
         FvColorBlendAttachmentState colorBlendAttachment = {};
         colorBlendAttachment.blendEnable                 = false;
         colorBlendAttachment.colorWriteMask = (FvColorComponentFlags)(
@@ -637,7 +681,7 @@ class HelloTriangleApplication {
         pipelineInfo.viewportDescription          = &viewportState;
         pipelineInfo.rasterizerDescription        = &rasterizer;
         pipelineInfo.colorBlendStateDescription   = &colorBlending;
-        pipelineInfo.depthStencilDescription      = nullptr;
+        pipelineInfo.depthStencilDescription      = &depthStencil;
         pipelineInfo.layout                       = pipelineLayout;
         pipelineInfo.renderPass                   = renderPass;
         pipelineInfo.subpass                      = 0;
@@ -654,6 +698,34 @@ class HelloTriangleApplication {
             fvSemaphoreCreate(renderFinishedSemaphore.replace()) !=
                 FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to create semaphores!");
+        }
+    }
+
+    void createDepthResources() {
+        FvImageCreateInfo imageInfo = {};
+        imageInfo.imageType         = FV_IMAGE_TYPE_2D;
+        imageInfo.extent.width      = outputWidth;
+        imageInfo.extent.height     = outputHeight;
+        imageInfo.extent.depth      = 1;
+        imageInfo.mipLevels         = 1;
+        imageInfo.arrayLayers       = 1;
+        imageInfo.format            = FV_FORMAT_DEPTH32FLOAT;
+        imageInfo.usage             = FV_IMAGE_USAGE_RENDER_TARGET;
+        imageInfo.samples           = FV_SAMPLE_COUNT_1;
+
+        if (fvImageCreate(depthImage.replace(), &imageInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create depth image!");
+        }
+
+        FvImageViewCreateInfo imageViewInfo = {};
+        imageViewInfo.image                 = depthImage;
+        imageViewInfo.viewType              = FV_IMAGE_VIEW_TYPE_2D;
+        imageViewInfo.format                = FV_FORMAT_DEPTH32FLOAT;
+
+        if (fvImageViewCreate(depthImageView.replace(), &imageViewInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create depth image view!");
         }
     }
 
@@ -761,7 +833,7 @@ class HelloTriangleApplication {
     // Resources of command buffer automatically freed
     FvCommandBuffer commandBuffer;
     FDeleter<FvSwapchain> swapchain{fvDestroySwapchain};
-    FvImage swapchainImage;
+    FvImage swapchainImage; // TODO: wrap in FDeleter?
     FDeleter<FvSemaphore> imageAvailableSemaphore{fvSemaphoreDestroy};
     FDeleter<FvSemaphore> renderFinishedSemaphore{fvSemaphoreDestroy};
     FDeleter<FvImageView> imageView{fvImageViewDestroy};
@@ -772,9 +844,11 @@ class HelloTriangleApplication {
     FDeleter<FvBuffer> uniformBuffer{fvBufferDestroy};
     FDeleter<FvDescriptorPool> descriptorPool{fvDescriptorPoolDestroy};
     FvDescriptorSet descriptorSet;
-    FDeleter<FvImage> textureImage;
-    FDeleter<FvImageView> textureImageView;
-    FDeleter<FvSampler> textureSampler;
+    FDeleter<FvImage> textureImage{fvImageDestroy};
+    FDeleter<FvImageView> textureImageView{fvImageViewDestroy};
+    FDeleter<FvSampler> textureSampler{fvSamplerDestroy};
+    FDeleter<FvImage> depthImage{fvImageDestroy};
+    FDeleter<FvImageView> depthImageView{fvImageViewDestroy};
 };
 
 int main(void) {

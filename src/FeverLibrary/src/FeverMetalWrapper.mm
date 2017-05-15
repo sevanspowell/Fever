@@ -689,22 +689,27 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                                     uint32_t bindingPoint =
                                         imageBinding.binding.binding;
                                     id<MTLSamplerState> *mtlSamplerState =
-                                        samplers.get(*((const Handle *)imageBinding.imageInfo.sampler));
+                                        samplers.get(
+                                            *((const Handle *)imageBinding
+                                                  .imageInfo.sampler));
 
                                     if (stageFlags & FV_SHADER_STAGE_VERTEX) {
                                         [encoder setVertexTexture:mtlImageToBind
                                                           atIndex:bindingPoint];
                                         [encoder
-                                            setVertexSamplerState:*mtlSamplerState
-                                                     atIndex:bindingPoint];
+                                            setVertexSamplerState:
+                                                *mtlSamplerState
+                                                          atIndex:bindingPoint];
                                     }
                                     if (stageFlags & FV_SHADER_STAGE_FRAGMENT) {
                                         [encoder
                                             setFragmentTexture:mtlImageToBind
                                                        atIndex:bindingPoint];
                                         [encoder
-                                            setFragmentSamplerState:*mtlSamplerState
-                                                       atIndex:bindingPoint];
+                                            setFragmentSamplerState:
+                                                *mtlSamplerState
+                                                            atIndex:
+                                                                bindingPoint];
                                     }
                                 }
                             }
@@ -840,23 +845,37 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                                                 imageViewWrapper->texture;
                                             uint32_t bindingPoint =
                                                 imageBinding.binding.binding;
-                                            id<MTLSamplerState> *mtlSamplerState =
-                                            samplers.get(*((const Handle *)imageBinding.imageInfo.sampler));
-                                            
-                                            if (stageFlags & FV_SHADER_STAGE_VERTEX) {
-                                                [encoder setVertexTexture:mtlImageToBind
-                                                                  atIndex:bindingPoint];
+                                            id<MTLSamplerState>
+                                                *mtlSamplerState = samplers.get(
+                                                    *((const Handle *)
+                                                          imageBinding.imageInfo
+                                                              .sampler));
+
+                                            if (stageFlags &
+                                                FV_SHADER_STAGE_VERTEX) {
                                                 [encoder
-                                                 setVertexSamplerState:*mtlSamplerState
-                                                 atIndex:bindingPoint];
+                                                    setVertexTexture:
+                                                        mtlImageToBind
+                                                             atIndex:
+                                                                 bindingPoint];
+                                                [encoder
+                                                    setVertexSamplerState:
+                                                        *mtlSamplerState
+                                                                  atIndex:
+                                                                      bindingPoint];
                                             }
-                                            if (stageFlags & FV_SHADER_STAGE_FRAGMENT) {
+                                            if (stageFlags &
+                                                FV_SHADER_STAGE_FRAGMENT) {
                                                 [encoder
-                                                 setFragmentTexture:mtlImageToBind
-                                                 atIndex:bindingPoint];
+                                                    setFragmentTexture:
+                                                        mtlImageToBind
+                                                               atIndex:
+                                                                   bindingPoint];
                                                 [encoder
-                                                 setFragmentSamplerState:*mtlSamplerState
-                                                 atIndex:bindingPoint];
+                                                    setFragmentSamplerState:
+                                                        *mtlSamplerState
+                                                                    atIndex:
+                                                                        bindingPoint];
                                             }
                                         }
                                     }
@@ -1007,21 +1026,27 @@ void MetalWrapper::cmdBindGraphicsPipeline(
     }
 
     // Should only be one depth stencil attachment per framebuffer
-    if (pipelineWrapper->depthStencilAttachment.size() == 1) {
+    if (pipelineWrapper->depthAttachment.size() == 1) {
         uint32_t attachmentIndex =
-            pipelineWrapper->depthStencilAttachment[0].attachment;
+            pipelineWrapper->depthAttachment[0].attachment;
 
         pipelineWrapper->renderPass.depthAttachment.texture =
-            commandBufferWrapper->attachments[attachmentIndex].texture;
-        pipelineWrapper->renderPass.stencilAttachment.texture =
             commandBufferWrapper->attachments[attachmentIndex].texture;
 
         pipelineWrapper->renderPass.depthAttachment.clearDepth =
             commandBufferWrapper->clearValues[attachmentIndex]
                 .depthStencil.depth;
+    }
+    if (pipelineWrapper->stencilAttachment.size() == 1) {
+        uint32_t attachmentIndex =
+            pipelineWrapper->stencilAttachment[0].attachment;
+        
+        pipelineWrapper->renderPass.stencilAttachment.texture =
+        commandBufferWrapper->attachments[attachmentIndex].texture;
+        
         pipelineWrapper->renderPass.stencilAttachment.clearStencil =
-            commandBufferWrapper->clearValues[attachmentIndex]
-                .depthStencil.stencil;
+        commandBufferWrapper->clearValues[attachmentIndex]
+        .depthStencil.stencil;
     }
 
     // Associate graphics pipeline with command buffer
@@ -1455,6 +1480,12 @@ FvResult MetalWrapper::imageCreate(FvImage *image,
     textureDesc.sampleCount      = toMtlSampleCount(createInfo->samples);
     textureDesc.arrayLength      = createInfo->arrayLayers;
     textureDesc.usage            = toMtlTextureUsage(createInfo->usage);
+    
+    // Depth, Stencil, DepthStencil and Multisample textures must be allocated with the MTLResourceStorageModePrivate resource option.
+    if (textureDesc.pixelFormat == MTLPixelFormatDepth16Unorm || textureDesc.pixelFormat == MTLPixelFormatDepth32Float || textureDesc.pixelFormat == MTLPixelFormatDepth24Unorm_Stencil8 || textureDesc.pixelFormat == MTLPixelFormatDepth32Float_Stencil8 || textureDesc.sampleCount > 1) {
+        textureDesc.storageMode = MTLStorageModePrivate;
+        
+    }
 
     // Create texture
     id<MTLTexture> texture = [device newTextureWithDescriptor:textureDesc];
@@ -1625,8 +1656,10 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                         subpassWrapper.inputAttachments;
                     graphicsPipelineWrapper.colorAttachments =
                         subpassWrapper.colorAttachments;
-                    graphicsPipelineWrapper.depthStencilAttachment =
-                        subpassWrapper.depthStencilAttachment;
+                    graphicsPipelineWrapper.depthAttachment =
+                        subpassWrapper.depthAttachment;
+                    graphicsPipelineWrapper.stencilAttachment =
+                    subpassWrapper.stencilAttachment;
 
                     // Copy render pass descriptor from subpass
                     graphicsPipelineWrapper.renderPass =
@@ -1803,43 +1836,51 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                         mtlDepthStencilDesc.depthWriteEnabled =
                             toObjCBool(depthStencilDesc.depthWriteEnable);
 
-                        mtlDepthStencilDesc.backFaceStencil
-                            .stencilFailureOperation = toMtlStencilOperation(
-                            depthStencilDesc.backFaceStencil.stencilFailOp);
-                        mtlDepthStencilDesc.backFaceStencil
-                            .depthFailureOperation = toMtlStencilOperation(
-                            depthStencilDesc.backFaceStencil.depthFailOp);
-                        mtlDepthStencilDesc.backFaceStencil
-                            .depthStencilPassOperation = toMtlStencilOperation(
-                            depthStencilDesc.backFaceStencil
-                                .depthStencilPassOp);
-                        mtlDepthStencilDesc.backFaceStencil
-                            .stencilCompareFunction = toMtlCompareFunction(
-                            depthStencilDesc.backFaceStencil
-                                .stencilCompareFunc);
-                        mtlDepthStencilDesc.backFaceStencil.readMask =
-                            depthStencilDesc.backFaceStencil.readMask;
-                        mtlDepthStencilDesc.backFaceStencil.writeMask =
-                            depthStencilDesc.backFaceStencil.writeMask;
+                        if (depthStencilDesc.stencilTestEnable) {
+                            mtlDepthStencilDesc.backFaceStencil
+                                .stencilFailureOperation =
+                                toMtlStencilOperation(
+                                    depthStencilDesc.backFaceStencil
+                                        .stencilFailOp);
+                            mtlDepthStencilDesc.backFaceStencil
+                                .depthFailureOperation = toMtlStencilOperation(
+                                depthStencilDesc.backFaceStencil.depthFailOp);
+                            mtlDepthStencilDesc.backFaceStencil
+                                .depthStencilPassOperation =
+                                toMtlStencilOperation(
+                                    depthStencilDesc.backFaceStencil
+                                        .depthStencilPassOp);
+                            mtlDepthStencilDesc.backFaceStencil
+                                .stencilCompareFunction = toMtlCompareFunction(
+                                depthStencilDesc.backFaceStencil
+                                    .stencilCompareFunc);
+                            mtlDepthStencilDesc.backFaceStencil.readMask =
+                                depthStencilDesc.backFaceStencil.readMask;
+                            mtlDepthStencilDesc.backFaceStencil.writeMask =
+                                depthStencilDesc.backFaceStencil.writeMask;
 
-                        mtlDepthStencilDesc.frontFaceStencil
-                            .stencilFailureOperation = toMtlStencilOperation(
-                            depthStencilDesc.frontFaceStencil.stencilFailOp);
-                        mtlDepthStencilDesc.frontFaceStencil
-                            .depthFailureOperation = toMtlStencilOperation(
-                            depthStencilDesc.frontFaceStencil.depthFailOp);
-                        mtlDepthStencilDesc.frontFaceStencil
-                            .depthStencilPassOperation = toMtlStencilOperation(
-                            depthStencilDesc.frontFaceStencil
-                                .depthStencilPassOp);
-                        mtlDepthStencilDesc.frontFaceStencil
-                            .stencilCompareFunction = toMtlCompareFunction(
-                            depthStencilDesc.frontFaceStencil
-                                .stencilCompareFunc);
-                        mtlDepthStencilDesc.frontFaceStencil.readMask =
-                            depthStencilDesc.frontFaceStencil.readMask;
-                        mtlDepthStencilDesc.frontFaceStencil.writeMask =
-                            depthStencilDesc.frontFaceStencil.writeMask;
+                            mtlDepthStencilDesc.frontFaceStencil
+                                .stencilFailureOperation =
+                                toMtlStencilOperation(
+                                    depthStencilDesc.frontFaceStencil
+                                        .stencilFailOp);
+                            mtlDepthStencilDesc.frontFaceStencil
+                                .depthFailureOperation = toMtlStencilOperation(
+                                depthStencilDesc.frontFaceStencil.depthFailOp);
+                            mtlDepthStencilDesc.frontFaceStencil
+                                .depthStencilPassOperation =
+                                toMtlStencilOperation(
+                                    depthStencilDesc.frontFaceStencil
+                                        .depthStencilPassOp);
+                            mtlDepthStencilDesc.frontFaceStencil
+                                .stencilCompareFunction = toMtlCompareFunction(
+                                depthStencilDesc.frontFaceStencil
+                                    .stencilCompareFunc);
+                            mtlDepthStencilDesc.frontFaceStencil.readMask =
+                                depthStencilDesc.frontFaceStencil.readMask;
+                            mtlDepthStencilDesc.frontFaceStencil.writeMask =
+                                depthStencilDesc.frontFaceStencil.writeMask;
+                        }
                     }
 
                     // Create depth stencil state from default
@@ -2041,8 +2082,11 @@ MetalWrapper::renderPassCreate(FvRenderPass *renderPass,
                 mtlRenderPassDescriptor.stencilAttachment.storeAction =
                     toMtlStoreAction(depthStencilAttachment.stencilStoreOp);
 
-                mtlRenderPipelineDescriptor.stencilAttachmentPixelFormat =
-                    toMtlPixelFormat(depthStencilAttachment.format);
+                MTLPixelFormat stencilPixelFormat = toMtlPixelFormat(depthStencilAttachment.format);
+                if (stencilPixelFormat == MTLPixelFormatDepth24Unorm_Stencil8 || stencilPixelFormat == MTLPixelFormatDepth32Float_Stencil8) {
+                    mtlRenderPipelineDescriptor.stencilAttachmentPixelFormat =
+                        stencilPixelFormat;
+                }
             }
 
             // Store attachment references
@@ -2059,8 +2103,22 @@ MetalWrapper::renderPassCreate(FvRenderPass *renderPass,
             }
 
             if (subpassDescription.depthStencilAttachment != nullptr) {
-                subpassWrapper.depthStencilAttachment.push_back(
-                    *subpassDescription.depthStencilAttachment);
+                uint32_t depthStencilAttachmentIndex =
+                subpassDescription.depthStencilAttachment->attachment;
+                
+                FvAttachmentDescription depthStencilAttachment =
+                createInfo->attachments[depthStencilAttachmentIndex];
+                
+                // Add depth attachment reference
+                subpassWrapper.depthAttachment.push_back(
+                                                         *subpassDescription.depthStencilAttachment);
+                
+                // Only add stencil attachment reference if using
+                MTLPixelFormat stencilPixelFormat = toMtlPixelFormat(depthStencilAttachment.format);
+                if (stencilPixelFormat == MTLPixelFormatDepth24Unorm_Stencil8 || stencilPixelFormat == MTLPixelFormatDepth32Float_Stencil8) {
+                    subpassWrapper.stencilAttachment.push_back(
+                                                             *subpassDescription.depthStencilAttachment);
+                }
             }
 
             // Add subpass to renderPass aggregate
@@ -2370,6 +2428,9 @@ MTLPixelFormat MetalWrapper::toMtlPixelFormat(FvFormat format) {
         break;
     case FV_FORMAT_RGBA16FLOAT:
         pixelFormat = MTLPixelFormatRGBA16Float;
+        break;
+    case FV_FORMAT_DEPTH32FLOAT:
+        pixelFormat = MTLPixelFormatDepth32Float;
         break;
     case FV_FORMAT_DEPTH32FLOAT_STENCIL8:
         pixelFormat = MTLPixelFormatDepth32Float_Stencil8;

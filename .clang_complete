@@ -4,6 +4,7 @@
 -I/Users/sam/Documents/code/Fever/src/libs/googletest/googletest
 -I/Users/sam/Documents/code/Fever/src/libs/googletest/googletest/include
 -I/Users/sam/Documents/code/Fever/src/libs/stb_image
+-I/Users/sam/Documents/code/Fever/src/libs/tiny_obj
 -I/Users/sam/code/Fever/src/FeverLibrary/include
 -I/Users/sam/code/Fever/src/FeverLibrary/src
 -I/Users/sam/code/Fever/src/libs/googletest/googletest

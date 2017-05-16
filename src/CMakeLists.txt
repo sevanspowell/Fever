@@ -34,6 +34,13 @@ add_library(stb INTERFACE)
 set_property(TARGET stb PROPERTY
   INTERFACE_INCLUDE_DIRECTORIES ${STB_INCLUDE_DIRS})
 
+####### Tiny obj loader ########
+set(TINYOBJ_BASE_DIR "libs/tiny_obj")
+find_package(TINYOBJ REQUIRED)
+add_library(tinyobj INTERFACE)
+set_property(TARGET tinyobj PROPERTY
+  INTERFACE_INCLUDE_DIRECTORIES ${TINYOBJ_INCLUDE_DIRS})
+
 ######### Metal ##########
 if (APPLE)
   find_library(METAL_LIBRARY Metal)

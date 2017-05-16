@@ -37,7 +37,8 @@ struct SubpassWrapper {
 
     std::vector<FvAttachmentReference> inputAttachments;
     std::vector<FvAttachmentReference> colorAttachments;
-    std::vector<FvAttachmentReference> depthStencilAttachment;
+    std::vector<FvAttachmentReference> depthAttachment;
+    std::vector<FvAttachmentReference> stencilAttachment;
 };
 
 struct RenderPassWrapper {
@@ -58,7 +59,8 @@ struct GraphicsPipelineWrapper {
 
     std::vector<FvAttachmentReference> inputAttachments;
     std::vector<FvAttachmentReference> colorAttachments;
-    std::vector<FvAttachmentReference> depthStencilAttachment;
+    std::vector<FvAttachmentReference> depthAttachment;
+    std::vector<FvAttachmentReference> stencilAttachment;
 };
 
 struct FramebufferWrapper {
@@ -122,6 +124,8 @@ struct CommandBufferWrapper {
 
     std::vector<FvBuffer> vertexBuffers;
     FvBuffer indexBuffer;
+
+    std::vector<FvDescriptorSet> descriptorSets;
 };
 
 struct SemaphoreWrapper {
@@ -154,20 +158,54 @@ struct SwapchainWrapper {
     FvExtent3D extent;
 };
 
+struct DescriptorBufferBinding {
+    FvDescriptorBufferInfo bufferInfo;
+    FvDescriptorSetLayoutBinding binding;
+};
+
+struct DescriptorImageBinding {
+    FvDescriptorImageInfo imageInfo;
+    FvDescriptorSetLayoutBinding binding;
+};
+
+struct DescriptorSetLayoutWrapper {
+    std::vector<FvDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
+};
+
+struct DescriptorSetWrapper {
+    FvDescriptorSetLayout descriptorSetLayout;
+    std::vector<DescriptorBufferBinding> bufferBindings;
+    std::vector<DescriptorImageBinding> imageBindings;
+};
+
+struct DescriptorPoolWrapper {
+    struct Pool {
+        FvDescriptorType descriptorSetsType;
+        std::vector<FvDescriptorSet> descriptorSets;
+    };
+
+    std::vector<DescriptorPoolWrapper::Pool> pools;
+    uint32_t maxSets;
+};
+
 class MetalWrapper {
   public:
-    static const uint32_t MAX_NUM_LIBRARIES          = 64;
-    static const uint32_t MAX_NUM_RENDER_PASSES      = 64;
-    static const uint32_t MAX_NUM_GRAPHICS_PIPELINES = 64;
-    static const uint32_t MAX_NUM_TEXTURES           = 256;
-    static const uint32_t MAX_NUM_TEXTURE_VIEWS      = 256;
-    static const uint32_t MAX_NUM_FRAMEBUFFERS       = 64;
-    static const uint32_t MAX_NUM_COMMAND_QUEUES     = 64;
-    static const uint32_t MAX_NUM_COMMAND_BUFFERS    = 64;
-    static const uint32_t MAX_NUM_DRAWABLES          = 32;
-    static const uint32_t MAX_NUM_SEMAPHORES         = 32;
-    static const uint32_t MAX_NUM_SWAPCHAINS         = 16;
-    static const uint32_t MAX_NUM_BUFFERS            = 256;
+    static const uint32_t MAX_NUM_LIBRARIES              = 64;
+    static const uint32_t MAX_NUM_RENDER_PASSES          = 64;
+    static const uint32_t MAX_NUM_GRAPHICS_PIPELINES     = 64;
+    static const uint32_t MAX_NUM_TEXTURES               = 256;
+    static const uint32_t MAX_NUM_TEXTURE_VIEWS          = 256;
+    static const uint32_t MAX_NUM_FRAMEBUFFERS           = 64;
+    static const uint32_t MAX_NUM_COMMAND_QUEUES         = 64;
+    static const uint32_t MAX_NUM_COMMAND_BUFFERS        = 64;
+    static const uint32_t MAX_NUM_DRAWABLES              = 32;
+    static const uint32_t MAX_NUM_SEMAPHORES             = 32;
+    static const uint32_t MAX_NUM_SWAPCHAINS             = 16;
+    static const uint32_t MAX_NUM_BUFFERS                = 256;
+    static const uint32_t MAX_NUM_DESCRIPTOR_SET_LAYOUTS = 256;
+    static const uint32_t MAX_NUM_DESCRIPTOR_POOLS       = 64;
+    static const uint32_t MAX_NUM_DESCRIPTOR_SETS        = 512;
+    static const uint32_t MAX_NUM_SAMPLERS               = 512;
 
     MetalWrapper()
         : metalLayer(NULL), device(nil), libraries(MAX_NUM_LIBRARIES),
@@ -178,16 +216,39 @@ class MetalWrapper {
           commandQueues(MAX_NUM_COMMAND_QUEUES),
           commandBuffers(MAX_NUM_COMMAND_BUFFERS),
           semaphores(MAX_NUM_SEMAPHORES), swapchains(MAX_NUM_SWAPCHAINS),
-          buffers(MAX_NUM_BUFFERS) {}
+          buffers(MAX_NUM_BUFFERS),
+          descriptorSetLayouts(MAX_NUM_DESCRIPTOR_SET_LAYOUTS),
+          descriptorPools(MAX_NUM_DESCRIPTOR_POOLS),
+          descriptorSets(MAX_NUM_DESCRIPTOR_SETS), samplers(MAX_NUM_SAMPLERS) {}
 
     FvResult init(const FvInitInfo *initInfo);
 
     void shutdown();
 
+    FvResult descriptorPoolCreate(FvDescriptorPool *descriptorPool,
+                                  const FvDescriptorPoolCreateInfo *createInfo);
+
+    void descriptorPoolDestroy(FvDescriptorPool descriptorPool);
+
+    FvResult
+    allocateDescriptorSets(FvDescriptorSet *descriptorSets,
+                           const FvDescriptorSetAllocateInfo *allocateInfo);
+
+    void updateDescriptorSets(uint32_t descriptorWriteCount,
+                              const FvWriteDescriptorSet *descriptorWrites);
+
+    FvResult descriptorSetLayoutCreate(
+        FvDescriptorSetLayout *descriptorSetLayout,
+        const FvDescriptorSetLayoutCreateInfo *createInfo);
+
+    void descriptorSetLayoutDestroy(FvDescriptorSetLayout descriptorSetLayout);
+
     FvResult bufferCreate(FvBuffer *buffer,
                           const FvBufferCreateInfo *createInfo);
 
     void bufferDestroy(FvBuffer buffer);
+
+    void bufferReplaceData(FvBuffer buffer, void *data, size_t dataSize);
 
     FvResult semaphoreCreate(FvSemaphore *semaphore);
 
@@ -222,6 +283,11 @@ class MetalWrapper {
 
     void cmdBindIndexBuffer(FvCommandBuffer commandBuffer, FvBuffer buffer,
                             FvSize offset, FvIndexType indexType);
+
+    void cmdBindDescriptorSets(FvCommandBuffer commandBuffer,
+                               FvPipelineLayout layout, uint32_t firstSet,
+                               uint32_t descriptorSetCount,
+                               const FvDescriptorSet *descriptorSets);
 
     void cmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
                  uint32_t instanceCount, uint32_t firstVertex,
@@ -260,7 +326,16 @@ class MetalWrapper {
 
     FvResult imageCreate(FvImage *image, const FvImageCreateInfo *createInfo);
 
+    void imageReplaceRegion(FvImage image, FvRect3D region, uint32_t mipLevel,
+                            uint32_t layer, void *data, size_t bytesPerRow,
+                            size_t bytesPerImage);
+
     void imageDestroy(FvImage image);
+
+    FvResult samplerCreate(FvSampler *sampler,
+                           const FvSamplerCreateInfo *createInfo);
+
+    void samplerDestroy(FvSampler sampler);
 
     FvResult
     graphicsPipelineCreate(FvGraphicsPipeline *graphicsPipeline,
@@ -316,6 +391,17 @@ class MetalWrapper {
 
     static MTLPrimitiveType toMtlPrimitiveType(FvPrimitiveType primitiveType);
 
+    static MTLSamplerAddressMode
+    toMtlSamplerAddressMode(FvSamplerAddressMode addressMode);
+
+    static MTLSamplerMinMagFilter toMtlMinMagFilter(FvMinMagFilter filter);
+
+    static MTLSamplerMipFilter
+    toMtlSamplerMipFilter(FvSamplerMipmapMode mipmapMode);
+
+    static MTLSamplerBorderColor
+    toMtlSamplerBorderColor(FvBorderColor borderColor);
+
     CAMetalLayer *metalLayer;
     id<MTLDevice> device;
 
@@ -330,6 +416,10 @@ class MetalWrapper {
     PersistentHandleDataStore<SemaphoreWrapper> semaphores;
     PersistentHandleDataStore<SwapchainWrapper> swapchains;
     PersistentHandleDataStore<BufferWrapper> buffers;
+    PersistentHandleDataStore<DescriptorSetLayoutWrapper> descriptorSetLayouts;
+    PersistentHandleDataStore<DescriptorPoolWrapper> descriptorPools;
+    PersistentHandleDataStore<DescriptorSetWrapper> descriptorSets;
+    PersistentHandleDataStore<id<MTLSamplerState>> samplers;
 
     id<CAMetalDrawable> currentDrawable;
     id<MTLCommandQueue> currentCommandQueue;

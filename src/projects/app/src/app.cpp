@@ -12,12 +12,14 @@
  * website (https://vulkan-tutorial.com).
  *===----------------------------------------------------------------------===*/
 #include <array>
+#include <chrono>
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
+#include <unordered_map>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_syswm.h>
@@ -25,7 +27,14 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
+
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
 
 #include <Fever/Fever.h>
 #include <Fever/FeverPlatform.h>
@@ -35,26 +44,27 @@
 #endif
 
 struct Vertex {
-    glm::vec2 pos;
+    glm::vec3 pos;
     glm::vec3 color;
+    glm::vec2 texCoord;
 
     static FvVertexInputBindingDescription getBindingDescription() {
         FvVertexInputBindingDescription bindingDescription = {};
         bindingDescription.binding                         = 0;
-        bindingDescription.stride                          = 20;
+        bindingDescription.stride                          = sizeof(Vertex);
         bindingDescription.inputRate = FV_VERTEX_INPUT_RATE_VERTEX;
 
         return bindingDescription;
     }
 
-    static std::array<FvVertexInputAttributeDescription, 2>
+    static std::array<FvVertexInputAttributeDescription, 3>
     getAttributeDescriptions() {
-        std::array<FvVertexInputAttributeDescription, 2> attributeDescriptions =
+        std::array<FvVertexInputAttributeDescription, 3> attributeDescriptions =
             {};
 
         attributeDescriptions[0].binding  = 0;
         attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format   = FV_VERTEX_FORMAT_FLOAT2;
+        attributeDescriptions[0].format   = FV_VERTEX_FORMAT_FLOAT3;
         attributeDescriptions[0].offset   = offsetof(Vertex, pos);
 
         attributeDescriptions[1].binding  = 0;
@@ -62,16 +72,49 @@ struct Vertex {
         attributeDescriptions[1].format   = FV_VERTEX_FORMAT_FLOAT3;
         attributeDescriptions[1].offset   = offsetof(Vertex, color);
 
+        attributeDescriptions[2].binding  = 0;
+        attributeDescriptions[2].location = 2;
+        attributeDescriptions[2].format   = FV_VERTEX_FORMAT_FLOAT2;
+        attributeDescriptions[2].offset   = offsetof(Vertex, texCoord);
+
         return attributeDescriptions;
+    }
+
+    bool operator==(const Vertex &other) const {
+        return pos == other.pos && color == other.color &&
+               texCoord == other.texCoord;
     }
 };
 
-const std::vector<Vertex> vertices = {{{-0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}},
-                                      {{0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}},
-                                      {{-0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-                                      {{0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};
+namespace std {
+template <> struct hash<Vertex> {
+    size_t operator()(Vertex const &vertex) const {
+        return ((hash<glm::vec3>()(vertex.pos) ^
+                 (hash<glm::vec3>()(vertex.color) << 1)) >>
+                1) ^
+               (hash<glm::vec2>()(vertex.texCoord) << 1);
+    }
+};
+}
 
-const std::vector<uint16_t> indices = {0, 2, 1, 1, 3, 0};
+// const std::vector<Vertex> vertices = {
+//     {{-0.5f, 0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+//     {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+//     {{-0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
+//     {{0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}},
+
+//     {{-0.5f, 0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+//     {{0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+//     {{-0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
+//     {{0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}}};
+
+// const std::vector<uint16_t> indices = {0, 2, 1, 1, 3, 0, 4, 6, 5, 5, 7, 4};
+
+struct UniformBufferObject {
+    glm::mat4 model;
+    glm::mat4 view;
+    glm::mat4 proj;
+};
 
 /// For automatically freeing Fever resources
 template <typename T> class FDeleter {
@@ -146,11 +189,20 @@ class HelloTriangleApplication {
         createSwapchain();
         createImageView();
         createRenderPass();
+        createDescriptorSetLayout();
         createGraphicsPipeline();
-        createFramebuffer();
         createCommandPool();
+        createDepthResources();
+        createFramebuffer();
+        createTextureImage();
+        createTextureImageView();
+        createTextureSampler();
+        loadModel();
         createVertexBuffer();
         createIndexBuffer();
+        createUniformBuffer();
+        createDescriptorPool();
+        createDescriptorSet();
         createCommandBuffer();
         createSemaphores();
     }
@@ -164,20 +216,46 @@ class HelloTriangleApplication {
         colorAttachment.stencilLoadOp           = FV_LOAD_OP_DONT_CARE;
         colorAttachment.stencilStoreOp          = FV_STORE_OP_DONT_CARE;
 
+        FvAttachmentDescription depthAttachment = {};
+        depthAttachment.format                  = FV_FORMAT_DEPTH32FLOAT;
+        depthAttachment.samples                 = FV_SAMPLE_COUNT_1;
+        depthAttachment.loadOp                  = FV_LOAD_OP_CLEAR;
+        depthAttachment.storeOp                 = FV_STORE_OP_DONT_CARE;
+        depthAttachment.stencilLoadOp           = FV_LOAD_OP_DONT_CARE;
+        depthAttachment.stencilStoreOp          = FV_STORE_OP_DONT_CARE;
+
         FvAttachmentReference colorAttachmentRef = {};
         colorAttachmentRef.attachment            = 0;
 
-        FvSubpassDescription subpass = {};
-        subpass.inputAttachmentCount = 0;
-        subpass.inputAttachments     = nullptr;
-        subpass.colorAttachmentCount = 1;
-        subpass.colorAttachments     = &colorAttachmentRef;
+        FvAttachmentReference depthAttachmentRef = {};
+        depthAttachmentRef.attachment            = 1;
+
+        FvSubpassDescription subpass   = {};
+        subpass.inputAttachmentCount   = 0;
+        subpass.inputAttachments       = nullptr;
+        subpass.colorAttachmentCount   = 1;
+        subpass.colorAttachments       = &colorAttachmentRef;
+        subpass.depthStencilAttachment = &depthAttachmentRef;
+
+        FvSubpassDependency dependency = {};
+        dependency.srcSubpass          = FV_SUBPASS_EXTERNAL;
+        dependency.dstSubpass          = 0;
+        dependency.srcStageMask  = FV_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT;
+        dependency.srcAccessMask = 0;
+        dependency.dstStageMask  = FV_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT;
+        dependency.dstAccessMask = FV_ACCESS_FLAGS_COLOR_ATTACHMENT_READ |
+                                   FV_ACCESS_FLAGS_COLOR_ATTACHMENT_WRITE;
+
+        std::array<FvAttachmentDescription, 2> attachments = {colorAttachment,
+                                                              depthAttachment};
 
         FvRenderPassCreateInfo renderPassInfo = {};
-        renderPassInfo.attachmentCount        = 1;
-        renderPassInfo.attachments            = &colorAttachment;
+        renderPassInfo.attachmentCount        = attachments.size();
+        renderPassInfo.attachments            = attachments.data();
         renderPassInfo.subpassCount           = 1;
         renderPassInfo.subpasses              = &subpass;
+        renderPassInfo.dependencyCount        = 1;
+        renderPassInfo.dependencies           = &dependency;
 
         if (fvRenderPassCreate(renderPass.replace(), &renderPassInfo) !=
             FV_RESULT_SUCCESS) {
@@ -209,10 +287,49 @@ class HelloTriangleApplication {
 
         createSwapchain();
         createImageView();
+        createDepthResources();
         createRenderPass();
         createGraphicsPipeline();
         createFramebuffer();
         createCommandBuffer();
+    }
+
+    void loadModel() {
+        tinyobj::attrib_t attrib;
+        std::vector<tinyobj::shape_t> shapes;
+        std::vector<tinyobj::material_t> materials;
+        std::string err;
+
+        if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &err,
+                              MODEL_PATH.c_str())) {
+            throw std::runtime_error(err);
+        }
+
+        std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
+
+        for (const auto &shape : shapes) {
+            for (const auto &index : shape.mesh.indices) {
+                Vertex vertex = {};
+
+                vertex.pos = {attrib.vertices[3 * index.vertex_index + 0],
+                              attrib.vertices[3 * index.vertex_index + 1],
+                              attrib.vertices[3 * index.vertex_index + 2]};
+
+                vertex.texCoord = {
+                    attrib.texcoords[2 * index.texcoord_index + 0],
+                    1.0f - attrib.texcoords[2 * index.texcoord_index + 1]};
+
+                vertex.color = {1.0f, 1.0f, 1.0f};
+
+                if (uniqueVertices.count(vertex) == 0) {
+                    uniqueVertices[vertex] =
+                        static_cast<uint32_t>(vertices.size());
+                    vertices.push_back(vertex);
+                }
+
+                indices.push_back(uniqueVertices[vertex]);
+            }
+        }
     }
 
     void createVertexBuffer() {
@@ -239,6 +356,40 @@ class HelloTriangleApplication {
         }
     }
 
+    void createUniformBuffer() {
+        FvBufferCreateInfo bufferInfo = {};
+        bufferInfo.size               = sizeof(UniformBufferObject);
+        bufferInfo.usage              = FV_BUFFER_USAGE_INDEX_BUFFER;
+        bufferInfo.data = nullptr; // Add data in updateUniformBuffer
+
+        if (fvBufferCreate(uniformBuffer.replace(), &bufferInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create vertex buffer!");
+        }
+    }
+
+    void updateUniformBuffer() {
+        static auto startTime = std::chrono::high_resolution_clock::now();
+
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        float time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                         currentTime - startTime)
+                         .count() /
+                     1000.0f;
+
+        UniformBufferObject ubo = {};
+        ubo.model = glm::rotate(glm::mat4(), time * glm::radians(90.0f),
+                                glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f),
+                               glm::vec3(0.0f, 0.0f, 0.0f),
+                               glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.proj =
+            glm::perspective(glm::radians(45.0f),
+                             outputWidth / (float)outputHeight, 0.1f, 10.0f);
+
+        fvBufferReplaceData(uniformBuffer, &ubo, sizeof(ubo));
+    }
+
     void createImageView() {
         FvImageViewCreateInfo imageViewInfo{};
         imageViewInfo.image    = swapchainImage;
@@ -252,10 +403,12 @@ class HelloTriangleApplication {
     }
 
     void createFramebuffer() {
+        std::array<FvImageView, 2> attachments = {imageView, depthImageView};
+
         FvFramebufferCreateInfo framebufferInfo = {};
         framebufferInfo.renderPass              = renderPass;
-        framebufferInfo.attachmentCount         = 1;
-        framebufferInfo.attachments             = &imageView;
+        framebufferInfo.attachmentCount         = attachments.size();
+        framebufferInfo.attachments             = attachments.data();
         framebufferInfo.width                   = outputWidth;
         framebufferInfo.height                  = outputHeight;
         framebufferInfo.layers                  = 1;
@@ -272,6 +425,78 @@ class HelloTriangleApplication {
         if (fvCommandPoolCreate(commandPool.replace(), &poolInfo) !=
             FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to create command pool!");
+        }
+    }
+
+    void createTextureImage() {
+        int texWidth, texHeight, texChannels;
+        stbi_uc *pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight,
+                                    &texChannels, STBI_rgb_alpha);
+        FvSize imageSize = texWidth * texHeight * 4; // We forced image to load
+                                                     // with 4 channels using
+                                                     // STBI_rgb_alpha flag
+
+        if (!pixels) {
+            throw std::runtime_error("Failed to load texture image!");
+        }
+
+        // Create image
+        FvImageCreateInfo imageInfo = {};
+        imageInfo.imageType         = FV_IMAGE_TYPE_2D;
+        imageInfo.extent.width      = texWidth;
+        imageInfo.extent.height     = texHeight;
+        imageInfo.extent.depth      = 1;
+        imageInfo.mipLevels         = 1;
+        imageInfo.arrayLayers       = 1;
+        imageInfo.format            = FV_FORMAT_RGBA8UNORM;
+        imageInfo.usage             = FV_IMAGE_USAGE_SHADER_READ;
+        imageInfo.samples           = FV_SAMPLE_COUNT_1;
+
+        if (fvImageCreate(textureImage.replace(), &imageInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create image!");
+        }
+
+        // Upload image data to image object
+        FvRect3D region;
+        region.origin = {0, 0, 0};
+        region.extent = {(uint32_t)texWidth, (uint32_t)texHeight, 1};
+        fvImageReplaceRegion(textureImage, region, 0, 0, pixels, texWidth * 4,
+                             0);
+
+        stbi_image_free(pixels);
+    }
+
+    void createTextureImageView() {
+        FvImageViewCreateInfo imageViewInfo = {};
+        imageViewInfo.image                 = textureImage;
+        imageViewInfo.viewType              = FV_IMAGE_VIEW_TYPE_2D;
+        imageViewInfo.format                = FV_FORMAT_RGBA8UNORM;
+
+        if (fvImageViewCreate(textureImageView.replace(), &imageViewInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create texture image view!");
+        }
+    }
+
+    void createTextureSampler() {
+        FvSamplerCreateInfo samplerInfo   = {};
+        samplerInfo.magFilter             = FV_MIN_MAG_FILTER_LINEAR;
+        samplerInfo.minFilter             = FV_MIN_MAG_FILTER_LINEAR;
+        samplerInfo.addressModeU          = FV_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeV          = FV_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeW          = FV_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.anisotropyEnable      = true;
+        samplerInfo.maxAnisotropy         = 16;
+        samplerInfo.borderColor           = FV_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.compareEnable         = false;
+        samplerInfo.compareFunc           = FV_COMPARE_FUNC_ALWAYS;
+        samplerInfo.mipmapMode            = FV_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.normalizedCoordinates = true;
+
+        if (fvSamplerCreate(textureSampler.replace(), &samplerInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create texture sampler!");
         }
     }
 
@@ -292,9 +517,12 @@ class HelloTriangleApplication {
         renderPassInfo.renderPass            = renderPass;
         renderPassInfo.framebuffer           = framebuffer;
 
-        FvClearValue clearColor        = {0.0f, 0.0f, 0.0f, 1.0f};
-        renderPassInfo.clearValueCount = 1;
-        renderPassInfo.clearValues     = &clearColor;
+        std::array<FvClearValue, 2> clearValues = {};
+        clearValues[0].color        = {0.0f, 0.0f, 0.0f, 1.0f};
+        clearValues[1].depthStencil = {1.0f, 0};
+
+        renderPassInfo.clearValueCount = clearValues.size();
+        renderPassInfo.clearValues     = clearValues.data();
 
         fvCmdBeginRenderPass(commandBuffer, &renderPassInfo);
 
@@ -306,9 +534,12 @@ class HelloTriangleApplication {
             fvCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
             fvCmdBindIndexBuffer(commandBuffer, indexBuffer, 0,
-                                 FV_INDEX_TYPE_UINT16);
+                                 FV_INDEX_TYPE_UINT32);
 
-            //fvCmdDraw(commandBuffer, vertices.size(), 1, 0, 0);
+            fvCmdBindDescriptorSets(commandBuffer, pipelineLayout, 0, 1,
+                                    &descriptorSet);
+
+            // fvCmdDraw(commandBuffer, vertices.size(), 1, 0, 0);
             fvCmdDrawIndexed(commandBuffer, indices.size(), 1, 0, 0, 0);
         }
 
@@ -319,10 +550,96 @@ class HelloTriangleApplication {
         }
     }
 
+    void createDescriptorSetLayout() {
+        FvDescriptorSetLayoutBinding uboLayoutBinding = {};
+        uboLayoutBinding.binding                      = 1;
+        uboLayoutBinding.descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboLayoutBinding.descriptorCount = 1;
+        uboLayoutBinding.stageFlags      = FV_SHADER_STAGE_VERTEX;
+
+        FvDescriptorSetLayoutBinding samplerLayoutBinding = {};
+        samplerLayoutBinding.binding                      = 0;
+        samplerLayoutBinding.descriptorCount              = 1;
+        samplerLayoutBinding.descriptorType =
+            FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        samplerLayoutBinding.stageFlags = FV_SHADER_STAGE_FRAGMENT;
+
+        std::array<FvDescriptorSetLayoutBinding, 2> bindings = {
+            uboLayoutBinding, samplerLayoutBinding};
+
+        FvDescriptorSetLayoutCreateInfo layoutInfo = {};
+        layoutInfo.bindingCount                    = bindings.size();
+        layoutInfo.bindings                        = bindings.data();
+
+        if (fvDescriptorSetLayoutCreate(descriptorSetLayout.replace(),
+                                        &layoutInfo) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create descriptor set layout!");
+        }
+    }
+
+    void createDescriptorPool() {
+        std::array<FvDescriptorPoolSize, 2> poolSizes = {};
+        poolSizes[0].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSizes[0].descriptorCount = 1;
+        poolSizes[1].descriptorType = FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        poolSizes[1].descriptorCount = 1;
+
+        FvDescriptorPoolCreateInfo poolInfo = {};
+        poolInfo.poolSizeCount              = poolSizes.size();
+        poolInfo.poolSizes                  = poolSizes.data();
+        poolInfo.maxSets                    = 1;
+
+        if (fvDescriptorPoolCreate(descriptorPool.replace(), &poolInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create descriptor pool!");
+        }
+    }
+
+    void createDescriptorSet() {
+        FvDescriptorSetLayout layouts[]       = {descriptorSetLayout};
+        FvDescriptorSetAllocateInfo allocInfo = {};
+        allocInfo.descriptorPool              = descriptorPool;
+        allocInfo.descriptorSetCount          = 1;
+        allocInfo.setLayouts                  = layouts;
+
+        if (fvAllocateDescriptorSets(&descriptorSet, &allocInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to allocate descriptor set!");
+        }
+
+        FvDescriptorBufferInfo bufferInfo = {};
+        bufferInfo.buffer                 = uniformBuffer;
+        bufferInfo.offset                 = 0;
+        bufferInfo.range                  = sizeof(UniformBufferObject);
+
+        FvDescriptorImageInfo imageInfo = {};
+        imageInfo.imageView             = textureImageView;
+        imageInfo.sampler               = textureSampler;
+
+        std::array<FvWriteDescriptorSet, 2> descriptorWrites = {};
+        descriptorWrites[0].dstSet          = descriptorSet;
+        descriptorWrites[0].dstBinding      = 1;
+        descriptorWrites[0].dstArrayElement = 0;
+        descriptorWrites[0].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].bufferInfo      = &bufferInfo;
+
+        descriptorWrites[1].dstSet          = descriptorSet;
+        descriptorWrites[1].dstBinding      = 0;
+        descriptorWrites[1].dstArrayElement = 0;
+        descriptorWrites[1].descriptorType =
+            FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].imageInfo       = &imageInfo;
+
+        fvUpdateDescriptorSets(descriptorWrites.size(),
+                               descriptorWrites.data());
+    }
+
     void createGraphicsPipeline() {
         std::vector<char> shaderCode =
 
-            readFile("src/projects/app/assets/hello-vertex-buffers.metal");
+            readFile("src/projects/app/assets/hello-ubos.metal");
         shaderCode.push_back('\0');
 
         FDeleter<FvShaderModule> shaderModule{fvShaderModuleDestroy};
@@ -375,7 +692,7 @@ class HelloTriangleApplication {
         viewport.maxDepth   = 1.0f;
 
         FvRect2D scissor      = {};
-        scissor.offset        = {0, 0};
+        scissor.origin        = {0, 0};
         scissor.extent.width  = (uint32_t)outputWidth;
         scissor.extent.height = (uint32_t)outputHeight;
 
@@ -389,6 +706,11 @@ class HelloTriangleApplication {
         rasterizer.cullMode    = FV_CULL_MODE_BACK;
         rasterizer.frontFacing = FV_WINDING_ORDER_COUNTER_CLOCKWISE;
 
+        FvPipelineDepthStencilStateDescription depthStencil = {};
+        depthStencil.depthWriteEnable                       = true;
+        depthStencil.depthCompareFunc  = FV_COMPARE_FUNC_LESS;
+        depthStencil.stencilTestEnable = false;
+
         FvColorBlendAttachmentState colorBlendAttachment = {};
         colorBlendAttachment.blendEnable                 = false;
         colorBlendAttachment.colorWriteMask = (FvColorComponentFlags)(
@@ -399,8 +721,10 @@ class HelloTriangleApplication {
         colorBlending.attachmentCount                      = 1;
         colorBlending.attachments = &colorBlendAttachment;
 
+        FvDescriptorSetLayout setLayouts[]            = {descriptorSetLayout};
         FvPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-        pipelineLayoutInfo.setLayoutCount             = 0;
+        pipelineLayoutInfo.setLayoutCount             = 1;
+        pipelineLayoutInfo.setLayouts                 = setLayouts;
         pipelineLayoutInfo.pushConstantRangeCount     = 0;
 
         if (fvPipelineLayoutCreate(pipelineLayout.replace(),
@@ -416,7 +740,7 @@ class HelloTriangleApplication {
         pipelineInfo.viewportDescription          = &viewportState;
         pipelineInfo.rasterizerDescription        = &rasterizer;
         pipelineInfo.colorBlendStateDescription   = &colorBlending;
-        pipelineInfo.depthStencilDescription      = nullptr;
+        pipelineInfo.depthStencilDescription      = &depthStencil;
         pipelineInfo.layout                       = pipelineLayout;
         pipelineInfo.renderPass                   = renderPass;
         pipelineInfo.subpass                      = 0;
@@ -433,6 +757,34 @@ class HelloTriangleApplication {
             fvSemaphoreCreate(renderFinishedSemaphore.replace()) !=
                 FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to create semaphores!");
+        }
+    }
+
+    void createDepthResources() {
+        FvImageCreateInfo imageInfo = {};
+        imageInfo.imageType         = FV_IMAGE_TYPE_2D;
+        imageInfo.extent.width      = outputWidth;
+        imageInfo.extent.height     = outputHeight;
+        imageInfo.extent.depth      = 1;
+        imageInfo.mipLevels         = 1;
+        imageInfo.arrayLayers       = 1;
+        imageInfo.format            = FV_FORMAT_DEPTH32FLOAT;
+        imageInfo.usage             = FV_IMAGE_USAGE_RENDER_TARGET;
+        imageInfo.samples           = FV_SAMPLE_COUNT_1;
+
+        if (fvImageCreate(depthImage.replace(), &imageInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create depth image!");
+        }
+
+        FvImageViewCreateInfo imageViewInfo = {};
+        imageViewInfo.image                 = depthImage;
+        imageViewInfo.viewType              = FV_IMAGE_VIEW_TYPE_2D;
+        imageViewInfo.format                = FV_FORMAT_DEPTH32FLOAT;
+
+        if (fvImageViewCreate(depthImageView.replace(), &imageViewInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create depth image view!");
         }
     }
 
@@ -500,6 +852,7 @@ class HelloTriangleApplication {
                 }
             }
 
+            updateUniformBuffer();
             drawFrame();
         }
 
@@ -528,6 +881,9 @@ class HelloTriangleApplication {
         return buffer;
     }
 
+    const std::string MODEL_PATH   = "src/projects/app/assets/chalet.obj";
+    const std::string TEXTURE_PATH = "src/projects/app/assets/chalet.jpg";
+
     SDL_Window *window;
     int outputWidth, outputHeight;
 
@@ -539,12 +895,26 @@ class HelloTriangleApplication {
     // Resources of command buffer automatically freed
     FvCommandBuffer commandBuffer;
     FDeleter<FvSwapchain> swapchain{fvDestroySwapchain};
-    FvImage swapchainImage;
+    FvImage swapchainImage; // TODO: wrap in FDeleter?
     FDeleter<FvSemaphore> imageAvailableSemaphore{fvSemaphoreDestroy};
     FDeleter<FvSemaphore> renderFinishedSemaphore{fvSemaphoreDestroy};
     FDeleter<FvImageView> imageView{fvImageViewDestroy};
+
+    std::vector<Vertex> vertices;
+    std::vector<uint32_t> indices;
     FDeleter<FvBuffer> vertexBuffer{fvBufferDestroy};
     FDeleter<FvBuffer> indexBuffer{fvBufferDestroy};
+
+    FDeleter<FvDescriptorSetLayout> descriptorSetLayout{
+        fvDescriptorSetLayoutDestroy};
+    FDeleter<FvBuffer> uniformBuffer{fvBufferDestroy};
+    FDeleter<FvDescriptorPool> descriptorPool{fvDescriptorPoolDestroy};
+    FvDescriptorSet descriptorSet;
+    FDeleter<FvImage> textureImage{fvImageDestroy};
+    FDeleter<FvImageView> textureImageView{fvImageViewDestroy};
+    FDeleter<FvSampler> textureSampler{fvSamplerDestroy};
+    FDeleter<FvImage> depthImage{fvImageDestroy};
+    FDeleter<FvImageView> depthImageView{fvImageViewDestroy};
 };
 
 int main(void) {
@@ -589,11 +959,9 @@ int main(void) {
         if (fvInit(&initInfo) != FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to initialize Fever library.");
         }
-        while (true) {
-            HelloTriangleApplication app(window);
+        HelloTriangleApplication app(window);
 
-            app.run();
-        }
+        app.run();
 
         fvShutdown();
 

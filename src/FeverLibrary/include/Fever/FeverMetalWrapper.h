@@ -24,13 +24,6 @@ struct ImageWrapper {
     id<MTLTexture> texture;
 };
 
-struct ImageViewWrapper {
-    ImageViewWrapper() : referencesDrawable(false), texture(nil) {}
-
-    bool referencesDrawable;
-    id<MTLTexture> texture;
-};
-
 struct SubpassWrapper {
     MTLRenderPassDescriptor *mtlRenderPass;
     MTLRenderPipelineDescriptor *mtlPipelineDescriptor;
@@ -64,7 +57,7 @@ struct GraphicsPipelineWrapper {
 };
 
 struct FramebufferWrapper {
-    std::vector<ImageViewWrapper> attachments;
+    std::vector<ImageWrapper> attachments;
 };
 
 typedef enum DrawCallType {
@@ -116,7 +109,7 @@ struct CommandBufferWrapper {
     id<MTLCommandQueue> commandQueue;
     // FvGraphicsPipeline graphicsPipelineHandle;
     std::vector<FvClearValue> clearValues;
-    std::vector<ImageViewWrapper> attachments;
+    std::vector<ImageWrapper> attachments;
     bool readyForSubmit;
 
     FvGraphicsPipeline graphicsPipeline;
@@ -194,7 +187,6 @@ class MetalWrapper {
     static const uint32_t MAX_NUM_RENDER_PASSES          = 64;
     static const uint32_t MAX_NUM_GRAPHICS_PIPELINES     = 64;
     static const uint32_t MAX_NUM_TEXTURES               = 256;
-    static const uint32_t MAX_NUM_TEXTURE_VIEWS          = 256;
     static const uint32_t MAX_NUM_FRAMEBUFFERS           = 64;
     static const uint32_t MAX_NUM_COMMAND_QUEUES         = 64;
     static const uint32_t MAX_NUM_COMMAND_BUFFERS        = 64;
@@ -211,7 +203,7 @@ class MetalWrapper {
         : metalLayer(NULL), device(nil), libraries(MAX_NUM_LIBRARIES),
           renderPasses(MAX_NUM_RENDER_PASSES),
           graphicsPipelines(MAX_NUM_GRAPHICS_PIPELINES),
-          textures(MAX_NUM_TEXTURES), textureViews(MAX_NUM_TEXTURE_VIEWS),
+          textures(MAX_NUM_TEXTURES), 
           framebuffers(MAX_NUM_FRAMEBUFFERS),
           commandQueues(MAX_NUM_COMMAND_QUEUES),
           commandBuffers(MAX_NUM_COMMAND_BUFFERS),
@@ -319,11 +311,6 @@ class MetalWrapper {
 
     void framebufferDestroy(FvFramebuffer framebuffer);
 
-    FvResult imageViewCreate(FvImageView *imageView,
-                             const FvImageViewCreateInfo *createInfo);
-
-    void imageViewDestroy(FvImageView imageView);
-
     FvResult imageCreate(FvImage *image, const FvImageCreateInfo *createInfo);
 
     void imageReplaceRegion(FvImage image, FvRect3D region, uint32_t mipLevel,
@@ -409,7 +396,6 @@ class MetalWrapper {
     PersistentHandleDataStore<RenderPassWrapper> renderPasses;
     PersistentHandleDataStore<GraphicsPipelineWrapper> graphicsPipelines;
     PersistentHandleDataStore<ImageWrapper> textures;
-    PersistentHandleDataStore<ImageViewWrapper> textureViews;
     PersistentHandleDataStore<FramebufferWrapper> framebuffers;
     PersistentHandleDataStore<id<MTLCommandQueue>> commandQueues;
     PersistentHandleDataStore<CommandBufferWrapper> commandBuffers;

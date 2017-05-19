@@ -452,14 +452,12 @@ typedef struct FvDescriptorBufferInfo {
     FvSize range;
 } FvDescriptorBufferInfo;
 
-FV_DEFINE_HANDLE(FvImageView);
-
 /** Information about image tied to a descriptor set. */
 typedef struct FvDescriptorImageInfo {
     /** Sampler to use to sample image. */
     FvSampler sampler;
     /** Image to attach to sampler. */
-    FvImageView imageView;
+    FvImage image;
 } FvDescriptorImageInfo;
 
 /** Structure giving information on a data write to a descriptor set. */
@@ -633,21 +631,6 @@ fvGraphicsPipelineCreate(FvGraphicsPipeline *graphicsPipeline,
 
 extern void fvGraphicsPipelineDestroy(FvGraphicsPipeline graphicsPipeline);
 
-/** Image views are used to access image data from shaders */
-typedef struct FvImageViewCreateInfo {
-    /** Handle to image object */
-    FvImage image;
-    /** Type of image view */
-    FvImageViewType viewType;
-    /** Image view format */
-    FvFormat format;
-} FvImageViewCreateInfo;
-
-extern FvResult fvImageViewCreate(FvImageView *imageView,
-                                  const FvImageViewCreateInfo *createInfo);
-
-extern void fvImageViewDestroy(FvImageView imageView);
-
 FV_DEFINE_HANDLE(FvFramebuffer);
 
 typedef struct FvFramebufferCreateInfo {
@@ -656,7 +639,7 @@ typedef struct FvFramebufferCreateInfo {
     /** Number of image attachments */
     uint32_t attachmentCount;
     /** Array of image attachments */
-    const FvImageView *attachments;
+    const FvImage *attachments;
     /** Width of framebuffer */
     uint32_t width;
     /** Height of framebuffer */

@@ -1,0 +1,9 @@
+-DGTEST_HAS_PTHREAD=1
+-I/Users/sam/Documents/code/gfx/Fever/src/FeverLibrary/include
+-I/Users/sam/Documents/code/gfx/Fever/src/FeverLibrary/src
+-I/Users/sam/Documents/code/gfx/Fever/src/libs/googletest/googletest
+-I/Users/sam/Documents/code/gfx/Fever/src/libs/googletest/googletest/include
+-I/Users/sam/Documents/code/gfx/Fever/src/libs/stb_image
+-I/Users/sam/Documents/code/gfx/Fever/src/libs/tiny_obj
+-isystem/usr/local/include
+-std=gnu++14

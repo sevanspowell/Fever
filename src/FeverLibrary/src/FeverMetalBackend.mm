@@ -35,6 +35,7 @@ FvResult fvInit(const FvInitInfo *initInfo) {
 }
 
 void fvShutdown() {
+    assert(metalWrapper != nullptr);
     if (metalWrapper != nullptr) {
         metalWrapper->shutdown();
 
@@ -53,6 +54,7 @@ FvResult fvDescriptorPoolCreate(FvDescriptorPool *descriptorPool,
 }
 
 void fvDescriptorPoolDestroy(FvDescriptorPool descriptorPool) {
+    assert(metalWrapper != nullptr);
     if (metalWrapper != nullptr) {
         metalWrapper->descriptorPoolDestroy(descriptorPool);
     }
@@ -86,6 +88,7 @@ FvResult fvSemaphoreCreate(FvSemaphore *semaphore) {
 }
 
 void fvSemaphoreDestroy(FvSemaphore semaphore) {
+    assert(metalWrapper != nullptr);
     if (metalWrapper != nullptr) {
         metalWrapper->semaphoreDestroy(semaphore);
     }
@@ -101,6 +104,7 @@ FvResult fvCreateSwapchain(FvSwapchain *swapchain,
 }
 
 void fvDestroySwapchain(FvSwapchain swapchain) {
+    assert(metalWrapper != nullptr);
     if (metalWrapper != nullptr) {
         metalWrapper->destroySwapchain(swapchain);
     }
@@ -185,7 +189,9 @@ FvResult fvCommandBufferCreate(FvCommandBuffer *commandBuffer,
 }
 
 void fvCommandBufferDestroy(FvCommandBuffer commandBuffer,
-                            FvCommandPool commandPool) {}
+                            FvCommandPool commandPool) {
+    assert(metalWrapper != nullptr);
+}
 
 void fvCommandBufferBegin(FvCommandBuffer commandBuffer) {
     if (metalWrapper != nullptr) {
@@ -211,6 +217,7 @@ FvResult fvCommandPoolCreate(FvCommandPool *commandPool,
 }
 
 void fvCommandPoolDestroy(FvCommandPool commandPool) {
+    assert(metalWrapper != nullptr);
     if (metalWrapper != nullptr) {
         metalWrapper->commandPoolDestroy(commandPool);
     }
@@ -226,6 +233,7 @@ FvResult fvFramebufferCreate(FvFramebuffer *framebuffer,
 }
 
 void fvFramebufferDestroy(FvFramebuffer framebuffer) {
+    assert(metalWrapper != nullptr);
     if (metalWrapper != nullptr) {
         metalWrapper->framebufferDestroy(framebuffer);
     }
@@ -249,6 +257,7 @@ void fvImageReplaceRegion(FvImage image, FvRect3D region, uint32_t mipLevel,
 }
 
 void fvImageDestroy(FvImage image) {
+    assert(metalWrapper != nullptr);
     if (metalWrapper != nullptr) {
         metalWrapper->imageDestroy(image);
     }
@@ -264,6 +273,7 @@ FvResult fvSamplerCreate(FvSampler *sampler,
 }
 
 void fvSamplerDestroy(FvSampler sampler) {
+    assert(metalWrapper != nullptr);
     if (metalWrapper != nullptr) {
         metalWrapper->samplerDestroy(sampler);
     }
@@ -281,6 +291,7 @@ fvGraphicsPipelineCreate(FvGraphicsPipeline *graphicsPipeline,
 }
 
 void fvGraphicsPipelineDestroy(FvGraphicsPipeline graphicsPipeline) {
+    assert(metalWrapper != nullptr);
     if (metalWrapper != nullptr) {
         metalWrapper->graphicsPipelineDestroy(graphicsPipeline);
     }
@@ -296,6 +307,7 @@ FvResult fvRenderPassCreate(FvRenderPass *renderPass,
 }
 
 void fvRenderPassDestroy(FvRenderPass renderPass) {
+    assert(metalWrapper != nullptr);
     if (metalWrapper != nullptr) {
         metalWrapper->renderPassDestroy(renderPass);
     }
@@ -310,7 +322,13 @@ FvResult fvPipelineLayoutCreate(FvPipelineLayout *layout,
     }
 }
 
-void fvPipelineLayoutDestroy(FvPipelineLayout layout) {}
+void fvPipelineLayoutDestroy(FvPipelineLayout layout) {
+    assert(metalWrapper != nullptr);
+
+    if (metalWrapper != nullptr) {
+        metalWrapper->pipelineLayoutDestroy(layout);
+    }
+}
 
 FvResult fvShaderModuleCreate(FvShaderModule *shaderModule,
                               const FvShaderModuleCreateInfo *createInfo) {
@@ -322,6 +340,7 @@ FvResult fvShaderModuleCreate(FvShaderModule *shaderModule,
 }
 
 void fvShaderModuleDestroy(FvShaderModule shaderModule) {
+    assert(metalWrapper != nullptr);
     if (metalWrapper != nullptr) {
         metalWrapper->shaderModuleDestroy(shaderModule);
     }
@@ -367,6 +386,8 @@ FvResult fvCreateMacOSSurface(FvSurface *surface,
 }
 
 void fvDestroySurface(FvSurface surface) {
+    assert(metalWrapper != nullptr);
+
     CAMetalLayer *metalLayer = (CAMetalLayer *)surface;
 
     [metalLayer release];
@@ -437,6 +458,7 @@ fvDescriptorSetLayoutCreate(FvDescriptorSetLayout *descriptorSetLayout,
 }
 
 void fvDescriptorSetLayoutDestroy(FvDescriptorSetLayout descriptorSetLayout) {
+    assert(metalWrapper != nullptr);
     if (metalWrapper != nullptr) {
         metalWrapper->descriptorSetLayoutDestroy(descriptorSetLayout);
     }

@@ -862,25 +862,24 @@ class HelloTriangleApplication {
 };
 
 int main(void) {
-
+    // Initialize SDL2
+    SDL_Init(SDL_INIT_VIDEO);
+    
+    uint32_t flags = 0x0;
+    flags |= SDL_WINDOW_RESIZABLE;
+    
+    // Create window
+    SDL_Window *window =
+    SDL_CreateWindow("Test bed", SDL_WINDOWPOS_CENTERED,
+                     SDL_WINDOWPOS_CENTERED, 800, 600, flags);
+    
     try {
-        // Initialize SDL2
-        SDL_Init(SDL_INIT_VIDEO);
-
-        uint32_t flags = 0x0;
-        flags |= SDL_WINDOW_RESIZABLE;
-
-        // Create window
-        SDL_Window *window =
-            SDL_CreateWindow("Test bed", SDL_WINDOWPOS_CENTERED,
-                             SDL_WINDOWPOS_CENTERED, 800, 600, flags);
-
         if (window == nullptr) {
             std::stringstream err;
             err << "Could not create window: " << SDL_GetError();
             throw std::runtime_error(err.str());
         }
-
+        
         // Create surface
         FDeleter<FvSurface> surface{fvDestroySurface};
 
@@ -900,25 +899,27 @@ int main(void) {
         }
 #endif
 
-        // Initialize fever
+        // Initialize Fever
         FvInitInfo initInfo;
         initInfo.surface = surface;
 
         if (fvInit(&initInfo) != FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to initialize Fever library.");
         }
+        
         HelloTriangleApplication app(window);
 
         app.run();
 
-        fvShutdown();
-
-        SDL_DestroyWindow(window);
-        SDL_Quit();
     } catch (const std::runtime_error &err) {
         std::cerr << err.what() << std::endl;
         return EXIT_FAILURE;
     }
+    
+    fvShutdown();
+    
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 
     return EXIT_SUCCESS;
 }

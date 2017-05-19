@@ -37,11 +37,8 @@
 #include <tiny_obj_loader.h>
 
 #include <Fever/Fever.h>
+#include <Fever/FeverSurfaceAcquisition.h>
 #include <Fever/FeverPlatform.h>
-
-#if FV_PLATFORM_OSX
-#include "osx.h"
-#endif
 
 struct Vertex {
     glm::vec3 pos;
@@ -946,9 +943,14 @@ int main(void) {
             throw std::runtime_error("Failed to get SDL2 window info.");
         }
 
-#if FV_PLATFORM_OSX
-        if (getOSXSurface(surface.replace(), windowInfo) != FV_RESULT_SUCCESS) {
-            throw std::runtime_error("Failed to get OSX surface.");
+#if FV_PLATFORM_MACOS
+        FvMacOSSurfaceCreateInfo surfaceCreateInfo;
+        surfaceCreateInfo.nsWindow =
+            (void *)windowInfo.info.cocoa.window;
+
+        if (fvCreateMacOSSurface(surface.replace(), &surfaceCreateInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to get MacOS surface.");
         }
 #endif
 

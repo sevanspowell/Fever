@@ -16,6 +16,7 @@
 #import <QuartzCore/CAMetalLayer.h>
 
 #include <Fever/Fever.h>
+#include <Fever/FeverSurfaceAcquisition.h>
 #include <Fever/FeverMetalWrapper.h>
 
 static fv::MetalWrapper *metalWrapper = nullptr;
@@ -89,22 +90,6 @@ void fvSemaphoreDestroy(FvSemaphore semaphore) {
         metalWrapper->semaphoreDestroy(semaphore);
     }
 }
-
-/* FvResult fvGetDrawable(FvDrawable *drawable) { */
-/*     if (metalWrapper != nullptr) { */
-/*         return metalWrapper->getDrawable(drawable); */
-/*     } else { */
-/*         return FV_RESULT_FAILURE; */
-/*     } */
-/* } */
-
-/* FvResult fvGetDrawableImage(FvImage *drawableImage, FvDrawable drawable) { */
-/*     if (metalWrapper != nullptr) { */
-/*         return metalWrapper->getDrawableImage(drawableImage, drawable); */
-/*     } else { */
-/*         return FV_RESULT_FAILURE; */
-/*     } */
-/* } */
 
 FvResult fvCreateSwapchain(FvSwapchain *swapchain,
                            const FvSwapchainCreateInfo *createInfo) {
@@ -358,41 +343,43 @@ void fvShaderModuleDestroy(FvShaderModule shaderModule) {
     }
 }
 
-FvResult fvCreateCocoaSurface(FvSurface *surface,
-                              const FvCocoaSurfaceCreateInfo *createInfo) {
-
-    FvResult result = FV_RESULT_FAILURE;
-
+FvResult fvCreateMacOSSurface(FvSurface *surface,
+                              const FvMacOSSurfaceCreateInfo *createInfo) {
     CAMetalLayer *metalLayer = NULL;
 
-    if (surface != NULL && createInfo != NULL) {
-        // Attempt to get a CAMetalLayer from MTKView
-        if (NSClassFromString(@"MTKView") != NULL) {
-            MTKView *view = (MTKView *)createInfo->view;
+    if (surface == NULL || createInfo == NULL) {
+        return FV_RESULT_FAILURE;
+    }
 
-            if (view != NULL &&
-                [view isKindOfClass:NSClassFromString(@"MTKView")]) {
-                metalLayer = (CAMetalLayer *)view.layer;
-            }
-        }
+    // Attempt to get a CAMetalLayer from MTKView
+    if (NSClassFromString(@"MTKView") != NULL) {
+        MTKView *view =
+            (MTKView *)((NSWindow *)createInfo->nsWindow).contentView;
 
-        // Attempt to get CAMetalLayer from NSWindow if previous attempt failed.
-        if (NSClassFromString(@"CAMetalLayer") != NULL) {
-            if (metalLayer == NULL) {
-                NSView *view = (NSView *)createInfo->view;
-                [view setWantsLayer:YES];
-                metalLayer = [CAMetalLayer layer];
-                [view setLayer:metalLayer];
-            }
-        }
-
-        if (metalLayer != NULL) {
-            *surface = (FvSurface)metalLayer;
-            result   = FV_RESULT_SUCCESS;
+        if (view != NULL &&
+            [view isKindOfClass:NSClassFromString(@"MTKView")]) {
+            metalLayer = (CAMetalLayer *)view.layer;
         }
     }
 
-    return result;
+    // Attempt to get CAMetalLayer from NSWindow if previous attempt failed.
+    if (metalLayer == NULL) {
+        if (NSClassFromString(@"CAMetalLayer") != NULL) {
+            NSView *view =
+                (NSView *)((NSWindow *)createInfo->nsWindow).contentView;
+            [view setWantsLayer:YES];
+            metalLayer = [CAMetalLayer layer];
+            [view setLayer:metalLayer];
+        }
+    }
+
+    if (metalLayer == NULL) {
+        return FV_RESULT_FAILURE;
+    }
+
+    *surface = (FvSurface)metalLayer;
+
+    return FV_RESULT_SUCCESS;
 }
 
 void fvDestroySurface(FvSurface surface) {

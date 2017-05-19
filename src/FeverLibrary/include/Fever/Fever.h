@@ -901,16 +901,6 @@ extern void fvDeviceWaitIdle();
 
 FV_DEFINE_HANDLE(FvSurface);
 
-#if FV_PLATFORM_OSX
-typedef struct FvCocoaSurfaceCreateInfo {
-    const void *view;
-} FvCocoaSurfaceCreateInfo;
-
-extern FvResult
-fvCreateCocoaSurface(FvSurface *surface,
-                     const FvCocoaSurfaceCreateInfo *createInfo);
-#endif
-
 extern void fvDestroySurface(FvSurface surface);
 
 typedef struct FvInitInfo { FvSurface surface; } FvInitInfo;

@@ -21,7 +21,7 @@
 #define FV_COMPILER_MSVC 0
 
 #define FV_PLATFORM_LINUX 0
-#define FV_PLATFORM_OSX 0
+#define FV_PLATFORM_MACOS 0
 #define FV_PLATFORM_WINDOWS 0
 
 // https://sourceforge.net/p/predef/wiki/Compilers/
@@ -49,17 +49,17 @@
 #undef FV_PLATFORM_LINUX
 #define FV_PLATFORM_LINUX 1
 #elif defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__)
-#undef FV_PLATFORM_OSX
-#define FV_PLATFORM_OSX 1
+#undef FV_PLATFORM_MACOS
+#define FV_PLATFORM_MACOS 1
 #else
 #error "FV_PLATFORM_* is not defined!"
 #endif
 
-#define FV_PLATFORM_POSIX (FV_PLATFORM_LINUX || FV_PLATFORM_OSX)
+#define FV_PLATFORM_POSIX (FV_PLATFORM_LINUX || FV_PLATFORM_MACOS)
 
 #if FV_PLATFORM_LINUX
 #define FV_PLATFORM_NAME "linux"
-#elif FV_PLATFORM_OSX
+#elif FV_PLATFORM_MACOS
 #define FV_PLATFORM_NAME "osx"
 #elif FV_PLATFORM_WINDOWS
 #define FV_PLATFORM_NAME "windows"

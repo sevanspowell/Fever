@@ -172,7 +172,7 @@ class HelloTriangleApplication {
     void initFever() {
         createSwapchain();
         createRenderPass();
-        createDescriptorSetLayout();
+        createDescriptorSet();
         createGraphicsPipeline();
         createCommandPool();
         createDepthResources();
@@ -183,8 +183,7 @@ class HelloTriangleApplication {
         createVertexBuffer();
         createIndexBuffer();
         createUniformBuffer();
-        createDescriptorPool();
-        createDescriptorSet();
+        writeDescriptorSet();
         createCommandBuffer();
         createSemaphores();
     }
@@ -348,6 +347,36 @@ class HelloTriangleApplication {
             throw std::runtime_error("Failed to create vertex buffer!");
         }
     }
+    
+    void writeDescriptorSet() {
+        FvDescriptorBufferInfo bufferInfo = {};
+        bufferInfo.buffer                 = uniformBuffer;
+        bufferInfo.offset                 = 0;
+        bufferInfo.range                  = sizeof(UniformBufferObject);
+        
+        FvDescriptorImageInfo imageInfo = {};
+        imageInfo.image                 = textureImage;
+        imageInfo.sampler               = textureSampler;
+        
+        std::array<FvWriteDescriptorSet, 2> descriptorWrites = {};
+        descriptorWrites[0].dstSet          = descriptorSet;
+        descriptorWrites[0].dstBinding      = 1;
+        descriptorWrites[0].dstArrayElement = 0;
+        descriptorWrites[0].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].bufferInfo      = &bufferInfo;
+        
+        descriptorWrites[1].dstSet          = descriptorSet;
+        descriptorWrites[1].dstBinding      = 0;
+        descriptorWrites[1].dstArrayElement = 0;
+        descriptorWrites[1].descriptorType =
+        FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].imageInfo       = &imageInfo;
+        
+        fvUpdateDescriptorSets(descriptorWrites.size(),
+                               descriptorWrites.data());
+    }
 
     void updateUniformBuffer() {
         static auto startTime = std::chrono::high_resolution_clock::now();
@@ -508,89 +537,68 @@ class HelloTriangleApplication {
     }
 
     void createDescriptorSetLayout() {
-        FvDescriptorSetLayoutBinding uboLayoutBinding = {};
-        uboLayoutBinding.binding                      = 1;
-        uboLayoutBinding.descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        uboLayoutBinding.descriptorCount = 1;
-        uboLayoutBinding.stageFlags      = FV_SHADER_STAGE_VERTEX;
-
-        FvDescriptorSetLayoutBinding samplerLayoutBinding = {};
-        samplerLayoutBinding.binding                      = 0;
-        samplerLayoutBinding.descriptorCount              = 1;
-        samplerLayoutBinding.descriptorType =
-            FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        samplerLayoutBinding.stageFlags = FV_SHADER_STAGE_FRAGMENT;
-
-        std::array<FvDescriptorSetLayoutBinding, 2> bindings = {
-            uboLayoutBinding, samplerLayoutBinding};
-
-        FvDescriptorSetLayoutCreateInfo layoutInfo = {};
-        layoutInfo.bindingCount                    = bindings.size();
-        layoutInfo.bindings                        = bindings.data();
-
-        if (fvDescriptorSetLayoutCreate(descriptorSetLayout.replace(),
-                                        &layoutInfo) != FV_RESULT_SUCCESS) {
-            throw std::runtime_error("Failed to create descriptor set layout!");
-        }
-    }
+           }
 
     void createDescriptorPool() {
-        std::array<FvDescriptorPoolSize, 2> poolSizes = {};
-        poolSizes[0].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[0].descriptorCount = 1;
-        poolSizes[1].descriptorType = FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[1].descriptorCount = 1;
+        // std::array<FvDescriptorPoolSize, 2> poolSizes = {};
+        // poolSizes[0].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        // poolSizes[0].descriptorCount = 1;
+        // poolSizes[1].descriptorType =
+        // FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        // poolSizes[1].descriptorCount = 1;
 
-        FvDescriptorPoolCreateInfo poolInfo = {};
-        poolInfo.poolSizeCount              = poolSizes.size();
-        poolInfo.poolSizes                  = poolSizes.data();
-        poolInfo.maxSets                    = 1;
+        // FvDescriptorPoolCreateInfo poolInfo = {};
+        // poolInfo.poolSizeCount              = poolSizes.size();
+        // poolInfo.poolSizes                  = poolSizes.data();
+        // poolInfo.maxSets                    = 1;
 
-        if (fvDescriptorPoolCreate(descriptorPool.replace(), &poolInfo) !=
-            FV_RESULT_SUCCESS) {
-            throw std::runtime_error("Failed to create descriptor pool!");
-        }
+        // if (fvDescriptorPoolCreate(descriptorPool.replace(), &poolInfo) !=
+        //     FV_RESULT_SUCCESS) {
+        //     throw std::runtime_error("Failed to create descriptor pool!");
+        // }
     }
 
     void createDescriptorSet() {
-        FvDescriptorSetLayout layouts[]       = {descriptorSetLayout};
-        FvDescriptorSetAllocateInfo allocInfo = {};
-        allocInfo.descriptorPool              = descriptorPool;
-        allocInfo.descriptorSetCount          = 1;
-        allocInfo.setLayouts                  = layouts;
+        // FvDescriptorSetLayout layouts[]       = {descriptorSetLayout};
+        // FvDescriptorSetAllocateInfo allocInfo = {};
+        // allocInfo.descriptorPool              = descriptorPool;
+        // allocInfo.descriptorSetCount          = 1;
+        // allocInfo.setLayouts                  = layouts;
 
-        if (fvAllocateDescriptorSets(&descriptorSet, &allocInfo) !=
-            FV_RESULT_SUCCESS) {
-            throw std::runtime_error("Failed to allocate descriptor set!");
+        // if (fvAllocateDescriptorSets(&descriptorSet, &allocInfo) !=
+        //     FV_RESULT_SUCCESS) {
+        //     throw std::runtime_error("Failed to allocate descriptor set!");
+        // }
+        FvDescriptorInfo uboLayoutBinding = {};
+        uboLayoutBinding.binding          = 1;
+        uboLayoutBinding.descriptorType   = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboLayoutBinding.descriptorCount  = 1;
+        uboLayoutBinding.stageFlags       = FV_SHADER_STAGE_VERTEX;
+        
+        FvDescriptorInfo samplerLayoutBinding = {};
+        samplerLayoutBinding.binding          = 0;
+        samplerLayoutBinding.descriptorCount  = 1;
+        samplerLayoutBinding.descriptorType =
+        FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        samplerLayoutBinding.stageFlags = FV_SHADER_STAGE_FRAGMENT;
+        
+        std::array<FvDescriptorInfo, 2> descriptors = {uboLayoutBinding,
+            samplerLayoutBinding};
+        
+        FvDescriptorSetCreateInfo descriptorSetInfo = {};
+        descriptorSetInfo.descriptorCount           = descriptors.size();
+        descriptorSetInfo.descriptors               = descriptors.data();
+        
+        // if (fvDescriptorSetLayoutCreate(descriptorSetLayout.replace(),
+        //                                 &layoutInfo) != FV_RESULT_SUCCESS) {
+        //     throw std::runtime_error("Failed to create descriptor set
+        //     layout!");
+        // }
+        
+        if (fvDescriptorSetCreate(descriptorSet.replace(),
+                                  &descriptorSetInfo) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create descriptor set");
         }
-
-        FvDescriptorBufferInfo bufferInfo = {};
-        bufferInfo.buffer                 = uniformBuffer;
-        bufferInfo.offset                 = 0;
-        bufferInfo.range                  = sizeof(UniformBufferObject);
-
-        FvDescriptorImageInfo imageInfo = {};
-        imageInfo.image                 = textureImage;
-        imageInfo.sampler               = textureSampler;
-
-        std::array<FvWriteDescriptorSet, 2> descriptorWrites = {};
-        descriptorWrites[0].dstSet          = descriptorSet;
-        descriptorWrites[0].dstBinding      = 1;
-        descriptorWrites[0].dstArrayElement = 0;
-        descriptorWrites[0].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].bufferInfo      = &bufferInfo;
-
-        descriptorWrites[1].dstSet          = descriptorSet;
-        descriptorWrites[1].dstBinding      = 0;
-        descriptorWrites[1].dstArrayElement = 0;
-        descriptorWrites[1].descriptorType =
-            FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        descriptorWrites[1].descriptorCount = 1;
-        descriptorWrites[1].imageInfo       = &imageInfo;
-
-        fvUpdateDescriptorSets(descriptorWrites.size(),
-                               descriptorWrites.data());
     }
 
     void createGraphicsPipeline() {
@@ -678,11 +686,12 @@ class HelloTriangleApplication {
         colorBlending.attachmentCount                      = 1;
         colorBlending.attachments = &colorBlendAttachment;
 
-        FvDescriptorSetLayout setLayouts[]            = {descriptorSetLayout};
+        FvDescriptorSet descriptorSets[]              = {descriptorSet};
         FvPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-        pipelineLayoutInfo.setLayoutCount             = 1;
-        pipelineLayoutInfo.setLayouts                 = setLayouts;
+        pipelineLayoutInfo.descriptorSetCount         = 1;
+        pipelineLayoutInfo.descriptorSets             = descriptorSets;
         pipelineLayoutInfo.pushConstantRangeCount     = 0;
+        pipelineLayoutInfo.pushConstantRanges         = nullptr;
 
         if (fvPipelineLayoutCreate(pipelineLayout.replace(),
                                    &pipelineLayoutInfo) != FV_RESULT_SUCCESS) {
@@ -851,11 +860,8 @@ class HelloTriangleApplication {
     FDeleter<FvBuffer> vertexBuffer{fvBufferDestroy};
     FDeleter<FvBuffer> indexBuffer{fvBufferDestroy};
 
-    FDeleter<FvDescriptorSetLayout> descriptorSetLayout{
-        fvDescriptorSetLayoutDestroy};
     FDeleter<FvBuffer> uniformBuffer{fvBufferDestroy};
-    FDeleter<FvDescriptorPool> descriptorPool{fvDescriptorPoolDestroy};
-    FvDescriptorSet descriptorSet;
+    FDeleter<FvDescriptorSet> descriptorSet{fvDescriptorSetDestroy};
     FDeleter<FvImage> textureImage{fvImageDestroy};
     FDeleter<FvSampler> textureSampler{fvSamplerDestroy};
     FDeleter<FvImage> depthImage{fvImageDestroy};
@@ -864,22 +870,22 @@ class HelloTriangleApplication {
 int main(void) {
     // Initialize SDL2
     SDL_Init(SDL_INIT_VIDEO);
-    
+
     uint32_t flags = 0x0;
     flags |= SDL_WINDOW_RESIZABLE;
-    
+
     // Create window
     SDL_Window *window =
-    SDL_CreateWindow("Test bed", SDL_WINDOWPOS_CENTERED,
-                     SDL_WINDOWPOS_CENTERED, 800, 600, flags);
-    
+        SDL_CreateWindow("Test bed", SDL_WINDOWPOS_CENTERED,
+                         SDL_WINDOWPOS_CENTERED, 800, 600, flags);
+
     try {
         if (window == nullptr) {
             std::stringstream err;
             err << "Could not create window: " << SDL_GetError();
             throw std::runtime_error(err.str());
         }
-        
+
         // Create surface
         FDeleter<FvSurface> surface{fvDestroySurface};
 
@@ -906,7 +912,7 @@ int main(void) {
         if (fvInit(&initInfo) != FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to initialize Fever library.");
         }
-        
+
         HelloTriangleApplication app(window);
 
         app.run();
@@ -915,9 +921,9 @@ int main(void) {
         std::cerr << err.what() << std::endl;
         return EXIT_FAILURE;
     }
-    
+
     fvShutdown();
-    
+
     SDL_DestroyWindow(window);
     SDL_Quit();
 

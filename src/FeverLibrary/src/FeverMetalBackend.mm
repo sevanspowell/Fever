@@ -44,33 +44,6 @@ void fvShutdown() {
     }
 }
 
-FvResult fvDescriptorPoolCreate(FvDescriptorPool *descriptorPool,
-                                const FvDescriptorPoolCreateInfo *createInfo) {
-    if (metalWrapper != nullptr) {
-        return metalWrapper->descriptorPoolCreate(descriptorPool, createInfo);
-    } else {
-        return FV_RESULT_FAILURE;
-    }
-}
-
-void fvDescriptorPoolDestroy(FvDescriptorPool descriptorPool) {
-    assert(metalWrapper != nullptr);
-    if (metalWrapper != nullptr) {
-        metalWrapper->descriptorPoolDestroy(descriptorPool);
-    }
-}
-
-FvResult
-fvAllocateDescriptorSets(FvDescriptorSet *descriptorSets,
-                         const FvDescriptorSetAllocateInfo *allocateInfo) {
-    if (metalWrapper != nullptr) {
-        return metalWrapper->allocateDescriptorSets(descriptorSets,
-                                                    allocateInfo);
-    } else {
-        return FV_RESULT_FAILURE;
-    }
-}
-
 void fvUpdateDescriptorSets(uint32_t descriptorWriteCount,
                             const FvWriteDescriptorSet *descriptorWrites) {
     if (metalWrapper != nullptr) {
@@ -446,20 +419,18 @@ void fvCmdDrawIndexed(FvCommandBuffer commandBuffer, uint32_t indexCount,
     }
 }
 
-FvResult
-fvDescriptorSetLayoutCreate(FvDescriptorSetLayout *descriptorSetLayout,
-                            const FvDescriptorSetLayoutCreateInfo *createInfo) {
+FvResult fvDescriptorSetCreate(FvDescriptorSet *descriptorSet,
+                               const FvDescriptorSetCreateInfo *createInfo) {
     if (metalWrapper != nullptr) {
-        return metalWrapper->descriptorSetLayoutCreate(descriptorSetLayout,
-                                                       createInfo);
+        return metalWrapper->descriptorSetCreate(descriptorSet, createInfo);
     } else {
         return FV_RESULT_FAILURE;
     }
 }
 
-void fvDescriptorSetLayoutDestroy(FvDescriptorSetLayout descriptorSetLayout) {
+void fvDescriptorSetDestroy(FvDescriptorSet descriptorSet) {
     assert(metalWrapper != nullptr);
     if (metalWrapper != nullptr) {
-        metalWrapper->descriptorSetLayoutDestroy(descriptorSetLayout);
+        metalWrapper->descriptorSetDestroy(descriptorSet);
     }
 }

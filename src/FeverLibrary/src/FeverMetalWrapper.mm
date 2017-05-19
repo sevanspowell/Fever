@@ -26,235 +26,276 @@ FvResult MetalWrapper::init(const FvInitInfo *initInfo) {
 
 void MetalWrapper::shutdown() { FV_MTL_RELEASE(device); }
 
-FvResult MetalWrapper::descriptorPoolCreate(
-    FvDescriptorPool *descriptorPool,
-    const FvDescriptorPoolCreateInfo *createInfo) {
-    FvResult result = FV_RESULT_FAILURE;
+FvResult
+MetalWrapper::descriptorSetCreate(FvDescriptorSet *descriptorSet,
+                                  const FvDescriptorSetCreateInfo *createInfo) {
+    if (descriptorSet == nullptr || createInfo == nullptr) {
+        return FV_RESULT_FAILURE;
+    }
 
-    if (descriptorPool != nullptr && createInfo != nullptr) {
-        DescriptorPoolWrapper descriptorPoolWrapper;
+    DescriptorSetWrapper descriptorSetWrapper;
 
-        descriptorPoolWrapper.maxSets = createInfo->maxSets;
+    // Loop thru the descriptors we've been asked to create and add them to the
+    // descriptor set
+    for (uint32_t i = 0; i < createInfo->descriptorCount; ++i) {
+        FvDescriptorInfo descriptorInfo = createInfo->descriptors[i];
 
-        for (uint32_t i = 0; i < createInfo->poolSizeCount; ++i) {
-            DescriptorPoolWrapper::Pool pool;
+        switch (descriptorInfo.descriptorType) {
+        case FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER: {
+            DescriptorBufferBinding bufferBinding;
+            bufferBinding.descriptorInfo    = descriptorInfo;
+            bufferBinding.bufferInfo.buffer = FV_NULL_HANDLE;
+            bufferBinding.bufferInfo.offset = 0;
+            bufferBinding.bufferInfo.range  = 0;
 
-            pool.descriptorSetsType = createInfo->poolSizes[i].descriptorType;
-
-            descriptorPoolWrapper.pools.push_back(pool);
+            descriptorSetWrapper.bufferBindings.push_back(bufferBinding);
+            break;
         }
+        case FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: {
+            DescriptorImageBinding imageBinding;
+            imageBinding.descriptorInfo    = descriptorInfo;
+            imageBinding.imageInfo.image   = FV_NULL_HANDLE;
+            imageBinding.imageInfo.sampler = FV_NULL_HANDLE;
 
-        const Handle *handle = descriptorPools.add(descriptorPoolWrapper);
-
-        if (handle != nullptr) {
-            *descriptorPool = (FvDescriptorPool)handle;
-            result          = FV_RESULT_SUCCESS;
+            descriptorSetWrapper.imageBindings.push_back(imageBinding);
+            break;
+        }
+        default:
+            break;
         }
     }
 
-    return result;
+    // Store the descriptor set
+    const Handle *handle = descriptorSets.add(descriptorSetWrapper);
+
+    // Return the descriptor set
+    *descriptorSet = (FvDescriptorSet)handle;
+
+    return FV_RESULT_SUCCESS;
 }
 
-void MetalWrapper::descriptorPoolDestroy(FvDescriptorPool descriptorPool) {
-    const Handle *handle = (const Handle *)descriptorPool;
+void MetalWrapper::descriptorSetDestroy(FvDescriptorSet descriptorSet) {
+    const Handle *handle = (const Handle *)descriptorSet;
 
     if (handle != nullptr) {
-        DescriptorPoolWrapper *descriptorPoolWrapper =
-            descriptorPools.get(*handle);
-
-        if (descriptorPoolWrapper != nullptr) {
-            // Free descriptor sets associated with each pool
-            for (uint32_t i = 0; i < descriptorPoolWrapper->pools.size(); ++i) {
-                for (uint32_t j = 0;
-                     j < descriptorPoolWrapper->pools[i].descriptorSets.size();
-                     ++j) {
-                    // Remove descriptor set from internal store
-                    descriptorSets.remove(
-                        *((const Handle *)descriptorPoolWrapper->pools[i]
-                              .descriptorSets[j]));
-                }
-            }
-        }
-
-        // Remove descriptor pool from internal store
-        descriptorPools.remove(*handle);
+        descriptorSets.remove(*handle);
     }
 }
 
-FvResult MetalWrapper::allocateDescriptorSets(
-    FvDescriptorSet *descriptorSets,
-    const FvDescriptorSetAllocateInfo *allocateInfo) {
-    FvResult result = FV_RESULT_FAILURE;
+// FvResult MetalWrapper::descriptorPoolCreate(
+//     FvDescriptorPool *descriptorPool,
+//     const FvDescriptorPoolCreateInfo *createInfo) {
+//     FvResult result = FV_RESULT_FAILURE;
 
-    if (descriptorSets != nullptr && allocateInfo != nullptr) {
-        // Get descriptor pool to allocate from
-        const Handle *handle = (const Handle *)allocateInfo->descriptorPool;
+//     if (descriptorPool != nullptr && createInfo != nullptr) {
+//         DescriptorPoolWrapper descriptorPoolWrapper;
 
-        if (handle != nullptr) {
-            DescriptorPoolWrapper *descriptorPoolWrapper =
-                descriptorPools.get(*handle);
+//         descriptorPoolWrapper.maxSets = createInfo->maxSets;
 
-            if (descriptorPoolWrapper != nullptr) {
-                // Fill the descriptor set with set layouts
-                for (uint32_t i = 0; i < allocateInfo->descriptorSetCount;
-                     ++i) {
-                    DescriptorSetWrapper descriptorSetWrapper;
+//         for (uint32_t i = 0; i < createInfo->poolSizeCount; ++i) {
+//             DescriptorPoolWrapper::Pool pool;
 
-                    FvDescriptorSetLayout descriptorSetLayoutHandle =
-                        allocateInfo->setLayouts[i];
-                    descriptorSetWrapper.descriptorSetLayout =
-                        descriptorSetLayoutHandle;
+//             pool.descriptorSetsType =
+//             createInfo->poolSizes[i].descriptorType;
 
-                    // Get descriptor set layout wrapper
-                    DescriptorSetLayoutWrapper *descriptorSetLayoutWrapper =
-                        this->descriptorSetLayouts.get(
-                            *((const Handle *)descriptorSetLayoutHandle));
+//             descriptorPoolWrapper.pools.push_back(pool);
+//         }
 
-                    if (descriptorSetLayoutWrapper != nullptr) {
-                        // Loop thru each binding and ensure an appropriate pool
-                        // can be found to allocate the binding
-                        for (uint32_t j = 0;
-                             j < descriptorSetLayoutWrapper
-                                     ->descriptorSetLayoutBindings.size();
-                             ++j) {
-                            FvDescriptorType descriptorType =
-                                descriptorSetLayoutWrapper
-                                    ->descriptorSetLayoutBindings[j]
-                                    .descriptorType;
+//         const Handle *handle = descriptorPools.add(descriptorPoolWrapper);
 
-                            bool poolFound = false;
-                            for (uint32_t k = 0;
-                                 k < descriptorPoolWrapper->pools.size(); ++k) {
-                                if (descriptorType ==
-                                    descriptorPoolWrapper->pools[k]
-                                        .descriptorSetsType) {
-                                    poolFound = true;
-                                    // Add descriptor set to internal store
-                                    const Handle *handle =
-                                        this->descriptorSets.add(
-                                            descriptorSetWrapper);
+//         if (handle != nullptr) {
+//             *descriptorPool = (FvDescriptorPool)handle;
+//             result          = FV_RESULT_SUCCESS;
+//         }
+//     }
 
-                                    if (handle != nullptr) {
-                                        // Return handle
-                                        descriptorSets[i] =
-                                            (FvDescriptorSet)handle;
+//     return result;
+// }
 
-                                        // Add handle to descriptor pool
-                                        descriptorPoolWrapper->pools[k]
-                                            .descriptorSets.push_back(
-                                                (FvDescriptorSet)handle);
+// void MetalWrapper::descriptorPoolDestroy(FvDescriptorPool descriptorPool) {
+//     const Handle *handle = (const Handle *)descriptorPool;
 
-                                        result = FV_RESULT_SUCCESS;
-                                    }
+//     if (handle != nullptr) {
+//         DescriptorPoolWrapper *descriptorPoolWrapper =
+//             descriptorPools.get(*handle);
 
-                                    break;
-                                }
-                            }
+//         if (descriptorPoolWrapper != nullptr) {
+//             // Free descriptor sets associated with each pool
+//             for (uint32_t i = 0; i < descriptorPoolWrapper->pools.size();
+//             ++i) {
+//                 for (uint32_t j = 0;
+//                      j <
+//                      descriptorPoolWrapper->pools[i].descriptorSets.size();
+//                      ++j) {
+//                     // Remove descriptor set from internal store
+//                     descriptorSets.remove(
+//                         *((const Handle *)descriptorPoolWrapper->pools[i]
+//                               .descriptorSets[j]));
+//                 }
+//             }
+//         }
 
-                            if (!poolFound) {
-                                return FV_RESULT_FAILURE;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+//         // Remove descriptor pool from internal store
+//         descriptorPools.remove(*handle);
+//     }
+// }
 
-    return result;
-}
+// FvResult MetalWrapper::allocateDescriptorSets(
+//     FvDescriptorSet *descriptorSets,
+//     const FvDescriptorSetAllocateInfo *allocateInfo) {
+//     FvResult result = FV_RESULT_FAILURE;
+
+//     if (descriptorSets != nullptr && allocateInfo != nullptr) {
+//         // Get descriptor pool to allocate from
+//         const Handle *handle = (const Handle *)allocateInfo->descriptorPool;
+
+//         if (handle != nullptr) {
+//             DescriptorPoolWrapper *descriptorPoolWrapper =
+//                 descriptorPools.get(*handle);
+
+//             if (descriptorPoolWrapper != nullptr) {
+//                 // Fill the descriptor set with set layouts
+//                 for (uint32_t i = 0; i < allocateInfo->descriptorSetCount;
+//                      ++i) {
+//                     DescriptorSetWrapper descriptorSetWrapper;
+
+//                     FvDescriptorSetLayout descriptorSetLayoutHandle =
+//                         allocateInfo->setLayouts[i];
+//                     descriptorSetWrapper.descriptorSetLayout =
+//                         descriptorSetLayoutHandle;
+
+//                     // Get descriptor set layout wrapper
+//                     DescriptorSetLayoutWrapper *descriptorSetLayoutWrapper =
+//                         this->descriptorSetLayouts.get(
+//                             *((const Handle *)descriptorSetLayoutHandle));
+
+//                     if (descriptorSetLayoutWrapper != nullptr) {
+//                         // Loop thru each binding and ensure an appropriate
+//                         pool
+//                         // can be found to allocate the binding
+//                         for (uint32_t j = 0;
+//                              j < descriptorSetLayoutWrapper
+//                                      ->descriptorSetLayoutBindings.size();
+//                              ++j) {
+//                             FvDescriptorType descriptorType =
+//                                 descriptorSetLayoutWrapper
+//                                     ->descriptorSetLayoutBindings[j]
+//                                     .descriptorType;
+
+//                             bool poolFound = false;
+//                             for (uint32_t k = 0;
+//                                  k < descriptorPoolWrapper->pools.size();
+//                                  ++k) {
+//                                 if (descriptorType ==
+//                                     descriptorPoolWrapper->pools[k]
+//                                         .descriptorSetsType) {
+//                                     poolFound = true;
+//                                     // Add descriptor set to internal store
+//                                     const Handle *handle =
+//                                         this->descriptorSets.add(
+//                                             descriptorSetWrapper);
+
+//                                     if (handle != nullptr) {
+//                                         // Return handle
+//                                         descriptorSets[i] =
+//                                             (FvDescriptorSet)handle;
+
+//                                         // Add handle to descriptor pool
+//                                         descriptorPoolWrapper->pools[k]
+//                                             .descriptorSets.push_back(
+//                                                 (FvDescriptorSet)handle);
+
+//                                         result = FV_RESULT_SUCCESS;
+//                                     }
+
+//                                     break;
+//                                 }
+//                             }
+
+//                             if (!poolFound) {
+//                                 return FV_RESULT_FAILURE;
+//                             }
+//                         }
+//                     }
+//                 }
+//             }
+//         }
+//     }
+
+//     return result;
+// }
 
 void MetalWrapper::updateDescriptorSets(
     uint32_t descriptorWriteCount,
     const FvWriteDescriptorSet *descriptorWrites) {
+    // For each write
     for (uint32_t i = 0; i < descriptorWriteCount; ++i) {
         FvWriteDescriptorSet write = descriptorWrites[i];
 
-        // Get descriptor set
+        // Get descriptor set to write to
         DescriptorSetWrapper *descSet =
             descriptorSets.get(*((const Handle *)write.dstSet));
 
-        // Get descriptor set layout
-        DescriptorSetLayoutWrapper *descSetLayout = descriptorSetLayouts.get(
-            *((const Handle *)descSet->descriptorSetLayout));
+        // Find which descriptor to write to in descriptor set using binding
+        // point as key
+        switch (write.descriptorType) {
+        case FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER: {
+            DescriptorBufferBinding *bufferBinding =
+                descSet->getBufferBinding(write.dstBinding);
 
-        // Find binding in descriptor set
-        FvDescriptorSetLayoutBinding *descSetBinding = nullptr;
-        for (uint32_t j = 0;
-             j < descSetLayout->descriptorSetLayoutBindings.size(); ++j) {
-            descSetBinding = &descSetLayout->descriptorSetLayoutBindings[j];
-
-            if (descSetBinding->binding == write.dstBinding &&
-                descSetBinding->descriptorType == write.descriptorType) {
-                break;
-            } else {
-                descSetBinding = nullptr;
+            if (bufferBinding != nullptr) {
+                bufferBinding->bufferInfo = *(write.bufferInfo);
             }
+            break;
         }
+        case FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: {
+            DescriptorImageBinding *imageBinding =
+                descSet->getImageBinding(write.dstBinding);
 
-        // If we found binding in descriptor set
-        if (descSetBinding != nullptr) {
-            switch (write.descriptorType) {
-            case FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER: {
-                // Create buffer binding info struct
-                DescriptorBufferBinding bufferBinding;
-                bufferBinding.binding    = *descSetBinding;
-                bufferBinding.bufferInfo = *(write.bufferInfo);
-
-                // Add binding to descriptor set
-                descSet->bufferBindings.push_back(bufferBinding);
-                break;
+            if (imageBinding != nullptr) {
+                imageBinding->imageInfo = *(write.imageInfo);
             }
-            case FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: {
-                // Create image binding info struct
-                DescriptorImageBinding imageBinding;
-                imageBinding.binding   = *descSetBinding;
-                imageBinding.imageInfo = *(write.imageInfo);
-
-                // Add binding to descriptor set
-                descSet->imageBindings.push_back(imageBinding);
-                break;
-            }
-            default:
-                break;
-            }
+            break;
+        }
+        default:
+            break;
         }
     }
 }
 
-FvResult MetalWrapper::descriptorSetLayoutCreate(
-    FvDescriptorSetLayout *descriptorSetLayout,
-    const FvDescriptorSetLayoutCreateInfo *createInfo) {
-    FvResult result = FV_RESULT_FAILURE;
+// FvResult MetalWrapper::descriptorSetLayoutCreate(
+//     FvDescriptorSetLayout *descriptorSetLayout,
+//     const FvDescriptorSetLayoutCreateInfo *createInfo) {
+//     FvResult result = FV_RESULT_FAILURE;
 
-    if (descriptorSetLayout != nullptr && createInfo != nullptr) {
-        DescriptorSetLayoutWrapper descriptorSetLayoutWrapper;
+//     if (descriptorSetLayout != nullptr && createInfo != nullptr) {
+//         DescriptorSetLayoutWrapper descriptorSetLayoutWrapper;
 
-        for (uint32_t i = 0; i < createInfo->bindingCount; ++i) {
-            descriptorSetLayoutWrapper.descriptorSetLayoutBindings.push_back(
-                createInfo->bindings[i]);
-        }
+//         for (uint32_t i = 0; i < createInfo->bindingCount; ++i) {
+//             descriptorSetLayoutWrapper.descriptorSetLayoutBindings.push_back(
+//                 createInfo->bindings[i]);
+//         }
 
-        const Handle *handle =
-            descriptorSetLayouts.add(descriptorSetLayoutWrapper);
+//         const Handle *handle =
+//             descriptorSetLayouts.add(descriptorSetLayoutWrapper);
 
-        if (handle != nullptr) {
-            *descriptorSetLayout = (FvDescriptorSetLayout)handle;
-            result               = FV_RESULT_SUCCESS;
-        }
-    }
+//         if (handle != nullptr) {
+//             *descriptorSetLayout = (FvDescriptorSetLayout)handle;
+//             result               = FV_RESULT_SUCCESS;
+//         }
+//     }
 
-    return result;
-}
+//     return result;
+// }
 
-void MetalWrapper::descriptorSetLayoutDestroy(
-    FvDescriptorSetLayout descriptorSetLayout) {
-    const Handle *handle = (const Handle *)descriptorSetLayout;
+// void MetalWrapper::descriptorSetLayoutDestroy(
+//     FvDescriptorSetLayout descriptorSetLayout) {
+//     const Handle *handle = (const Handle *)descriptorSetLayout;
 
-    if (handle != nullptr) {
-        descriptorSetLayouts.remove(*handle);
-    }
-}
+//     if (handle != nullptr) {
+//         descriptorSetLayouts.remove(*handle);
+//     }
+// }
 
 FvResult MetalWrapper::bufferCreate(FvBuffer *buffer,
                                     const FvBufferCreateInfo *createInfo) {
@@ -265,11 +306,11 @@ FvResult MetalWrapper::bufferCreate(FvBuffer *buffer,
 
         if (createInfo->data == nullptr) {
             mtlBuffer =
-                [device newBufferWithLength:createInfo->size options:nil];
+                [device newBufferWithLength:createInfo->size options: 0];
         } else {
             mtlBuffer = [device newBufferWithBytes:createInfo->data
                                             length:createInfo->size
-                                           options:nil];
+                                           options: 0];
         }
 
         BufferWrapper bufferWrapper;
@@ -607,13 +648,13 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
 
                                 if (bufferWrapper != nullptr) {
                                     FvShaderStage stageFlags =
-                                        bufferBinding.binding.stageFlags;
+                                        bufferBinding.descriptorInfo.stageFlags;
                                     id<MTLBuffer> mtlBufferToBind =
                                         bufferWrapper->mtlBuffer;
                                     FvSize offset =
                                         bufferBinding.bufferInfo.offset;
                                     uint32_t bindingPoint =
-                                        bufferBinding.binding.binding;
+                                        bufferBinding.descriptorInfo.binding;
 
                                     if (stageFlags & FV_SHADER_STAGE_VERTEX) {
                                         [encoder setVertexBuffer:mtlBufferToBind
@@ -644,11 +685,11 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
 
                                 if (imageWrapper != nullptr) {
                                     FvShaderStage stageFlags =
-                                        imageBinding.binding.stageFlags;
+                                        imageBinding.descriptorInfo.stageFlags;
                                     id<MTLTexture> mtlImageToBind =
                                         imageWrapper->texture;
                                     uint32_t bindingPoint =
-                                        imageBinding.binding.binding;
+                                        imageBinding.descriptorInfo.binding;
                                     id<MTLSamplerState> *mtlSamplerState =
                                         samplers.get(
                                             *((const Handle *)imageBinding
@@ -755,14 +796,15 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
 
                                         if (bufferWrapper != nullptr) {
                                             FvShaderStage stageFlags =
-                                                bufferBinding.binding
+                                                bufferBinding.descriptorInfo
                                                     .stageFlags;
                                             id<MTLBuffer> mtlBufferToBind =
                                                 bufferWrapper->mtlBuffer;
                                             FvSize offset =
                                                 bufferBinding.bufferInfo.offset;
                                             uint32_t bindingPoint =
-                                                bufferBinding.binding.binding;
+                                                bufferBinding.descriptorInfo
+                                                    .binding;
 
                                             if (stageFlags &
                                                 FV_SHADER_STAGE_VERTEX) {
@@ -801,11 +843,13 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
 
                                         if (imageWrapper != nullptr) {
                                             FvShaderStage stageFlags =
-                                                imageBinding.binding.stageFlags;
+                                                imageBinding.descriptorInfo
+                                                    .stageFlags;
                                             id<MTLTexture> mtlImageToBind =
                                                 imageWrapper->texture;
                                             uint32_t bindingPoint =
-                                                imageBinding.binding.binding;
+                                                imageBinding.descriptorInfo
+                                                    .binding;
                                             id<MTLSamplerState>
                                                 *mtlSamplerState = samplers.get(
                                                     *((const Handle *)
@@ -1670,7 +1714,7 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                                 ->vertexBindingDescriptions[iBindingDesc];
 
                         mtlVertexDescriptor.layouts[iBindingDesc].stepFunction =
-                            toMtlStepFunction(bindingDesc.inputRate);
+                            toMtlVertexStepFunction(bindingDesc.inputRate);
                         mtlVertexDescriptor.layouts[iBindingDesc].stride =
                             bindingDesc.stride;
                         // mtlVertexDescriptor.layouts[iBindingDesc].stepRate
@@ -2151,16 +2195,17 @@ MTLIndexType MetalWrapper::toMtlIndexType(FvIndexType indexType) {
     return mtlIndexType;
 }
 
-MTLStepFunction MetalWrapper::toMtlStepFunction(FvVertexInputRate inputRate) {
-    MTLStepFunction stepFunction = MTLStepFunctionConstant;
+MTLVertexStepFunction
+MetalWrapper::toMtlVertexStepFunction(FvVertexInputRate inputRate) {
+    MTLVertexStepFunction stepFunction = MTLVertexStepFunctionConstant;
 
     switch (inputRate) {
     case FV_VERTEX_INPUT_RATE_VERTEX: {
-        stepFunction = MTLStepFunctionPerVertex;
+        stepFunction = MTLVertexStepFunctionPerVertex;
         break;
     }
     case FV_VERTEX_INPUT_RATE_INSTANCE: {
-        stepFunction = MTLStepFunctionPerInstance;
+        stepFunction = MTLVertexStepFunctionPerInstance;
         break;
     }
     default:

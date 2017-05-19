@@ -6,4 +6,5 @@
 -I/Users/sam/Documents/code/gfx/Fever/src/libs/stb_image
 -I/Users/sam/Documents/code/gfx/Fever/src/libs/tiny_obj
 -isystem/usr/local/include
+-std=gnu++11
 -std=gnu++14

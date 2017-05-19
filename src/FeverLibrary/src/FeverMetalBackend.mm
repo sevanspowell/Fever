@@ -232,21 +232,6 @@ void fvFramebufferDestroy(FvFramebuffer framebuffer) {
     }
 }
 
-FvResult fvImageViewCreate(FvImageView *imageView,
-                           const FvImageViewCreateInfo *createInfo) {
-    if (metalWrapper != nullptr) {
-        return metalWrapper->imageViewCreate(imageView, createInfo);
-    } else {
-        return FV_RESULT_FAILURE;
-    }
-}
-
-void fvImageViewDestroy(FvImageView imageView) {
-    if (metalWrapper != nullptr) {
-        metalWrapper->imageViewDestroy(imageView);
-    }
-}
-
 FvResult fvImageCreate(FvImage *image, const FvImageCreateInfo *createInfo) {
     if (metalWrapper != nullptr) {
         return metalWrapper->imageCreate(image, createInfo);

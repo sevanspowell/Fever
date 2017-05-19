@@ -94,19 +94,6 @@ template <> struct hash<Vertex> {
 };
 }
 
-// const std::vector<Vertex> vertices = {
-//     {{-0.5f, 0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-//     {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-//     {{-0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
-//     {{0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}},
-
-//     {{-0.5f, 0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-//     {{0.5f, -0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-//     {{-0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
-//     {{0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}}};
-
-// const std::vector<uint16_t> indices = {0, 2, 1, 1, 3, 0, 4, 6, 5, 5, 7, 4};
-
 struct UniformBufferObject {
     glm::mat4 model;
     glm::mat4 view;
@@ -184,7 +171,6 @@ class HelloTriangleApplication {
   private:
     void initFever() {
         createSwapchain();
-        createImageView();
         createRenderPass();
         createDescriptorSetLayout();
         createGraphicsPipeline();
@@ -192,7 +178,6 @@ class HelloTriangleApplication {
         createDepthResources();
         createFramebuffer();
         createTextureImage();
-        createTextureImageView();
         createTextureSampler();
         loadModel();
         createVertexBuffer();
@@ -283,7 +268,6 @@ class HelloTriangleApplication {
         fvDeviceWaitIdle();
 
         createSwapchain();
-        createImageView();
         createDepthResources();
         createRenderPass();
         createGraphicsPipeline();
@@ -387,20 +371,8 @@ class HelloTriangleApplication {
         fvBufferReplaceData(uniformBuffer, &ubo, sizeof(ubo));
     }
 
-    void createImageView() {
-        FvImageViewCreateInfo imageViewInfo{};
-        imageViewInfo.image    = swapchainImage;
-        imageViewInfo.viewType = FV_IMAGE_VIEW_TYPE_2D;
-        imageViewInfo.format   = FV_FORMAT_BGRA8UNORM;
-
-        if (fvImageViewCreate(imageView.replace(), &imageViewInfo) !=
-            FV_RESULT_SUCCESS) {
-            throw std::runtime_error("Failed to create image view!");
-        }
-    }
-
     void createFramebuffer() {
-        std::array<FvImageView, 2> attachments = {imageView, depthImageView};
+        std::array<FvImage, 2> attachments = {swapchainImage, depthImage};
 
         FvFramebufferCreateInfo framebufferInfo = {};
         framebufferInfo.renderPass              = renderPass;
@@ -462,18 +434,6 @@ class HelloTriangleApplication {
                              0);
 
         stbi_image_free(pixels);
-    }
-
-    void createTextureImageView() {
-        FvImageViewCreateInfo imageViewInfo = {};
-        imageViewInfo.image                 = textureImage;
-        imageViewInfo.viewType              = FV_IMAGE_VIEW_TYPE_2D;
-        imageViewInfo.format                = FV_FORMAT_RGBA8UNORM;
-
-        if (fvImageViewCreate(textureImageView.replace(), &imageViewInfo) !=
-            FV_RESULT_SUCCESS) {
-            throw std::runtime_error("Failed to create texture image view!");
-        }
     }
 
     void createTextureSampler() {
@@ -610,7 +570,7 @@ class HelloTriangleApplication {
         bufferInfo.range                  = sizeof(UniformBufferObject);
 
         FvDescriptorImageInfo imageInfo = {};
-        imageInfo.imageView             = textureImageView;
+        imageInfo.image = textureImage;
         imageInfo.sampler               = textureSampler;
 
         std::array<FvWriteDescriptorSet, 2> descriptorWrites = {};
@@ -773,16 +733,6 @@ class HelloTriangleApplication {
             FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to create depth image!");
         }
-
-        FvImageViewCreateInfo imageViewInfo = {};
-        imageViewInfo.image                 = depthImage;
-        imageViewInfo.viewType              = FV_IMAGE_VIEW_TYPE_2D;
-        imageViewInfo.format                = FV_FORMAT_DEPTH32FLOAT;
-
-        if (fvImageViewCreate(depthImageView.replace(), &imageViewInfo) !=
-            FV_RESULT_SUCCESS) {
-            throw std::runtime_error("Failed to create depth image view!");
-        }
     }
 
     void drawFrame() {
@@ -895,7 +845,6 @@ class HelloTriangleApplication {
     FvImage swapchainImage; // TODO: wrap in FDeleter?
     FDeleter<FvSemaphore> imageAvailableSemaphore{fvSemaphoreDestroy};
     FDeleter<FvSemaphore> renderFinishedSemaphore{fvSemaphoreDestroy};
-    FDeleter<FvImageView> imageView{fvImageViewDestroy};
 
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
@@ -908,10 +857,8 @@ class HelloTriangleApplication {
     FDeleter<FvDescriptorPool> descriptorPool{fvDescriptorPoolDestroy};
     FvDescriptorSet descriptorSet;
     FDeleter<FvImage> textureImage{fvImageDestroy};
-    FDeleter<FvImageView> textureImageView{fvImageViewDestroy};
     FDeleter<FvSampler> textureSampler{fvSamplerDestroy};
     FDeleter<FvImage> depthImage{fvImageDestroy};
-    FDeleter<FvImageView> depthImageView{fvImageViewDestroy};
 };
 
 int main(void) {

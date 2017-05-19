@@ -585,8 +585,7 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
             // texture is a drawable. If it is, back it with the current
             // drawable.
             for (uint32_t k = 0; k < pipeline->colorAttachments.size(); ++k) {
-                if (commandBufferWrapper->attachments[k].referencesDrawable ==
-                    true) {
+                if (commandBufferWrapper->attachments[k].isDrawable == true) {
                     pipeline->renderPass.colorAttachments[k].texture =
                         currentDrawable.texture;
                 }
@@ -676,16 +675,15 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                                         ->imageBindings[iImageBinding];
 
                                 // Get image to bind
-                                ImageViewWrapper *imageViewWrapper =
-                                    textureViews.get(*(
-                                        (const Handle *)
-                                            imageBinding.imageInfo.imageView));
+                                ImageWrapper *imageWrapper = textures.get(
+                                    *((const Handle *)
+                                          imageBinding.imageInfo.image));
 
-                                if (imageViewWrapper != nullptr) {
+                                if (imageWrapper != nullptr) {
                                     FvShaderStage stageFlags =
                                         imageBinding.binding.stageFlags;
                                     id<MTLTexture> mtlImageToBind =
-                                        imageViewWrapper->texture;
+                                        imageWrapper->texture;
                                     uint32_t bindingPoint =
                                         imageBinding.binding.binding;
                                     id<MTLSamplerState> *mtlSamplerState =
@@ -833,16 +831,16 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                                                 ->imageBindings[iImageBinding];
 
                                         // Get image to bind
-                                        ImageViewWrapper *imageViewWrapper =
-                                            textureViews.get(
+                                        ImageWrapper *imageWrapper =
+                                            textures.get(
                                                 *((const Handle *)imageBinding
-                                                      .imageInfo.imageView));
+                                                      .imageInfo.image));
 
-                                        if (imageViewWrapper != nullptr) {
+                                        if (imageWrapper != nullptr) {
                                             FvShaderStage stageFlags =
                                                 imageBinding.binding.stageFlags;
                                             id<MTLTexture> mtlImageToBind =
-                                                imageViewWrapper->texture;
+                                                imageWrapper->texture;
                                             uint32_t bindingPoint =
                                                 imageBinding.binding.binding;
                                             id<MTLSamplerState>
@@ -1040,13 +1038,13 @@ void MetalWrapper::cmdBindGraphicsPipeline(
     if (pipelineWrapper->stencilAttachment.size() == 1) {
         uint32_t attachmentIndex =
             pipelineWrapper->stencilAttachment[0].attachment;
-        
+
         pipelineWrapper->renderPass.stencilAttachment.texture =
-        commandBufferWrapper->attachments[attachmentIndex].texture;
-        
+            commandBufferWrapper->attachments[attachmentIndex].texture;
+
         pipelineWrapper->renderPass.stencilAttachment.clearStencil =
-        commandBufferWrapper->clearValues[attachmentIndex]
-        .depthStencil.stencil;
+            commandBufferWrapper->clearValues[attachmentIndex]
+                .depthStencil.stencil;
     }
 
     // Associate graphics pipeline with command buffer
@@ -1346,10 +1344,10 @@ MetalWrapper::framebufferCreate(FvFramebuffer *framebuffer,
         const Handle *handle = (const Handle *)createInfo->attachments[i];
 
         if (handle != nullptr) {
-            ImageViewWrapper *textureView = textureViews.get(*handle);
+            ImageWrapper *texture = textures.get(*handle);
 
-            if (textureView != nullptr) {
-                framebufferWrapper.attachments.push_back(*textureView);
+            if (texture != nullptr) {
+                framebufferWrapper.attachments.push_back(*texture);
             }
         }
     }
@@ -1371,70 +1369,6 @@ void MetalWrapper::framebufferDestroy(FvFramebuffer framebuffer) {
 
     if (handle != nullptr) {
         framebuffers.remove(*handle);
-    }
-}
-
-FvResult
-MetalWrapper::imageViewCreate(FvImageView *imageView,
-                              const FvImageViewCreateInfo *createInfo) {
-    if (createInfo == nullptr || imageView == nullptr) {
-        return FV_RESULT_FAILURE;
-    }
-
-    // Get texture this texture view will be sharing a storage allocation with.
-    id<MTLTexture> texture = nil;
-    bool isDrawable        = false;
-    const Handle *handle   = (const Handle *)createInfo->image;
-
-    if (handle != nullptr) {
-        ImageWrapper *texturePtr = textures.get(*handle);
-
-        if (texturePtr != nullptr) {
-            texture    = texturePtr->texture;
-            isDrawable = texturePtr->isDrawable;
-        }
-    }
-
-    ImageViewWrapper imageViewWrapper;
-
-    if (texture == nil && isDrawable == false) {
-        return FV_RESULT_FAILURE;
-    } else if (isDrawable == true) {
-        // We only acquire a drawable and create it's texture when we need it.
-        imageViewWrapper.referencesDrawable = true;
-        imageViewWrapper.texture            = nil;
-    } else if (texture != nil && isDrawable == false) {
-        id<MTLTexture> textureView = [texture
-            newTextureViewWithPixelFormat:toMtlPixelFormat(createInfo->format)];
-
-        imageViewWrapper.texture            = textureView;
-        imageViewWrapper.referencesDrawable = isDrawable;
-    }
-
-    // Store texture view and return handle
-    handle = textureViews.add(imageViewWrapper);
-
-    if (handle != nullptr) {
-        *imageView = (FvImageView)handle;
-    } else {
-        return FV_RESULT_FAILURE;
-    }
-
-    return FV_RESULT_SUCCESS;
-}
-
-void MetalWrapper::imageViewDestroy(FvImageView imageView) {
-    const Handle *handle = (const Handle *)imageView;
-
-    if (handle != nullptr) {
-        ImageViewWrapper *textureView = textureViews.get(*handle);
-
-        // Destroy texture view
-        if (textureView != nullptr) {
-            FV_MTL_RELEASE(textureView->texture);
-        }
-
-        textureViews.remove(*handle);
     }
 }
 
@@ -1480,11 +1414,15 @@ FvResult MetalWrapper::imageCreate(FvImage *image,
     textureDesc.sampleCount      = toMtlSampleCount(createInfo->samples);
     textureDesc.arrayLength      = createInfo->arrayLayers;
     textureDesc.usage            = toMtlTextureUsage(createInfo->usage);
-    
-    // Depth, Stencil, DepthStencil and Multisample textures must be allocated with the MTLResourceStorageModePrivate resource option.
-    if (textureDesc.pixelFormat == MTLPixelFormatDepth16Unorm || textureDesc.pixelFormat == MTLPixelFormatDepth32Float || textureDesc.pixelFormat == MTLPixelFormatDepth24Unorm_Stencil8 || textureDesc.pixelFormat == MTLPixelFormatDepth32Float_Stencil8 || textureDesc.sampleCount > 1) {
+
+    // Depth, Stencil, DepthStencil and Multisample textures must be allocated
+    // with the MTLResourceStorageModePrivate resource option.
+    if (textureDesc.pixelFormat == MTLPixelFormatDepth16Unorm ||
+        textureDesc.pixelFormat == MTLPixelFormatDepth32Float ||
+        textureDesc.pixelFormat == MTLPixelFormatDepth24Unorm_Stencil8 ||
+        textureDesc.pixelFormat == MTLPixelFormatDepth32Float_Stencil8 ||
+        textureDesc.sampleCount > 1) {
         textureDesc.storageMode = MTLStorageModePrivate;
-        
     }
 
     // Create texture
@@ -1659,7 +1597,7 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                     graphicsPipelineWrapper.depthAttachment =
                         subpassWrapper.depthAttachment;
                     graphicsPipelineWrapper.stencilAttachment =
-                    subpassWrapper.stencilAttachment;
+                        subpassWrapper.stencilAttachment;
 
                     // Copy render pass descriptor from subpass
                     graphicsPipelineWrapper.renderPass =
@@ -2082,8 +2020,10 @@ MetalWrapper::renderPassCreate(FvRenderPass *renderPass,
                 mtlRenderPassDescriptor.stencilAttachment.storeAction =
                     toMtlStoreAction(depthStencilAttachment.stencilStoreOp);
 
-                MTLPixelFormat stencilPixelFormat = toMtlPixelFormat(depthStencilAttachment.format);
-                if (stencilPixelFormat == MTLPixelFormatDepth24Unorm_Stencil8 || stencilPixelFormat == MTLPixelFormatDepth32Float_Stencil8) {
+                MTLPixelFormat stencilPixelFormat =
+                    toMtlPixelFormat(depthStencilAttachment.format);
+                if (stencilPixelFormat == MTLPixelFormatDepth24Unorm_Stencil8 ||
+                    stencilPixelFormat == MTLPixelFormatDepth32Float_Stencil8) {
                     mtlRenderPipelineDescriptor.stencilAttachmentPixelFormat =
                         stencilPixelFormat;
                 }
@@ -2104,20 +2044,22 @@ MetalWrapper::renderPassCreate(FvRenderPass *renderPass,
 
             if (subpassDescription.depthStencilAttachment != nullptr) {
                 uint32_t depthStencilAttachmentIndex =
-                subpassDescription.depthStencilAttachment->attachment;
-                
+                    subpassDescription.depthStencilAttachment->attachment;
+
                 FvAttachmentDescription depthStencilAttachment =
-                createInfo->attachments[depthStencilAttachmentIndex];
-                
+                    createInfo->attachments[depthStencilAttachmentIndex];
+
                 // Add depth attachment reference
                 subpassWrapper.depthAttachment.push_back(
-                                                         *subpassDescription.depthStencilAttachment);
-                
+                    *subpassDescription.depthStencilAttachment);
+
                 // Only add stencil attachment reference if using
-                MTLPixelFormat stencilPixelFormat = toMtlPixelFormat(depthStencilAttachment.format);
-                if (stencilPixelFormat == MTLPixelFormatDepth24Unorm_Stencil8 || stencilPixelFormat == MTLPixelFormatDepth32Float_Stencil8) {
+                MTLPixelFormat stencilPixelFormat =
+                    toMtlPixelFormat(depthStencilAttachment.format);
+                if (stencilPixelFormat == MTLPixelFormatDepth24Unorm_Stencil8 ||
+                    stencilPixelFormat == MTLPixelFormatDepth32Float_Stencil8) {
                     subpassWrapper.stencilAttachment.push_back(
-                                                             *subpassDescription.depthStencilAttachment);
+                        *subpassDescription.depthStencilAttachment);
                 }
             }
 

@@ -18,6 +18,8 @@ target_include_directories(Fever
 
 set_property(TARGET Fever PROPERTY C_STANDARD_REQUIRED ON)
 set_property(TARGET Fever PROPERTY C_STANDARD 99)
+set_property(TARGET Fever PROPERTY CXX_STANDARD_REQUIRED ON)
+set_property(TARGET Fever PROPERTY CXX_STANDARD 11)
 
 # target_compile_features(Fever
 #   )

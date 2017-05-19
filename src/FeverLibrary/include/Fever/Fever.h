@@ -366,86 +366,101 @@ typedef struct FvPipelineVertexInputDescription {
     const FvVertexInputAttributeDescription *vertexAttributeDescriptions;
 } FvPipelineVertexInputDescription;
 
-FV_DEFINE_HANDLE(FvDescriptorSetLayout);
+FV_DEFINE_HANDLE(FvDescriptorSet);
 
-/** Descriptor set layout binding information */
-typedef struct FvDescriptorSetLayoutBinding {
-    /** Binding point. */
+/**
+ * Information about a descriptor (a shader uniform). This information is used
+ * to create a descriptor set, which is an aggregrate of one or more
+ * descriptors. The graphics pipeline only accepts descriptor sets as bindings.
+*/
+typedef struct FvDescriptorInfo {
+    /**
+     * Binding point in the shader - use the shader reflection system to get
+     * this.
+     */
     uint32_t binding;
     /** Type of the descriptor. */
     FvDescriptorType descriptorType;
-    /** Number of descriptors contained in the binding, this appears as an array
-     * in the shader. */
-    uint32_t descriptorCount;
-    /** Bitmask specifying which stages of the shader pipeline can use the
-     * resource(s) attached to this binding. */
-    FvShaderStage stageFlags;
-} FvDescriptorSetLayoutBinding;
-
-typedef struct FvDescriptorSetLayoutCreateInfo {
-    /** Number of elements in \p bindings. */
-    uint32_t bindingCount;
-    /** Array of descriptor set layout binding structures. */
-    const FvDescriptorSetLayoutBinding *bindings;
-} FvDescriptorSetLayoutCreateInfo;
-
-extern FvResult
-fvDescriptorSetLayoutCreate(FvDescriptorSetLayout *descriptorSetLayout,
-                            const FvDescriptorSetLayoutCreateInfo *createInfo);
-
-extern void
-fvDescriptorSetLayoutDestroy(FvDescriptorSetLayout descriptorSetLayout);
-
-FV_DEFINE_HANDLE(FvDescriptorPool);
-
-/** Structure to specify the number of descriptor sets that can be contained
- * within a descriptor pool. */
-typedef struct FvDescriptorPoolSize {
-    /** Type of the descriptor. */
-    FvDescriptorType descriptorType;
-    /** Number of descriptors to allocate memory for. */
-    uint32_t descriptorCount;
-} FvDescriptorPoolSize;
-
-/** Structure to define the properties of a new descriptor pool. */
-typedef struct FvDescriptorPoolCreateInfo {
-    /** Maximum number of descriptor sets that can be allocated from the pool.
+    /**
+     * Number of descriptors contained in the binding, this appears as an array
+     * in the shader. You can just set this to 1 if your shader uniform is not
+     * an array.
      */
-    uint32_t maxSets;
-    /** Number of elements in \p poolSizes array. */
-    uint32_t poolSizeCount;
-    /** Array of structures describing size of each pool. */
-    const FvDescriptorPoolSize *poolSizes;
-} FvDescriptorPoolCreateInfo;
-
-extern FvResult
-fvDescriptorPoolCreate(FvDescriptorPool *descriptorPool,
-                       const FvDescriptorPoolCreateInfo *createInfo);
-
-extern void fvDescriptorPoolDestroy(FvDescriptorPool descriptorPool);
-
-FV_DEFINE_HANDLE(FvDescriptorSet);
-
-/** Structure used to create and allocate space for descriptor sets. */
-typedef struct FvDescriptorSetAllocateInfo {
-    /** Descriptor pool to allocate descriptor sets from. */
-    FvDescriptorPool descriptorPool;
-    /** Number of descriptor sets in \p setLayouts array. */
-    uint32_t descriptorSetCount;
-    /** Array of descriptor set layouts to allocate memory for. */
-    FvDescriptorSetLayout *setLayouts;
-} FvDescriptorSetAllocatInfo;
+    uint32_t descriptorCount;
+    /**
+     * Bitmask specifying which stages of the shader pipeline this descriptor
+     * will be bound to.
+     */
+    FvShaderStage stageFlags;
+} FvDescriptorInfo;
 
 /**
- * Allocate one to many descriptor sets.
- *
- * \param allocateInfo Information used to properly allocate descriptor sets.
- * \param [out] descriptorSets Allocated descriptor sets ready to write to.
- * \return FV_RESULT_SUCCESS on success, FV_RESULT_FAILURE on failure.
+ * Information used to create a descriptor set, which is just a collection of
+ * individual descriptors.
  */
+typedef struct FvDescriptorSetCreateInfo {
+    /** Number of elements in \p descriptors. */
+    uint32_t descriptorCount;
+    /**
+     * Array of descriptors to create and associate with this descriptor set.
+     */
+    const FvDescriptorInfo *descriptors;
+} FvDescriptorSetCreateInfo;
+
 extern FvResult
-fvAllocateDescriptorSets(FvDescriptorSet *descriptorSets,
-                         const FvDescriptorSetAllocateInfo *allocateInfo);
+fvDescriptorSetCreate(FvDescriptorSet *descriptorSet,
+                      const FvDescriptorSetCreateInfo *createInfo);
+
+extern void fvDescriptorSetDestroy(FvDescriptorSet descriptorSet);
+
+/* FV_DEFINE_HANDLE(FvDescriptorPool); */
+
+/* /\** Structure to specify the number of descriptor sets that can be contained */
+/*  * within a descriptor pool. *\/ */
+/* typedef struct FvDescriptorPoolSize { */
+/*     /\** Type of the descriptor. *\/ */
+/*     FvDescriptorType descriptorType; */
+/*     /\** Number of descriptors to allocate memory for. *\/ */
+/*     uint32_t descriptorCount; */
+/* } FvDescriptorPoolSize; */
+
+/* /\** Structure to define the properties of a new descriptor pool. *\/ */
+/* typedef struct FvDescriptorPoolCreateInfo { */
+/*     /\** Maximum number of descriptor sets that can be allocated from the pool. */
+/*      *\/ */
+/*     uint32_t maxSets; */
+/*     /\** Number of elements in \p poolSizes array. *\/ */
+/*     uint32_t poolSizeCount; */
+/*     /\** Array of structures describing size of each pool. *\/ */
+/*     const FvDescriptorPoolSize *poolSizes; */
+/* } FvDescriptorPoolCreateInfo; */
+
+/* extern FvResult */
+/* fvDescriptorPoolCreate(FvDescriptorPool *descriptorPool, */
+/*                        const FvDescriptorPoolCreateInfo *createInfo); */
+
+/* extern void fvDescriptorPoolDestroy(FvDescriptorPool descriptorPool); */
+
+/* /\** Structure used to create and allocate space for descriptor sets. *\/ */
+/* typedef struct FvDescriptorSetAllocateInfo { */
+/*     /\** Descriptor pool to allocate descriptor sets from. *\/ */
+/*     FvDescriptorPool descriptorPool; */
+/*     /\** Number of descriptor sets in \p setLayouts array. *\/ */
+/*     uint32_t descriptorSetCount; */
+/*     /\** Array of descriptor set layouts to allocate memory for. *\/ */
+/*     FvDescriptorSetLayout *setLayouts; */
+/* } FvDescriptorSetAllocatInfo; */
+
+/* /\** */
+/*  * Allocate one to many descriptor sets. */
+/*  * */
+/*  * \param allocateInfo Information used to properly allocate descriptor sets. */
+/*  * \param [out] descriptorSets Allocated descriptor sets ready to write to. */
+/*  * \return FV_RESULT_SUCCESS on success, FV_RESULT_FAILURE on failure. */
+/*  *\/ */
+/* extern FvResult */
+/* fvAllocateDescriptorSets(FvDescriptorSet *descriptorSets, */
+/*                          const FvDescriptorSetAllocateInfo *allocateInfo); */
 
 /** Information about the buffer tied to a descriptor set. */
 typedef struct FvDescriptorBufferInfo {
@@ -489,7 +504,11 @@ typedef struct FvWriteDescriptorSet {
     const FvDescriptorImageInfo *imageInfo;
 } FvWriteDescriptorSet;
 
-/** Update the contents of one to many descriptor sets. */
+/**
+ * Update the contents of one to many descriptor sets. If any particular write
+ * fails for any reason, this function will simply skip that write and fulfill
+ * as many of the other write requests as it can.
+ */
 extern void
 fvUpdateDescriptorSets(uint32_t descriptorWriteCount,
                        const FvWriteDescriptorSet *descriptorWrites);
@@ -506,12 +525,12 @@ typedef struct FvPushConstantRange {
 } FvPushConstantRange;
 
 /** Used to specify uniform values in shader. Describes complete set of
-    resources that can be accessed by a pipline. */
+    resources that can be accessed by a pipeline. */
 typedef struct FvPipelineLayoutCreateInfo {
-    /** Number of set layouts */
-    uint32_t setLayoutCount;
-    /** Array of descriptor set layouts */
-    FvDescriptorSetLayout *setLayouts;
+    /** Number of descriptor sets in \p descriptor sets array */
+    uint32_t descriptorSetCount;
+    /** Array of descriptor sets */
+    FvDescriptorSet *descriptorSets;
     /** Number of push constant ranges */
     uint32_t pushConstantRangeCount;
     /** Array of push constant ranges */

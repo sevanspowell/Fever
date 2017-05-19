@@ -14,7 +14,6 @@
  *===----------------------------------------------------------------------===*/
 #pragma once
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -23,6 +22,12 @@
 
 #define FV_NULL_HANDLE 0
 #define FV_DEFINE_HANDLE(object) typedef struct object##_t *object;
+
+#define FV_FALSE 0
+#define FV_TRUE 1
+
+/** True/False - MUST take on only FV_FALSE and FV_TRUE values. */
+typedef uint32_t FvBool;
 
 /** For use with memory sizes and offset values. */
 typedef uint64_t FvSize;
@@ -186,11 +191,11 @@ typedef struct FvSamplerCreateInfo {
     /** Bias to be added to mipmap level-of-detail calculations. */
     float mipLodBias;
     /** Whether or not anisotropic filtering is enabled. */
-    bool anisotropyEnable;
+    FvBool anisotropyEnable;
     /** Clamp the anisotropy at the value. */
     float maxAnisotropy;
     /** Enables comparison against a reference value during texture lookups. */
-    bool compareEnable;
+    FvBool compareEnable;
     /** Comparison function to apply to data before filtering. */
     FvCompareFunc compareFunc;
     /** Clamp the computed level of detail. \p minLod must be less than \p
@@ -204,7 +209,7 @@ typedef struct FvSamplerCreateInfo {
     /** False: range of image coordinates is [0, imageDimensionsXYZ].
      *  True: range of image coordinates is [0, 1].
      */
-    bool normalizedCoordinates;
+    FvBool normalizedCoordinates;
 } FvSamplerCreateInfo;
 
 extern FvResult fvSamplerCreate(FvSampler *sampler,
@@ -237,9 +242,9 @@ typedef struct FvPipelineDepthStencilStateDescription {
      */
     FvCompareFunc depthCompareFunc;
     /** True if depth writing to attachment is enabled, false otherwise. */
-    bool depthWriteEnable;
+    FvBool depthWriteEnable;
     /** True if stencil test should be enabled, false otherwise. */
-    bool stencilTestEnable;
+    FvBool stencilTestEnable;
     /** Stencil descriptor for back-facing primitives. */
     FvStencilOperationState backFaceStencil;
     /** Stencil descriptor for front-facing primitives. */
@@ -249,7 +254,7 @@ typedef struct FvPipelineDepthStencilStateDescription {
 typedef struct FvColorBlendAttachmentState {
     /** True if blending is enabled, false otherwise. If disabled, source
      * fragment's color for this attachment is not modified. */
-    bool blendEnable;
+    FvBool blendEnable;
     /** Source blend factor to be used by color blend operation */
     FvBlendFactor srcColorBlendFactor;
     /** Destination blend factor to be used by color blend operation */
@@ -306,9 +311,9 @@ configure
 typedef struct FvPipelineRasterizerDescription {
     /** Clamp fragments beyond near and far planes instead of discarding
 them */
-    bool depthClampEnable;
+    FvBool depthClampEnable;
     /** If true, geometry never passes through rasterizer stage */
-    /* bool rasterizerDiscardEnable; */
+    /* FvBool rasterizerDiscardEnable; */
     /** Cull front or back faces or none */
     FvCullMode cullMode;
     /** Winding order of front-facing primitives */
@@ -322,7 +327,7 @@ typedef struct FvPipelineInputAssemblyDescription {
     /** If true the assembly is restarted if a special index value is
      * encountered (0xFFFFFFFF when index type is 32-bit uint or 0xFFFF when
      * index type is 16-bit uint). Is not allowed for 'list' primitive types. */
-    bool primitiveRestartEnable;
+    FvBool primitiveRestartEnable;
 } FvPipelineInputAssemblyDescription;
 
 /** Describes at what rate to load vertex data from memory */

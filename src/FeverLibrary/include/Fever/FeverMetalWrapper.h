@@ -360,7 +360,7 @@ class MetalWrapper {
 
     static MTLBlendOperation toMtlBlendOperation(FvBlendOp op);
 
-    static BOOL toObjCBool(bool b);
+    static BOOL toObjCBool(FvBool b);
 
     static MTLWinding toMtlWindingOrder(FvWindingOrder winding);
 

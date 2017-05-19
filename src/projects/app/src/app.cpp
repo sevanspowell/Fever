@@ -443,13 +443,13 @@ class HelloTriangleApplication {
         samplerInfo.addressModeU          = FV_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo.addressModeV          = FV_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo.addressModeW          = FV_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.anisotropyEnable      = true;
+        samplerInfo.anisotropyEnable      = FV_TRUE;
         samplerInfo.maxAnisotropy         = 16;
         samplerInfo.borderColor           = FV_BORDER_COLOR_INT_OPAQUE_BLACK;
-        samplerInfo.compareEnable         = false;
+        samplerInfo.compareEnable         = FV_FALSE;
         samplerInfo.compareFunc           = FV_COMPARE_FUNC_ALWAYS;
         samplerInfo.mipmapMode            = FV_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerInfo.normalizedCoordinates = true;
+        samplerInfo.normalizedCoordinates = FV_TRUE;
 
         if (fvSamplerCreate(textureSampler.replace(), &samplerInfo) !=
             FV_RESULT_SUCCESS) {
@@ -638,7 +638,7 @@ class HelloTriangleApplication {
 
         FvPipelineInputAssemblyDescription inputAssembly = {};
         inputAssembly.primitiveType          = FV_PRIMITIVE_TYPE_TRIANGLE_LIST;
-        inputAssembly.primitiveRestartEnable = true;
+        inputAssembly.primitiveRestartEnable = FV_TRUE;
 
         FvViewport viewport = {};
         viewport.x          = 0.0f;
@@ -658,18 +658,18 @@ class HelloTriangleApplication {
         viewportState.scissor                       = scissor;
 
         FvPipelineRasterizerDescription rasterizer = {};
-        rasterizer.depthClampEnable                = false;
-        /* rasterizer.rasterizerDiscardEnable         = false; */
+        rasterizer.depthClampEnable                = FV_FALSE;
+        /* rasterizer.rasterizerDiscardEnable         = FV_FALSE; */
         rasterizer.cullMode    = FV_CULL_MODE_BACK;
         rasterizer.frontFacing = FV_WINDING_ORDER_COUNTER_CLOCKWISE;
 
         FvPipelineDepthStencilStateDescription depthStencil = {};
-        depthStencil.depthWriteEnable                       = true;
+        depthStencil.depthWriteEnable                       = FV_TRUE;
         depthStencil.depthCompareFunc  = FV_COMPARE_FUNC_LESS;
-        depthStencil.stencilTestEnable = false;
+        depthStencil.stencilTestEnable = FV_FALSE;
 
         FvColorBlendAttachmentState colorBlendAttachment = {};
-        colorBlendAttachment.blendEnable                 = false;
+        colorBlendAttachment.blendEnable                 = FV_FALSE;
         colorBlendAttachment.colorWriteMask = (FvColorComponentFlags)(
             FV_COLOR_COMPONENT_R | FV_COLOR_COMPONENT_G | FV_COLOR_COMPONENT_B |
             FV_COLOR_COMPONENT_A);

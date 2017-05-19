@@ -1479,7 +1479,7 @@ FvResult MetalWrapper::samplerCreate(FvSampler *sampler,
         samplerDescriptor.lodMaxClamp   = createInfo->maxLod;
         samplerDescriptor.maxAnisotropy = createInfo->maxAnisotropy;
         samplerDescriptor.normalizedCoordinates =
-            createInfo->normalizedCoordinates;
+            toObjCBool(createInfo->normalizedCoordinates);
         samplerDescriptor.compareFunction =
             toMtlCompareFunction(createInfo->compareFunc);
         samplerDescriptor.borderColor =
@@ -1737,7 +1737,8 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                         mtlDepthStencilDesc.depthWriteEnabled =
                             toObjCBool(depthStencilDesc.depthWriteEnable);
 
-                        if (depthStencilDesc.stencilTestEnable) {
+                        if (toObjCBool(depthStencilDesc.stencilTestEnable) ==
+                            YES) {
                             mtlDepthStencilDesc.backFaceStencil
                                 .stencilFailureOperation =
                                 toMtlStencilOperation(
@@ -1814,8 +1815,9 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                         graphicsPipelineWrapper.windingOrder =
                             toMtlWindingOrder(rasterizer.frontFacing);
                         graphicsPipelineWrapper.depthClipMode =
-                            rasterizer.depthClampEnable ? MTLDepthClipModeClamp
-                                                        : MTLDepthClipModeClip;
+                            rasterizer.depthClampEnable == FV_TRUE
+                                ? MTLDepthClipModeClamp
+                                : MTLDepthClipModeClip;
                     } else {
                         result = FV_RESULT_FAILURE;
                     }
@@ -1859,7 +1861,7 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                         // restart
                         // AFAIK
                         if (inputAssemblyDescription.primitiveRestartEnable ==
-                            false) {
+                            FV_FALSE) {
                             printf("Primitive restart cannot be false in "
                                    "Metal "
                                    "backed.\n");
@@ -2453,7 +2455,7 @@ MTLBlendOperation MetalWrapper::toMtlBlendOperation(FvBlendOp op) {
     return blendOperation;
 }
 
-BOOL MetalWrapper::toObjCBool(bool b) { return (b ? YES : NO); }
+BOOL MetalWrapper::toObjCBool(FvBool b) { return (b == FV_FALSE ? NO : YES); }
 
 MTLWinding MetalWrapper::toMtlWindingOrder(FvWindingOrder winding) {
     MTLWinding windingOrder = MTLWindingClockwise;

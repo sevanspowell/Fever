@@ -816,23 +816,10 @@ extern void fvGetSwapchainImage(FvSwapchain swapchain, FvImage *swapchainImage);
  * \param swapchain Swapchain to acquire drawable image from.
  * \param imageAvailableSemaphore Semaphore that will be signaled when image is
  * available.
- * \param [out] imageIndex Index of available image in swapchain.
  * \return FV_RESULT_SUCCESS if success, FV_RESULT_FAILURE otherwise.
  */
 extern FvResult fvAcquireNextImage(FvSwapchain swapchain,
-                                   FvSemaphore imageAvailableSemaphore,
-                                   uint32_t *imageIndex);
-
-/* FV_DEFINE_HANDLE(FvSemaphore); */
-
-/* typedef struct FvSemaphoreCreateInfo { */
-
-/* } FvSemaphoreCreateInfo; */
-
-/* extern void fvCreateSemaphore(FvSemaphore *semaphore, */
-/*                               const FvSemaphoreCreateInfo *createInfo); */
-
-/* extern void fvAcquireNextImage(uint32_t *imageIndex); */
+                                   FvSemaphore imageAvailableSemaphore);
 
 typedef struct FvSubmitInfo {
     /** Number of semaphores to wait on */

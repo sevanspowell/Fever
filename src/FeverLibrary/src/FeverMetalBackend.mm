@@ -16,8 +16,8 @@
 #import <QuartzCore/CAMetalLayer.h>
 
 #include <Fever/Fever.h>
-#include <Fever/FeverSurfaceAcquisition.h>
 #include <Fever/FeverMetalWrapper.h>
+#include <Fever/FeverSurfaceAcquisition.h>
 
 static fv::MetalWrapper *metalWrapper = nullptr;
 
@@ -113,11 +113,10 @@ void fvGetSwapchainImage(FvSwapchain swapchain, FvImage *swapchainImage) {
 }
 
 FvResult fvAcquireNextImage(FvSwapchain swapchain,
-                            FvSemaphore imageAvailableSemaphore,
-                            uint32_t *imageIndex) {
+                            FvSemaphore imageAvailableSemaphore) {
     if (metalWrapper != nullptr) {
-        return metalWrapper->acquireNextImage(
-            swapchain, imageAvailableSemaphore, imageIndex);
+        return metalWrapper->acquireNextImage(swapchain,
+                                              imageAvailableSemaphore);
     } else {
         return FV_RESULT_FAILURE;
     }

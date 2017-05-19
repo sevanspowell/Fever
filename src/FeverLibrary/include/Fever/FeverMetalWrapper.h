@@ -203,8 +203,7 @@ class MetalWrapper {
         : metalLayer(NULL), device(nil), libraries(MAX_NUM_LIBRARIES),
           renderPasses(MAX_NUM_RENDER_PASSES),
           graphicsPipelines(MAX_NUM_GRAPHICS_PIPELINES),
-          textures(MAX_NUM_TEXTURES), 
-          framebuffers(MAX_NUM_FRAMEBUFFERS),
+          textures(MAX_NUM_TEXTURES), framebuffers(MAX_NUM_FRAMEBUFFERS),
           commandQueues(MAX_NUM_COMMAND_QUEUES),
           commandBuffers(MAX_NUM_COMMAND_BUFFERS),
           semaphores(MAX_NUM_SEMAPHORES), swapchains(MAX_NUM_SWAPCHAINS),
@@ -247,8 +246,7 @@ class MetalWrapper {
     void semaphoreDestroy(FvSemaphore semaphore);
 
     FvResult acquireNextImage(FvSwapchain swapchain,
-                              FvSemaphore imageAvailableSemaphore,
-                              uint32_t *imageIndex);
+                              FvSemaphore imageAvailableSemaphore);
 
     FvResult createSwapchain(FvSwapchain *swapchain,
                              const FvSwapchainCreateInfo *createInfo);

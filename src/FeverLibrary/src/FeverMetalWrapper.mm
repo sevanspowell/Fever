@@ -349,39 +349,7 @@ void MetalWrapper::semaphoreDestroy(FvSemaphore semaphore) {
 }
 
 FvResult MetalWrapper::acquireNextImage(FvSwapchain swapchain,
-                                        FvSemaphore imageAvailableSemaphore,
-                                        uint32_t *imageIndex) {
-    // TODO Get the swapchain to use
-
-    // Find index of first available image in swapchain
-    // uint32_t availableImageIndex = 0;
-    // bool foundIndex              = false;
-    // for (uint32_t i = 0; i < currentSwapchain.size(); ++i) {
-    //     if (currentSwapchain[i] == nil) {
-    //         availableImageIndex = i;
-    //         foundIndex          = true;
-    //     }
-    // }
-
-    // If can't find index, add a new image to swapchain
-    // NOTE we also restrict the number of swapchain images to 3 as Metal is
-    // by-default triple-buffered
-    // if (foundIndex == false && currentSwapchain.size() < 3) {
-    //     currentSwapchain.push_back(nil);
-    //     availableImageIndex = currentSwapchain.size() - 1;
-    //     foundIndex          = true;
-    // }
-
-    // foundIndex = true;
-
-    // if (foundIndex == false) {
-    //     // Not enough images free, can't acquire another
-    //     return FV_RESULT_FAILURE;
-    // }
-
-    // // Get next drawable and add to swapchain
-    // currentSwapchain[availableImageIndex] = [metalLayer nextDrawable];
-    // currentDrawable = currentSwapchain[availableImageIndex];
+                                        FvSemaphore imageAvailableSemaphore) {
     const Handle *handle = (const Handle *)swapchain;
 
     if (handle == nullptr) {
@@ -397,11 +365,6 @@ FvResult MetalWrapper::acquireNextImage(FvSwapchain swapchain,
     metalLayer.drawableSize = drawableSize;
 
     currentDrawable = [metalLayer nextDrawable];
-
-    if (imageIndex != nullptr) {
-        // *imageIndex = availableImageIndex;
-        *imageIndex = 0;
-    }
 
     // Signal semaphore immediately
     // (Metal nextDrawable is blocking and so when it returns, image is ready)

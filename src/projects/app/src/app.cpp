@@ -18,8 +18,8 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_syswm.h>
@@ -37,8 +37,8 @@
 #include <tiny_obj_loader.h>
 
 #include <Fever/Fever.h>
-#include <Fever/FeverSurfaceAcquisition.h>
 #include <Fever/FeverPlatform.h>
+#include <Fever/FeverSurfaceAcquisition.h>
 
 struct Vertex {
     glm::vec3 pos;
@@ -570,7 +570,7 @@ class HelloTriangleApplication {
         bufferInfo.range                  = sizeof(UniformBufferObject);
 
         FvDescriptorImageInfo imageInfo = {};
-        imageInfo.image = textureImage;
+        imageInfo.image                 = textureImage;
         imageInfo.sampler               = textureSampler;
 
         std::array<FvWriteDescriptorSet, 2> descriptorWrites = {};
@@ -737,8 +737,8 @@ class HelloTriangleApplication {
 
     void drawFrame() {
         uint32_t imageIndex;
-        if (fvAcquireNextImage(swapchain, imageAvailableSemaphore,
-                               &imageIndex) != FV_RESULT_SUCCESS) {
+        if (fvAcquireNextImage(swapchain, imageAvailableSemaphore) !=
+            FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to acquire image!");
         }
 
@@ -892,8 +892,7 @@ int main(void) {
 
 #if FV_PLATFORM_MACOS
         FvMacOSSurfaceCreateInfo surfaceCreateInfo;
-        surfaceCreateInfo.nsWindow =
-            (void *)windowInfo.info.cocoa.window;
+        surfaceCreateInfo.nsWindow = (void *)windowInfo.info.cocoa.window;
 
         if (fvCreateMacOSSurface(surface.replace(), &surfaceCreateInfo) !=
             FV_RESULT_SUCCESS) {

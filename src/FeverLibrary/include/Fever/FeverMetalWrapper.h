@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <string>
 
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
@@ -18,6 +19,17 @@ namespace fv {
         obj = nil;                                                             \
     } while (0)
 // clang-format on
+
+struct ShaderArgument {
+    std::string name;
+    uint32_t index;
+};
+
+struct ShaderModuleWrapper {
+    id<MTLLibrary> library;
+    std::vector<ShaderArgument> vertexArgumentReflection;
+    std::vector<ShaderArgument> fragmentArgumentReflection;
+};
 
 struct ImageWrapper {
     ImageWrapper() : isDrawable(false), texture(nil) {}
@@ -367,12 +379,17 @@ class MetalWrapper {
     FvResult shaderModuleCreate(FvShaderModule *shaderModule,
                                 const FvShaderModuleCreateInfo *createInfo);
 
+    FvResult
+    shaderModuleGetBindingPoint(uint32_t *bindingPoint,
+                                const FvShaderReflectionRequest *request);
+
     void shaderModuleDestroy(FvShaderModule shaderModule);
 
   private:
     static MTLIndexType toMtlIndexType(FvIndexType indexType);
 
-    static MTLVertexStepFunction toMtlVertexStepFunction(FvVertexInputRate inputRate);
+    static MTLVertexStepFunction
+    toMtlVertexStepFunction(FvVertexInputRate inputRate);
 
     static MTLVertexFormat toMtlVertexFormat(FvVertexFormat format);
 
@@ -416,7 +433,7 @@ class MetalWrapper {
     CAMetalLayer *metalLayer;
     id<MTLDevice> device;
 
-    PersistentHandleDataStore<id<MTLLibrary>> libraries;
+    PersistentHandleDataStore<ShaderModuleWrapper> libraries;
     PersistentHandleDataStore<RenderPassWrapper> renderPasses;
     PersistentHandleDataStore<GraphicsPipelineWrapper> graphicsPipelines;
     PersistentHandleDataStore<ImageWrapper> textures;

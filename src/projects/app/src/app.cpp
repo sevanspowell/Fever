@@ -347,33 +347,63 @@ class HelloTriangleApplication {
             throw std::runtime_error("Failed to create vertex buffer!");
         }
     }
-    
+
     void writeDescriptorSet() {
         FvDescriptorBufferInfo bufferInfo = {};
         bufferInfo.buffer                 = uniformBuffer;
         bufferInfo.offset                 = 0;
         bufferInfo.range                  = sizeof(UniformBufferObject);
-        
+
         FvDescriptorImageInfo imageInfo = {};
         imageInfo.image                 = textureImage;
         imageInfo.sampler               = textureSampler;
-        
+
+        // Get shader reflection information
+        FvShaderReflectionRequest uniformBufferRequest;
+        uniformBufferRequest.bindingName  = "ubo";
+        uniformBufferRequest.shaderStage  = FV_SHADER_STAGE_VERTEX;
+        uniformBufferRequest.shaderModule = shaderModule;
+        uint32_t uniformBufferBindingPoint;
+
+        if (fvShaderModuleGetBindingPoint(&uniformBufferBindingPoint,
+                                          &uniformBufferRequest) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error(
+                "Failed to find uniform buffer binding point in shader!");
+        }
+
+        FvShaderReflectionRequest diffuseTextureRequest;
+        diffuseTextureRequest.bindingName  = "diffuseTexture";
+        diffuseTextureRequest.shaderStage  = FV_SHADER_STAGE_FRAGMENT;
+        diffuseTextureRequest.shaderModule = shaderModule;
+        uint32_t diffuseTextureBindingPoint;
+
+        if (fvShaderModuleGetBindingPoint(&diffuseTextureBindingPoint,
+                                          &diffuseTextureRequest) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error(
+                "Failed to find diffuse texture binding point in shader!");
+        }
+
+        std::cout << uniformBufferBindingPoint << " "
+                  << diffuseTextureBindingPoint << std::endl;
+
         std::array<FvWriteDescriptorSet, 2> descriptorWrites = {};
         descriptorWrites[0].dstSet          = descriptorSet;
-        descriptorWrites[0].dstBinding      = 1;
+        descriptorWrites[0].dstBinding      = uniformBufferBindingPoint;
         descriptorWrites[0].dstArrayElement = 0;
         descriptorWrites[0].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptorWrites[0].descriptorCount = 1;
         descriptorWrites[0].bufferInfo      = &bufferInfo;
-        
+
         descriptorWrites[1].dstSet          = descriptorSet;
-        descriptorWrites[1].dstBinding      = 0;
+        descriptorWrites[1].dstBinding      = diffuseTextureBindingPoint;
         descriptorWrites[1].dstArrayElement = 0;
         descriptorWrites[1].descriptorType =
-        FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         descriptorWrites[1].descriptorCount = 1;
         descriptorWrites[1].imageInfo       = &imageInfo;
-        
+
         fvUpdateDescriptorSets(descriptorWrites.size(),
                                descriptorWrites.data());
     }
@@ -536,65 +566,27 @@ class HelloTriangleApplication {
         }
     }
 
-    void createDescriptorSetLayout() {
-           }
-
-    void createDescriptorPool() {
-        // std::array<FvDescriptorPoolSize, 2> poolSizes = {};
-        // poolSizes[0].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        // poolSizes[0].descriptorCount = 1;
-        // poolSizes[1].descriptorType =
-        // FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        // poolSizes[1].descriptorCount = 1;
-
-        // FvDescriptorPoolCreateInfo poolInfo = {};
-        // poolInfo.poolSizeCount              = poolSizes.size();
-        // poolInfo.poolSizes                  = poolSizes.data();
-        // poolInfo.maxSets                    = 1;
-
-        // if (fvDescriptorPoolCreate(descriptorPool.replace(), &poolInfo) !=
-        //     FV_RESULT_SUCCESS) {
-        //     throw std::runtime_error("Failed to create descriptor pool!");
-        // }
-    }
-
     void createDescriptorSet() {
-        // FvDescriptorSetLayout layouts[]       = {descriptorSetLayout};
-        // FvDescriptorSetAllocateInfo allocInfo = {};
-        // allocInfo.descriptorPool              = descriptorPool;
-        // allocInfo.descriptorSetCount          = 1;
-        // allocInfo.setLayouts                  = layouts;
-
-        // if (fvAllocateDescriptorSets(&descriptorSet, &allocInfo) !=
-        //     FV_RESULT_SUCCESS) {
-        //     throw std::runtime_error("Failed to allocate descriptor set!");
-        // }
         FvDescriptorInfo uboLayoutBinding = {};
         uboLayoutBinding.binding          = 1;
         uboLayoutBinding.descriptorType   = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         uboLayoutBinding.descriptorCount  = 1;
         uboLayoutBinding.stageFlags       = FV_SHADER_STAGE_VERTEX;
-        
+
         FvDescriptorInfo samplerLayoutBinding = {};
         samplerLayoutBinding.binding          = 0;
         samplerLayoutBinding.descriptorCount  = 1;
         samplerLayoutBinding.descriptorType =
-        FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         samplerLayoutBinding.stageFlags = FV_SHADER_STAGE_FRAGMENT;
-        
+
         std::array<FvDescriptorInfo, 2> descriptors = {uboLayoutBinding,
-            samplerLayoutBinding};
-        
+                                                       samplerLayoutBinding};
+
         FvDescriptorSetCreateInfo descriptorSetInfo = {};
         descriptorSetInfo.descriptorCount           = descriptors.size();
         descriptorSetInfo.descriptors               = descriptors.data();
-        
-        // if (fvDescriptorSetLayoutCreate(descriptorSetLayout.replace(),
-        //                                 &layoutInfo) != FV_RESULT_SUCCESS) {
-        //     throw std::runtime_error("Failed to create descriptor set
-        //     layout!");
-        // }
-        
+
         if (fvDescriptorSetCreate(descriptorSet.replace(),
                                   &descriptorSetInfo) != FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to create descriptor set");
@@ -603,11 +595,8 @@ class HelloTriangleApplication {
 
     void createGraphicsPipeline() {
         std::vector<char> shaderCode =
-
             readFile("src/projects/app/assets/hello-ubos.metal");
         shaderCode.push_back('\0');
-
-        FDeleter<FvShaderModule> shaderModule{fvShaderModuleDestroy};
 
         FvShaderModuleCreateInfo shaderModuleCreateInfo = {};
         shaderModuleCreateInfo.data = (void *)shaderCode.data();
@@ -745,7 +734,6 @@ class HelloTriangleApplication {
     }
 
     void drawFrame() {
-        uint32_t imageIndex;
         if (fvAcquireNextImage(swapchain, imageAvailableSemaphore) !=
             FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to acquire image!");
@@ -774,7 +762,6 @@ class HelloTriangleApplication {
         presentInfo.swapchainCount     = 1;
         FvSwapchain swapchains[]       = {swapchain};
         presentInfo.swapchains         = swapchains;
-        presentInfo.imageIndices       = &imageIndex;
 
         fvQueuePresent(&presentInfo);
     }
@@ -865,6 +852,8 @@ class HelloTriangleApplication {
     FDeleter<FvImage> textureImage{fvImageDestroy};
     FDeleter<FvSampler> textureSampler{fvSamplerDestroy};
     FDeleter<FvImage> depthImage{fvImageDestroy};
+
+    FDeleter<FvShaderModule> shaderModule{fvShaderModuleDestroy};
 };
 
 int main(void) {

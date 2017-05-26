@@ -305,12 +305,11 @@ FvResult MetalWrapper::bufferCreate(FvBuffer *buffer,
         id<MTLBuffer> mtlBuffer = nil;
 
         if (createInfo->data == nullptr) {
-            mtlBuffer =
-                [device newBufferWithLength:createInfo->size options: 0];
+            mtlBuffer = [device newBufferWithLength:createInfo->size options:0];
         } else {
             mtlBuffer = [device newBufferWithBytes:createInfo->data
                                             length:createInfo->size
-                                           options: 0];
+                                           options:0];
         }
 
         BufferWrapper bufferWrapper;
@@ -470,7 +469,7 @@ void MetalWrapper::getSwapchainImage(FvSwapchain swapchain,
 }
 
 void MetalWrapper::queuePresent(const FvPresentInfo *presentInfo) {
-    if (presentInfo != nullptr && presentInfo->imageIndices != nullptr) {
+    if (presentInfo != nullptr) {
         // Wait for semaphores
         for (uint32_t i = 0; i < presentInfo->waitSemaphoreCount; ++i) {
             FvSemaphore semaphore = presentInfo->waitSemaphores[i];
@@ -647,7 +646,7 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                                           bufferBinding.bufferInfo.buffer));
 
                                 if (bufferWrapper != nullptr) {
-                                    FvShaderStage stageFlags =
+                                    int stageFlags =
                                         bufferBinding.descriptorInfo.stageFlags;
                                     id<MTLBuffer> mtlBufferToBind =
                                         bufferWrapper->mtlBuffer;
@@ -684,7 +683,7 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                                           imageBinding.imageInfo.image));
 
                                 if (imageWrapper != nullptr) {
-                                    FvShaderStage stageFlags =
+                                    int stageFlags =
                                         imageBinding.descriptorInfo.stageFlags;
                                     id<MTLTexture> mtlImageToBind =
                                         imageWrapper->texture;
@@ -795,7 +794,7 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                                                       .bufferInfo.buffer));
 
                                         if (bufferWrapper != nullptr) {
-                                            FvShaderStage stageFlags =
+                                            int stageFlags =
                                                 bufferBinding.descriptorInfo
                                                     .stageFlags;
                                             id<MTLBuffer> mtlBufferToBind =
@@ -842,7 +841,7 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                                                       .imageInfo.image));
 
                                         if (imageWrapper != nullptr) {
-                                            FvShaderStage stageFlags =
+                                            int stageFlags =
                                                 imageBinding.descriptorInfo
                                                     .stageFlags;
                                             id<MTLTexture> mtlImageToBind =
@@ -1625,11 +1624,12 @@ FvResult MetalWrapper::graphicsPipelineCreate(
                             Handle *shaderModuleHandle =
                                 (Handle *)shaderStage.shaderModule;
                             if (shaderModuleHandle != nullptr) {
-                                id<MTLLibrary> *library =
+                                ShaderModuleWrapper *shaderModuleWrapper =
                                     libraries.get(*shaderModuleHandle);
 
-                                if (library != nullptr) {
-                                    id<MTLFunction> func = [*library
+                                if (shaderModuleWrapper != nullptr) {
+                                    id<MTLFunction> func = [shaderModuleWrapper
+                                                                ->library
                                         newFunctionWithName:
                                             @(shaderStage.entryFunctionName)];
 
@@ -1743,15 +1743,62 @@ FvResult MetalWrapper::graphicsPipelineCreate(
 
                     // We've now done all the work required to make a
                     // MTLRenderPipelineState object:
-                    NSError *err = nil;
-                    id<MTLRenderPipelineState> mtlRenderPipelineState =
-                        [device newRenderPipelineStateWithDescriptor:
-                                    mtlPipelineDescriptor
-                                                               error:&err];
+                    NSError *err                                      = nil;
+                    MTLRenderPipelineReflection *reflectionInfo       = nil;
+                    id<MTLRenderPipelineState> mtlRenderPipelineState = [device
+                        newRenderPipelineStateWithDescriptor:
+                            mtlPipelineDescriptor
+                                                     options:
+                                                         MTLPipelineOptionBufferTypeInfo
+                                                  reflection:&reflectionInfo
+                                                       error:&err];
+
+                    std::vector<ShaderArgument> vertexArguments;
+                    for (MTLArgument *arg in reflectionInfo.vertexArguments) {
+                        ShaderArgument vertexArgument;
+
+                        vertexArgument.name = [arg.name
+                            cStringUsingEncoding:NSUTF8StringEncoding];
+                        vertexArgument.index = arg.index;
+
+                        vertexArguments.push_back(vertexArgument);
+                    }
+
+                    std::vector<ShaderArgument> fragmentArguments;
+                    for (MTLArgument *arg in reflectionInfo.fragmentArguments) {
+                        ShaderArgument fragmentArgument;
+
+                        fragmentArgument.name = [arg.name
+                            cStringUsingEncoding:NSUTF8StringEncoding];
+                        fragmentArgument.index = arg.index;
+
+                        fragmentArguments.push_back(fragmentArgument);
+                    }
+
+                    // Loop through the shader modules, get their intermediate
+                    // Metal objects and provide them with reflection
+                    // information
+                    for (uint32_t iShaderModule = 0;
+                         iShaderModule < createInfo->stageCount;
+                         ++iShaderModule) {
+                        Handle *shaderModuleHandle =
+                            (Handle *)createInfo->stages[iShaderModule]
+                                .shaderModule;
+
+                        ShaderModuleWrapper *shaderModuleWrapper =
+                            libraries.get(*shaderModuleHandle);
+
+                        if (shaderModuleWrapper != nullptr) {
+                            shaderModuleWrapper->vertexArgumentReflection =
+                                vertexArguments;
+                            shaderModuleWrapper->fragmentArgumentReflection =
+                                fragmentArguments;
+                        }
+                    }
 
                     FV_MTL_RELEASE(mtlVertexDescriptor);
 
-                    if (mtlRenderPipelineState != nil) {
+                    if (mtlRenderPipelineState != nil && err == nil) {
                         graphicsPipelineWrapper.renderPipelineState =
                             mtlRenderPipelineState;
                     } else {
@@ -2136,9 +2183,11 @@ MetalWrapper::shaderModuleCreate(FvShaderModule *shaderModule,
             [device newLibraryWithSource:@((const char *)createInfo->data)
                                  options:options
                                    error:&error];
+        ShaderModuleWrapper shaderModuleWrapper;
+        shaderModuleWrapper.library = library;
 
         if (error == nil) {
-            const Handle *handle = libraries.add(library);
+            const Handle *handle = libraries.add(shaderModuleWrapper);
 
             if (handle != nullptr) {
                 *shaderModule = (FvShaderModule)handle;
@@ -2161,14 +2210,63 @@ MetalWrapper::shaderModuleCreate(FvShaderModule *shaderModule,
     return result;
 }
 
+FvResult MetalWrapper::shaderModuleGetBindingPoint(
+    uint32_t *bindingPoint, const FvShaderReflectionRequest *request) {
+    if (bindingPoint == nullptr || request == nullptr) {
+        return FV_RESULT_FAILURE;
+    }
+
+    Handle *shaderModuleHandle = (Handle *)request->shaderModule;
+
+    if (shaderModuleHandle == nullptr) {
+        return FV_RESULT_FAILURE;
+    }
+
+    const ShaderModuleWrapper *shaderModuleWrapper =
+        libraries.get(*shaderModuleHandle);
+
+    if (shaderModuleWrapper == nullptr) {
+        return FV_RESULT_FAILURE;
+    }
+
+    bool foundArgument = false;
+    if (request->shaderStage == FV_SHADER_STAGE_VERTEX) {
+        for (uint32_t i = 0;
+             i < shaderModuleWrapper->vertexArgumentReflection.size(); ++i) {
+            if (shaderModuleWrapper->vertexArgumentReflection[i].name ==
+                request->bindingName) {
+                *bindingPoint =
+                    shaderModuleWrapper->vertexArgumentReflection[i].index;
+                foundArgument = true;
+            }
+        }
+    } else if (request->shaderStage == FV_SHADER_STAGE_FRAGMENT) {
+        for (uint32_t i = 0;
+             i < shaderModuleWrapper->fragmentArgumentReflection.size(); ++i) {
+            if (shaderModuleWrapper->fragmentArgumentReflection[i].name ==
+                request->bindingName) {
+                *bindingPoint =
+                    shaderModuleWrapper->fragmentArgumentReflection[i].index;
+                foundArgument = true;
+            }
+        }
+    }
+
+    if (foundArgument == false) {
+        return FV_RESULT_FAILURE;
+    }
+
+    return FV_RESULT_SUCCESS;
+}
+
 void MetalWrapper::shaderModuleDestroy(FvShaderModule shaderModule) {
     const Handle *handle = (const Handle *)shaderModule;
 
     if (handle != nullptr) {
         // Destroy library
-        id<MTLLibrary> *lib = libraries.get(*handle);
-        if (lib != nullptr) {
-            FV_MTL_RELEASE(*lib);
+        ShaderModuleWrapper *shaderModuleWrapper = libraries.get(*handle);
+        if (shaderModuleWrapper != nullptr) {
+            FV_MTL_RELEASE(shaderModuleWrapper->library);
         }
 
         // Remove from handle manager

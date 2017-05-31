@@ -103,6 +103,7 @@ extern void fvBufferReplaceData(FvBuffer buffer, void *data, size_t dataSize);
 
 /** Opaque handle to shader object. */
 FV_DEFINE_HANDLE(FvShaderModule);
+FV_DEFINE_HANDLE(FvGraphicsPipeline);
 
 /** Structure specifying creation parameters for a shader. */
 typedef struct FvShaderModuleCreateInfo {
@@ -117,6 +118,25 @@ fvShaderModuleCreate(FvShaderModule *shaderModule,
                      const FvShaderModuleCreateInfo *createInfo);
 
 extern void fvShaderModuleDestroy(FvShaderModule shaderModule);
+
+/** Used to get the binding point of a named shader binding. */
+typedef struct FvShaderReflectionRequest {
+    /** Name of shader binding to get binding point of. */
+    const char *bindingName;
+    /** Stage of the shader pipeline this binding exists in. */
+    FvShaderStage shaderStage;
+    /** Shader module containing shader code to get reflection info. for. */
+    FvShaderModule shaderModule;
+} FvShaderReflectionRequest;
+
+/**
+ * A shader reflection request may only be made after a graphics pipeline using
+ * that shader has been created successfully with 'fvGraphicsPipelineCreate'.
+ * The method will fail if this condition is not satisfied.
+ */
+extern FvResult
+fvShaderModuleGetBindingPoint(uint32_t *bindingPoint,
+                              const FvShaderReflectionRequest *request);
 
 /** Opaque handle to image object. */
 FV_DEFINE_HANDLE(FvImage);
@@ -391,7 +411,7 @@ typedef struct FvDescriptorInfo {
      * Bitmask specifying which stages of the shader pipeline this descriptor
      * will be bound to.
      */
-    FvShaderStage stageFlags;
+    int stageFlags;
 } FvDescriptorInfo;
 
 /**
@@ -415,7 +435,8 @@ extern void fvDescriptorSetDestroy(FvDescriptorSet descriptorSet);
 
 /* FV_DEFINE_HANDLE(FvDescriptorPool); */
 
-/* /\** Structure to specify the number of descriptor sets that can be contained */
+/* /\** Structure to specify the number of descriptor sets that can be contained
+ */
 /*  * within a descriptor pool. *\/ */
 /* typedef struct FvDescriptorPoolSize { */
 /*     /\** Type of the descriptor. *\/ */
@@ -426,7 +447,8 @@ extern void fvDescriptorSetDestroy(FvDescriptorSet descriptorSet);
 
 /* /\** Structure to define the properties of a new descriptor pool. *\/ */
 /* typedef struct FvDescriptorPoolCreateInfo { */
-/*     /\** Maximum number of descriptor sets that can be allocated from the pool. */
+/*     /\** Maximum number of descriptor sets that can be allocated from the
+ * pool. */
 /*      *\/ */
 /*     uint32_t maxSets; */
 /*     /\** Number of elements in \p poolSizes array. *\/ */
@@ -454,8 +476,10 @@ extern void fvDescriptorSetDestroy(FvDescriptorSet descriptorSet);
 /* /\** */
 /*  * Allocate one to many descriptor sets. */
 /*  * */
-/*  * \param allocateInfo Information used to properly allocate descriptor sets. */
-/*  * \param [out] descriptorSets Allocated descriptor sets ready to write to. */
+/*  * \param allocateInfo Information used to properly allocate descriptor sets.
+ */
+/*  * \param [out] descriptorSets Allocated descriptor sets ready to write to.
+ */
 /*  * \return FV_RESULT_SUCCESS on success, FV_RESULT_FAILURE on failure. */
 /*  *\/ */
 /* extern FvResult */
@@ -517,7 +541,7 @@ FV_DEFINE_HANDLE(FvPipelineLayout);
 
 typedef struct FvPushConstantRange {
     /** Bitmask of shader stages that access this range of push constants */
-    FvShaderStage stageFlags;
+    int stageFlags;
     /** Start offset of range (must be multiple of 4) */
     uint32_t offset;
     /** Size of range (must be multiple of 4) */
@@ -883,7 +907,6 @@ typedef struct FvPresentInfo {
     const FvSemaphore *waitSemaphores;
     uint32_t swapchainCount;
     FvSwapchain *swapchains;
-    uint32_t *imageIndices;
 } FvPresentInfo;
 
 /**

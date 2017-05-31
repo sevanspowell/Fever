@@ -372,7 +372,7 @@ class HelloTriangleApplication {
         // ubo.model = glm::rotate(glm::mat4(), time * glm::radians(90.0f),
         //                         glm::vec3(0.0f, 1.0f, 0.0f));
         ubo.model = glm::mat4();
-        ubo.view  = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f),
+        ubo.view  = glm::lookAt(glm::vec3(-0.75f, 0.0f, 2.0f),
                                glm::vec3(0.0f, 0.0f, 0.0f),
                                glm::vec3(0.0f, 1.0f, 0.0f));
         ubo.proj =
@@ -382,7 +382,7 @@ class HelloTriangleApplication {
         glm::mat4 lightRotation =
             glm::rotate(glm::mat4(), time * glm::radians(90.0f),
                         glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.lightPos = lightRotation * glm::vec4(0.3f, 0.0f, 0.1f, 1.0f);
+        ubo.lightPos = lightRotation * glm::vec4(0.3f, 0.0f, 0.2f, 1.0f);
 
         fvBufferReplaceData(uniformBuffer, &ubo, sizeof(ubo));
     }

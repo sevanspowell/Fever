@@ -24,6 +24,9 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_syswm.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
@@ -35,7 +38,8 @@
 
 struct Vertex {
     glm::vec3 pos;
-    glm::vec3 color;
+    glm::vec3 normal;
+    glm::vec2 texCoord;
 
     static FvVertexInputBindingDescription getBindingDescription() {
         FvVertexInputBindingDescription bindingDescription = {};
@@ -46,9 +50,9 @@ struct Vertex {
         return bindingDescription;
     }
 
-    static std::array<FvVertexInputAttributeDescription, 2>
+    static std::array<FvVertexInputAttributeDescription, 3>
     getAttributeDescriptions() {
-        std::array<FvVertexInputAttributeDescription, 2> attributeDescriptions =
+        std::array<FvVertexInputAttributeDescription, 3> attributeDescriptions =
             {};
 
         attributeDescriptions[0].binding  = 0;
@@ -59,7 +63,12 @@ struct Vertex {
         attributeDescriptions[1].binding  = 0;
         attributeDescriptions[1].location = 1;
         attributeDescriptions[1].format   = FV_VERTEX_FORMAT_FLOAT3;
-        attributeDescriptions[1].offset   = offsetof(Vertex, color);
+        attributeDescriptions[1].offset   = offsetof(Vertex, normal);
+
+        attributeDescriptions[2].binding  = 0;
+        attributeDescriptions[2].location = 2;
+        attributeDescriptions[2].format   = FV_VERTEX_FORMAT_FLOAT2;
+        attributeDescriptions[2].offset   = offsetof(Vertex, texCoord);
 
         return attributeDescriptions;
     }
@@ -69,6 +78,8 @@ struct UniformBufferObject {
     glm::mat4 model;
     glm::mat4 view;
     glm::mat4 proj;
+    glm::mat4 invTransposeModel;
+    glm::vec4 lightPos;
 };
 
 /// For automatically freeing Fever resources
@@ -148,6 +159,8 @@ class HelloTriangleApplication {
         createCommandPool();
         createDepthResources();
         createFramebuffer();
+        createTextureImage();
+        createTextureSampler();
         prepareVertices();
         prepareIndices();
         createVertexBuffer();
@@ -156,25 +169,6 @@ class HelloTriangleApplication {
         writeDescriptorSet();
         createCommandBuffer();
         createSemaphores();
-    }
-
-    void createSwapchain() {
-        FvSwapchain oldSwapchain = swapchain;
-
-        FvSwapchainCreateInfo swapchainCreateInfo;
-        swapchainCreateInfo.oldSwapchain  = oldSwapchain;
-        swapchainCreateInfo.extent.width  = outputWidth;
-        swapchainCreateInfo.extent.height = outputHeight;
-
-        FvSwapchain newSwapchain;
-        if (fvCreateSwapchain(&newSwapchain, &swapchainCreateInfo) !=
-            FV_RESULT_SUCCESS) {
-            throw std::runtime_error("Failed to create swapchain!");
-        }
-
-        swapchain = newSwapchain;
-
-        fvGetSwapchainImage(swapchain, &swapchainImage);
     }
 
     void createRenderPass() {
@@ -233,6 +227,25 @@ class HelloTriangleApplication {
         }
     }
 
+    void createSwapchain() {
+        FvSwapchain oldSwapchain = swapchain;
+
+        FvSwapchainCreateInfo swapchainCreateInfo;
+        swapchainCreateInfo.oldSwapchain  = oldSwapchain;
+        swapchainCreateInfo.extent.width  = outputWidth;
+        swapchainCreateInfo.extent.height = outputHeight;
+
+        FvSwapchain newSwapchain;
+        if (fvCreateSwapchain(&newSwapchain, &swapchainCreateInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create swapchain!");
+        }
+
+        swapchain = newSwapchain;
+
+        fvGetSwapchainImage(swapchain, &swapchainImage);
+    }
+
     void recreateSwapchain() {
         fvDeviceWaitIdle();
 
@@ -245,12 +258,13 @@ class HelloTriangleApplication {
     }
 
     void prepareVertices() {
-        vertices = {{{0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},
-                    {{-0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
-                    {{0.0f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}}};
+        vertices = {{{-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}},
+                    {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+                    {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+                    {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}}};
     }
 
-    void prepareIndices() { indices = {2, 1, 0}; }
+    void prepareIndices() { indices = {0, 2, 1, 1, 3, 0}; }
 
     void createVertexBuffer() {
         FvBufferCreateInfo bufferInfo = {};
@@ -294,6 +308,10 @@ class HelloTriangleApplication {
         bufferInfo.offset                 = 0;
         bufferInfo.range                  = sizeof(UniformBufferObject);
 
+        FvDescriptorImageInfo imageInfo = {};
+        imageInfo.image                 = textureImage;
+        imageInfo.sampler               = textureSampler;
+
         // Get shader reflection information
         FvShaderReflectionRequest uniformBufferRequest;
         uniformBufferRequest.bindingName  = "ubo";
@@ -308,13 +326,34 @@ class HelloTriangleApplication {
                 "Failed to find uniform buffer binding point in shader!");
         }
 
-        std::array<FvWriteDescriptorSet, 1> descriptorWrites = {};
+        FvShaderReflectionRequest diffuseTextureRequest;
+        diffuseTextureRequest.bindingName  = "diffuseTexture";
+        diffuseTextureRequest.shaderStage  = FV_SHADER_STAGE_FRAGMENT;
+        diffuseTextureRequest.shaderModule = shaderModule;
+        uint32_t diffuseTextureBindingPoint;
+
+        if (fvShaderModuleGetBindingPoint(&diffuseTextureBindingPoint,
+                                          &diffuseTextureRequest) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error(
+                "Failed to find diffuse texture binding point in shader!");
+        }
+
+        std::array<FvWriteDescriptorSet, 2> descriptorWrites = {};
         descriptorWrites[0].dstSet          = descriptorSet;
         descriptorWrites[0].dstBinding      = uniformBufferBindingPoint;
         descriptorWrites[0].dstArrayElement = 0;
         descriptorWrites[0].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptorWrites[0].descriptorCount = 1;
         descriptorWrites[0].bufferInfo      = &bufferInfo;
+
+        descriptorWrites[1].dstSet          = descriptorSet;
+        descriptorWrites[1].dstBinding      = diffuseTextureBindingPoint;
+        descriptorWrites[1].dstArrayElement = 0;
+        descriptorWrites[1].descriptorType =
+            FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].imageInfo       = &imageInfo;
 
         fvUpdateDescriptorSets(descriptorWrites.size(),
                                descriptorWrites.data());
@@ -330,13 +369,20 @@ class HelloTriangleApplication {
                      1000.0f;
 
         UniformBufferObject ubo = {};
+        // ubo.model = glm::rotate(glm::mat4(), time * glm::radians(90.0f),
+        //                         glm::vec3(0.0f, 1.0f, 0.0f));
         ubo.model = glm::mat4();
-        ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f),
+        ubo.view  = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.0f),
                                glm::vec3(0.0f, 0.0f, 0.0f),
                                glm::vec3(0.0f, 1.0f, 0.0f));
         ubo.proj =
             glm::perspective(glm::radians(45.0f),
                              outputWidth / (float)outputHeight, 0.1f, 10.0f);
+        ubo.invTransposeModel = glm::inverse(glm::transpose(ubo.model));
+        glm::mat4 lightRotation =
+            glm::rotate(glm::mat4(), time * glm::radians(90.0f),
+                        glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.lightPos = lightRotation * glm::vec4(0.3f, 0.0f, 0.1f, 1.0f);
 
         fvBufferReplaceData(uniformBuffer, &ubo, sizeof(ubo));
     }
@@ -364,6 +410,66 @@ class HelloTriangleApplication {
         if (fvCommandPoolCreate(commandPool.replace(), &poolInfo) !=
             FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to create command pool!");
+        }
+    }
+
+    void createTextureImage() {
+        int texWidth, texHeight, texChannels;
+        stbi_uc *pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight,
+                                    &texChannels, STBI_rgb_alpha);
+        FvSize imageSize = texWidth * texHeight * 4; // We forced image to load
+                                                     // with 4 channels using
+                                                     // STBI_rgb_alpha flag
+
+        if (!pixels) {
+            throw std::runtime_error("Failed to load texture image!");
+        }
+
+        // Create image
+        FvImageCreateInfo imageInfo = {};
+        imageInfo.imageType         = FV_IMAGE_TYPE_2D;
+        imageInfo.extent.width      = texWidth;
+        imageInfo.extent.height     = texHeight;
+        imageInfo.extent.depth      = 1;
+        imageInfo.mipLevels         = 1;
+        imageInfo.arrayLayers       = 1;
+        imageInfo.format            = FV_FORMAT_RGBA8UNORM;
+        imageInfo.usage             = FV_IMAGE_USAGE_SHADER_READ;
+        imageInfo.samples           = FV_SAMPLE_COUNT_1;
+
+        if (fvImageCreate(textureImage.replace(), &imageInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create image!");
+        }
+
+        // Upload image data to image object
+        FvRect3D region;
+        region.origin = {0, 0, 0};
+        region.extent = {(uint32_t)texWidth, (uint32_t)texHeight, 1};
+        fvImageReplaceRegion(textureImage, region, 0, 0, pixels, texWidth * 4,
+                             0);
+
+        stbi_image_free(pixels);
+    }
+
+    void createTextureSampler() {
+        FvSamplerCreateInfo samplerInfo   = {};
+        samplerInfo.magFilter             = FV_MIN_MAG_FILTER_LINEAR;
+        samplerInfo.minFilter             = FV_MIN_MAG_FILTER_LINEAR;
+        samplerInfo.addressModeU          = FV_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeV          = FV_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeW          = FV_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.anisotropyEnable      = FV_TRUE;
+        samplerInfo.maxAnisotropy         = 16;
+        samplerInfo.borderColor           = FV_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.compareEnable         = FV_FALSE;
+        samplerInfo.compareFunc           = FV_COMPARE_FUNC_ALWAYS;
+        samplerInfo.mipmapMode            = FV_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.normalizedCoordinates = FV_TRUE;
+
+        if (fvSamplerCreate(textureSampler.replace(), &samplerInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create texture sampler!");
         }
     }
 
@@ -424,7 +530,15 @@ class HelloTriangleApplication {
         uboLayoutBinding.descriptorCount  = 1;
         uboLayoutBinding.stageFlags       = FV_SHADER_STAGE_VERTEX;
 
-        std::array<FvDescriptorInfo, 1> descriptors = {uboLayoutBinding};
+        FvDescriptorInfo samplerLayoutBinding = {};
+        samplerLayoutBinding.binding          = 0;
+        samplerLayoutBinding.descriptorCount  = 1;
+        samplerLayoutBinding.descriptorType =
+            FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        samplerLayoutBinding.stageFlags = FV_SHADER_STAGE_FRAGMENT;
+
+        std::array<FvDescriptorInfo, 2> descriptors = {uboLayoutBinding,
+                                                       samplerLayoutBinding};
 
         FvDescriptorSetCreateInfo descriptorSetInfo = {};
         descriptorSetInfo.descriptorCount           = descriptors.size();
@@ -438,7 +552,7 @@ class HelloTriangleApplication {
 
     void createGraphicsPipeline() {
         std::vector<char> shaderCode =
-            readFile("src/projects/triangle/assets/triangle.metal");
+            readFile("src/projects/textureMapping/assets/texture.metal");
         shaderCode.push_back('\0');
 
         FvShaderModuleCreateInfo shaderModuleCreateInfo = {};
@@ -667,6 +781,9 @@ class HelloTriangleApplication {
         return buffer;
     }
 
+    const std::string TEXTURE_PATH =
+        "src/projects/textureMapping/assets/metalplate01_rgba.jpg";
+
     SDL_Window *window;
     int outputWidth, outputHeight;
 
@@ -689,6 +806,8 @@ class HelloTriangleApplication {
 
     FDeleter<FvBuffer> uniformBuffer{fvBufferDestroy};
     FDeleter<FvDescriptorSet> descriptorSet{fvDescriptorSetDestroy};
+    FDeleter<FvImage> textureImage{fvImageDestroy};
+    FDeleter<FvSampler> textureSampler{fvSamplerDestroy};
     FDeleter<FvImage> depthImage{fvImageDestroy};
 
     FDeleter<FvShaderModule> shaderModule{fvShaderModuleDestroy};
@@ -703,7 +822,7 @@ int main(void) {
 
     // Create window
     SDL_Window *window =
-        SDL_CreateWindow("Triangle", SDL_WINDOWPOS_CENTERED,
+        SDL_CreateWindow("Texture Mapping", SDL_WINDOWPOS_CENTERED,
                          SDL_WINDOWPOS_CENTERED, 800, 600, flags);
 
     try {

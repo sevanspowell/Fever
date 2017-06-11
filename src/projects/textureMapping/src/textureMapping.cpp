@@ -360,8 +360,7 @@ class HelloTriangleApplication {
     }
 
     void updateUniformBuffer() {
-        static auto startT
-ime = std::chrono::high_resolution_clock::now();
+        static auto startTime = std::chrono::high_resolution_clock::now();
 
         auto currentTime = std::chrono::high_resolution_clock::now();
         float time = std::chrono::duration_cast<std::chrono::milliseconds>(

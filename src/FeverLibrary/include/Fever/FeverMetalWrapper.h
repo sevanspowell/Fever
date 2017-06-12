@@ -115,10 +115,22 @@ struct BufferWrapper {
     FvSize offset;
 };
 
+struct DrawItem {
+    DrawItem()
+        : finished(false), graphicsPipeline(FV_NULL_HANDLE),
+          indexBuffer(FV_NULL_HANDLE) {}
+    bool finished; // Set when a fvCmdDraw* function is called on the command
+                   // buffer
+
+    FvGraphicsPipeline graphicsPipeline;
+    DrawCall drawCall;
+    std::vector<FvBuffer> vertexBuffers;
+    FvBuffer indexBuffer;
+    std::vector<FvDescriptorSet> descriptorSets;
+};
+
 struct CommandBufferWrapper {
-    CommandBufferWrapper()
-        : commandQueue(nil), readyForSubmit(false),
-          graphicsPipeline(FV_NULL_HANDLE), indexBuffer(FV_NULL_HANDLE) {}
+    CommandBufferWrapper() : commandQueue(nil), readyForSubmit(false) {}
 
     id<MTLCommandQueue> commandQueue;
     // FvGraphicsPipeline graphicsPipelineHandle;
@@ -126,13 +138,7 @@ struct CommandBufferWrapper {
     std::vector<ImageWrapper> attachments;
     bool readyForSubmit;
 
-    FvGraphicsPipeline graphicsPipeline;
-    DrawCall drawCall;
-
-    std::vector<FvBuffer> vertexBuffers;
-    FvBuffer indexBuffer;
-
-    std::vector<FvDescriptorSet> descriptorSets;
+    std::vector<DrawItem> drawItems;
 };
 
 struct SemaphoreWrapper {

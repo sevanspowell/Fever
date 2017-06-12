@@ -1,3 +1,5 @@
+#include <map>
+
 #include <Fever/FeverMetalWrapper.h>
 
 namespace fv {
@@ -569,184 +571,91 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                 return FV_RESULT_FAILURE;
             }
 
-            // Get graphics pipeline wrapper
-            handle = (const Handle *)commandBufferWrapper->graphicsPipeline;
+            // For each draw item, sort by render pass
+            std::map<MTLRenderPassDescriptor *, std::vector<DrawItem *>>
+                drawItemsByRenderPass;
+            for (uint32_t iDrawItem = 0;
+                 iDrawItem < commandBufferWrapper->drawItems.size();
+                 ++iDrawItem) {
+                DrawItem *drawItem =
+                    &commandBufferWrapper->drawItems[iDrawItem];
 
-            if (handle == nullptr) {
-                return FV_RESULT_FAILURE;
-            }
-
-            GraphicsPipelineWrapper *pipeline = nullptr;
-
-            pipeline = graphicsPipelines.get(*handle);
-
-            if (pipeline == nullptr) {
-                return FV_RESULT_FAILURE;
-            }
-
-            // Loop through each render pass color attachment, check if it's
-            // texture is a drawable. If it is, back it with the current
-            // drawable.
-            for (uint32_t k = 0; k < pipeline->colorAttachments.size(); ++k) {
-                if (commandBufferWrapper->attachments[k].isDrawable == true) {
-                    pipeline->renderPass.colorAttachments[k].texture =
-                        currentDrawable.texture;
+                if (drawItem->finished != true) {
+                    return FV_RESULT_FAILURE;
                 }
+
+                // Get graphics pipeline wrapper
+                handle = (const Handle *)drawItem->graphicsPipeline;
+
+                if (handle == nullptr) {
+                    return FV_RESULT_FAILURE;
+                }
+
+                GraphicsPipelineWrapper *pipeline = nullptr;
+
+                pipeline = graphicsPipelines.get(*handle);
+
+                if (pipeline == nullptr) {
+                    return FV_RESULT_FAILURE;
+                }
+
+                // Loop through each render pass color attachment, check if it's
+                // texture is a drawable. If it is, back it with the current
+                // drawable.
+                for (uint32_t k = 0; k < pipeline->colorAttachments.size();
+                     ++k) {
+                    if (commandBufferWrapper->attachments[k].isDrawable ==
+                        true) {
+                        pipeline->renderPass.colorAttachments[k].texture =
+                            currentDrawable.texture;
+                    }
+                }
+
+                drawItemsByRenderPass[pipeline->renderPass].push_back(drawItem);
             }
 
             @autoreleasepool {
-                // Create command buffer from it's command queue
-                // Command buffers are transient, single-use objects in Metal
-                // and so are created here at the last minute.
+                // Create command buffer from it's command queue Command buffers
+                // are transient, single-use objects in Metal and so are created
+                // here at the last minute.
                 id<MTLCommandBuffer> commandBuffer =
                     [commandBufferWrapper->commandQueue commandBuffer];
 
                 // Set current command queue
                 currentCommandQueue = commandBufferWrapper->commandQueue;
 
-                // Special case, no vertex buffer, can still encode commands
-                if (commandBufferWrapper->vertexBuffers.size() == 0) {
+                // Encode draw items
+                for (auto const &renderPassDrawItems : drawItemsByRenderPass) {
                     // Create command encoder from command buffer and render
                     // pass descriptor
                     id<MTLRenderCommandEncoder> encoder = [commandBuffer
-                        renderCommandEncoderWithDescriptor:pipeline->
-                                                           renderPass];
-                    // Set states
-                    [encoder setCullMode:pipeline->cullMode];
-                    [encoder setDepthStencilState:pipeline->depthStencilState];
-                    [encoder setFrontFacingWinding:pipeline->windingOrder];
-                    [encoder
-                        setRenderPipelineState:pipeline->renderPipelineState];
-                    [encoder setScissorRect:pipeline->scissor];
-                    [encoder setViewport:pipeline->viewport];
+                        renderCommandEncoderWithDescriptor:renderPassDrawItems
+                                                               .first];
 
-                    // Bind descriptor sets
-                    for (uint32_t iDescSet = 0;
-                         iDescSet < commandBufferWrapper->descriptorSets.size();
-                         ++iDescSet) {
-                        // Get descriptor set
-                        FvDescriptorSet descSet =
-                            commandBufferWrapper->descriptorSets[iDescSet];
-                        const DescriptorSetWrapper *descSetWrapper =
-                            descriptorSets.get(*((const Handle *)descSet));
+                    for (uint32_t iDrawItem = 0;
+                         iDrawItem < renderPassDrawItems.second.size();
+                         ++iDrawItem) {
+                        DrawItem *drawItem =
+                            renderPassDrawItems.second[iDrawItem];
 
-                        if (descSetWrapper != nullptr) {
-                            // Bind buffers
-                            for (uint32_t iBufferBinding = 0;
-                                 iBufferBinding <
-                                 descSetWrapper->bufferBindings.size();
-                                 ++iBufferBinding) {
-                                DescriptorBufferBinding bufferBinding =
-                                    descSetWrapper
-                                        ->bufferBindings[iBufferBinding];
+                        // Get graphics pipeline wrapper
+                        handle = (const Handle *)drawItem->graphicsPipeline;
 
-                                // Get buffer to bind
-                                BufferWrapper *bufferWrapper = buffers.get(
-                                    *((const Handle *)
-                                          bufferBinding.bufferInfo.buffer));
-
-                                if (bufferWrapper != nullptr) {
-                                    int stageFlags =
-                                        bufferBinding.descriptorInfo.stageFlags;
-                                    id<MTLBuffer> mtlBufferToBind =
-                                        bufferWrapper->mtlBuffer;
-                                    FvSize offset =
-                                        bufferBinding.bufferInfo.offset;
-                                    uint32_t bindingPoint =
-                                        bufferBinding.descriptorInfo.binding;
-
-                                    if (stageFlags & FV_SHADER_STAGE_VERTEX) {
-                                        [encoder setVertexBuffer:mtlBufferToBind
-                                                          offset:offset
-                                                         atIndex:bindingPoint];
-                                    }
-                                    if (stageFlags & FV_SHADER_STAGE_FRAGMENT) {
-                                        [encoder
-                                            setFragmentBuffer:mtlBufferToBind
-                                                       offset:offset
-                                                      atIndex:bindingPoint];
-                                    }
-                                }
-                            }
-                            // Bind images
-                            for (uint32_t iImageBinding = 0;
-                                 iImageBinding <
-                                 descSetWrapper->imageBindings.size();
-                                 ++iImageBinding) {
-                                DescriptorImageBinding imageBinding =
-                                    descSetWrapper
-                                        ->imageBindings[iImageBinding];
-
-                                // Get image to bind
-                                ImageWrapper *imageWrapper = textures.get(
-                                    *((const Handle *)
-                                          imageBinding.imageInfo.image));
-
-                                if (imageWrapper != nullptr) {
-                                    int stageFlags =
-                                        imageBinding.descriptorInfo.stageFlags;
-                                    id<MTLTexture> mtlImageToBind =
-                                        imageWrapper->texture;
-                                    uint32_t bindingPoint =
-                                        imageBinding.descriptorInfo.binding;
-                                    id<MTLSamplerState> *mtlSamplerState =
-                                        samplers.get(
-                                            *((const Handle *)imageBinding
-                                                  .imageInfo.sampler));
-
-                                    if (stageFlags & FV_SHADER_STAGE_VERTEX) {
-                                        [encoder setVertexTexture:mtlImageToBind
-                                                          atIndex:bindingPoint];
-                                        [encoder
-                                            setVertexSamplerState:
-                                                *mtlSamplerState
-                                                          atIndex:bindingPoint];
-                                    }
-                                    if (stageFlags & FV_SHADER_STAGE_FRAGMENT) {
-                                        [encoder
-                                            setFragmentTexture:mtlImageToBind
-                                                       atIndex:bindingPoint];
-                                        [encoder
-                                            setFragmentSamplerState:
-                                                *mtlSamplerState
-                                                            atIndex:
-                                                                bindingPoint];
-                                    }
-                                }
-                            }
+                        if (handle == nullptr) {
+                            return FV_RESULT_FAILURE;
                         }
-                    }
 
-                    // Make draw call
-                    DrawCallNonIndexed dc =
-                        commandBufferWrapper->drawCall.nonIndexed;
-                    [encoder drawPrimitives:pipeline->primitiveType
-                                vertexStart:dc.firstVertex
-                                vertexCount:dc.vertexCount
-                              instanceCount:dc.instanceCount
-                               baseInstance:dc.firstInstance];
-                    // End encoding
-                    [encoder endEncoding];
-                } else {
-                    // otherwise, for each vertex buffer
-                    for (size_t iVertexBuffer = 0;
-                         iVertexBuffer <
-                         commandBufferWrapper->vertexBuffers.size();
-                         ++iVertexBuffer) {
-                        // Get vertex buffer
-                        const Handle *vertexBufferHandle =
-                            (const Handle *)commandBufferWrapper
-                                ->vertexBuffers[iVertexBuffer];
+                        GraphicsPipelineWrapper *pipeline = nullptr;
 
-                        const BufferWrapper *vertexBufferWrapper = nullptr;
-                        vertexBufferWrapper = buffers.get(*vertexBufferHandle);
+                        pipeline = graphicsPipelines.get(*handle);
 
-                        if (vertexBufferWrapper != nullptr) {
-                            // Create command encoder from command buffer and
-                            // render pass descriptor
-                            id<MTLRenderCommandEncoder> encoder = [commandBuffer
-                                renderCommandEncoderWithDescriptor:pipeline->
-                                                                   renderPass];
+                        if (pipeline == nullptr) {
+                            return FV_RESULT_FAILURE;
+                        }
+
+                        // Special case, no vertex buffer, can still encode
+                        // commands
+                        if (drawItem->vertexBuffers.size() == 0) {
                             // Set states
                             [encoder setCullMode:pipeline->cullMode];
                             [encoder setDepthStencilState:pipeline->
@@ -758,21 +667,14 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                                                        renderPipelineState];
                             [encoder setScissorRect:pipeline->scissor];
                             [encoder setViewport:pipeline->viewport];
-                            [encoder
-                                setVertexBuffer:vertexBufferWrapper->mtlBuffer
-                                         offset:vertexBufferWrapper->offset
-                                        atIndex:vertexBufferWrapper->
-                                                bindingPoint];
 
-                            // Bind descriptor sets (uniform buffers)
+                            // Bind descriptor sets
                             for (uint32_t iDescSet = 0;
-                                 iDescSet <
-                                 commandBufferWrapper->descriptorSets.size();
+                                 iDescSet < drawItem->descriptorSets.size();
                                  ++iDescSet) {
                                 // Get descriptor set
                                 FvDescriptorSet descSet =
-                                    commandBufferWrapper
-                                        ->descriptorSets[iDescSet];
+                                    drawItem->descriptorSets[iDescSet];
                                 const DescriptorSetWrapper *descSetWrapper =
                                     descriptorSets.get(
                                         *((const Handle *)descSet));
@@ -886,44 +788,247 @@ FvResult MetalWrapper::queueSubmit(uint32_t submissionsCount,
                                 }
                             }
 
-                            if (commandBufferWrapper->drawCall.type ==
-                                DRAW_CALL_TYPE_INDEXED) {
-                                // Get index buffer from command buffer wrapper
-                                const BufferWrapper *indexBuf = buffers.get(
-                                    *((const Handle *)
-                                          commandBufferWrapper->indexBuffer));
-
-                                if (indexBuf != nullptr) {
-                                    // Make indexed draw call
-                                    DrawCallIndexed dc =
-                                        commandBufferWrapper->drawCall.indexed;
-                                    [encoder
-                                        drawIndexedPrimitives:
-                                            pipeline->primitiveType
-                                                   indexCount:dc.indexCount
-                                                    indexType:indexBuf
-                                                                  ->mtlIndexType
-                                                  indexBuffer:indexBuf
-                                                                  ->mtlBuffer
-                                            indexBufferOffset:indexBuf->offset
-                                                instanceCount:dc.instanceCount
-                                                   baseVertex:dc.vertexOffset
-                                                 baseInstance:dc.firstInstance];
-                                }
-                            } else {
-                                // Make non-indexed draw call
-                                DrawCallNonIndexed dc =
-                                    commandBufferWrapper->drawCall.nonIndexed;
-                                [encoder drawPrimitives:pipeline->primitiveType
-                                            vertexStart:dc.firstVertex
-                                            vertexCount:dc.vertexCount
-                                          instanceCount:dc.instanceCount
-                                           baseInstance:dc.firstInstance];
-                            }
+                            // Make draw call
+                            DrawCallNonIndexed dc =
+                                drawItem->drawCall.nonIndexed;
+                            [encoder drawPrimitives:pipeline->primitiveType
+                                        vertexStart:dc.firstVertex
+                                        vertexCount:dc.vertexCount
+                                      instanceCount:dc.instanceCount
+                                       baseInstance:dc.firstInstance];
                             // End encoding
                             [encoder endEncoding];
+                        } else {
+                            // otherwise, for each vertex buffer
+                            for (size_t iVertexBuffer = 0;
+                                 iVertexBuffer < drawItem->vertexBuffers.size();
+                                 ++iVertexBuffer) {
+                                // Get vertex buffer
+                                const Handle *vertexBufferHandle =
+                                    (const Handle *)
+                                        drawItem->vertexBuffers[iVertexBuffer];
+
+                                const BufferWrapper *vertexBufferWrapper =
+                                    nullptr;
+                                vertexBufferWrapper =
+                                    buffers.get(*vertexBufferHandle);
+
+                                if (vertexBufferWrapper != nullptr) {
+                                    // Set states
+                                    [encoder setCullMode:pipeline->cullMode];
+                                    [encoder
+                                        setDepthStencilState:pipeline->
+                                                             depthStencilState];
+                                    [encoder
+                                        setFrontFacingWinding:pipeline->
+                                                              windingOrder];
+                                    [encoder setRenderPipelineState:
+                                                 pipeline->renderPipelineState];
+                                    [encoder setScissorRect:pipeline->scissor];
+                                    [encoder setViewport:pipeline->viewport];
+                                    [encoder
+                                        setVertexBuffer:vertexBufferWrapper
+                                                            ->mtlBuffer
+                                                 offset:vertexBufferWrapper
+                                                            ->offset
+                                                atIndex:vertexBufferWrapper->
+                                                        bindingPoint];
+
+                                    // Bind descriptor sets (uniform buffers)
+                                    for (uint32_t iDescSet = 0;
+                                         iDescSet <
+                                         drawItem->descriptorSets.size();
+                                         ++iDescSet) {
+                                        // Get descriptor set
+                                        FvDescriptorSet descSet =
+                                            drawItem->descriptorSets[iDescSet];
+                                        const DescriptorSetWrapper *
+                                            descSetWrapper = descriptorSets.get(
+                                                *((const Handle *)descSet));
+
+                                        if (descSetWrapper != nullptr) {
+                                            // Bind buffers
+                                            for (uint32_t iBufferBinding = 0;
+                                                 iBufferBinding <
+                                                 descSetWrapper->bufferBindings
+                                                     .size();
+                                                 ++iBufferBinding) {
+                                                DescriptorBufferBinding
+                                                    bufferBinding =
+                                                        descSetWrapper
+                                                            ->bufferBindings
+                                                                [iBufferBinding];
+
+                                                // Get buffer to bind
+                                                BufferWrapper *bufferWrapper =
+                                                    buffers.get(
+                                                        *((const Handle *)
+                                                              bufferBinding
+                                                                  .bufferInfo
+                                                                  .buffer));
+
+                                                if (bufferWrapper != nullptr) {
+                                                    int stageFlags =
+                                                        bufferBinding
+                                                            .descriptorInfo
+                                                            .stageFlags;
+                                                    id<MTLBuffer>
+                                                        mtlBufferToBind =
+                                                            bufferWrapper
+                                                                ->mtlBuffer;
+                                                    FvSize offset =
+                                                        bufferBinding.bufferInfo
+                                                            .offset;
+                                                    uint32_t bindingPoint =
+                                                        bufferBinding
+                                                            .descriptorInfo
+                                                            .binding;
+
+                                                    if (stageFlags &
+                                                        FV_SHADER_STAGE_VERTEX) {
+                                                        [encoder
+                                                            setVertexBuffer:
+                                                                mtlBufferToBind
+                                                                     offset:
+                                                                         offset
+                                                                    atIndex:
+                                                                        bindingPoint];
+                                                    }
+                                                    if (stageFlags &
+                                                        FV_SHADER_STAGE_FRAGMENT) {
+                                                        [encoder
+                                                            setFragmentBuffer:
+                                                                mtlBufferToBind
+                                                                       offset:
+                                                                           offset
+                                                                      atIndex:
+                                                                          bindingPoint];
+                                                    }
+                                                }
+                                            }
+                                            // Bind images
+                                            for (uint32_t iImageBinding = 0;
+                                                 iImageBinding <
+                                                 descSetWrapper->imageBindings
+                                                     .size();
+                                                 ++iImageBinding) {
+                                                DescriptorImageBinding
+                                                    imageBinding =
+                                                        descSetWrapper
+                                                            ->imageBindings
+                                                                [iImageBinding];
+
+                                                // Get image to bind
+                                                ImageWrapper *imageWrapper =
+                                                    textures.get(*(
+                                                        (const Handle
+                                                             *)imageBinding
+                                                            .imageInfo.image));
+
+                                                if (imageWrapper != nullptr) {
+                                                    int stageFlags =
+                                                        imageBinding
+                                                            .descriptorInfo
+                                                            .stageFlags;
+                                                    id<MTLTexture>
+                                                        mtlImageToBind =
+                                                            imageWrapper
+                                                                ->texture;
+                                                    uint32_t bindingPoint =
+                                                        imageBinding
+                                                            .descriptorInfo
+                                                            .binding;
+                                                    id<MTLSamplerState>
+                                                        *mtlSamplerState =
+                                                            samplers.get(*(
+                                                                (const Handle
+                                                                     *)imageBinding
+                                                                    .imageInfo
+                                                                    .sampler));
+
+                                                    if (stageFlags &
+                                                        FV_SHADER_STAGE_VERTEX) {
+                                                        [encoder
+                                                            setVertexTexture:
+                                                                mtlImageToBind
+                                                                     atIndex:
+                                                                         bindingPoint];
+                                                        [encoder
+                                                            setVertexSamplerState:
+                                                                *mtlSamplerState
+                                                                          atIndex:
+                                                                              bindingPoint];
+                                                    }
+                                                    if (stageFlags &
+                                                        FV_SHADER_STAGE_FRAGMENT) {
+                                                        [encoder
+                                                            setFragmentTexture:
+                                                                mtlImageToBind
+                                                                       atIndex:
+                                                                           bindingPoint];
+                                                        [encoder
+                                                            setFragmentSamplerState:
+                                                                *mtlSamplerState
+                                                                            atIndex:
+                                                                                bindingPoint];
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    if (drawItem->drawCall.type ==
+                                        DRAW_CALL_TYPE_INDEXED) {
+                                        // Get index buffer from command buffer
+                                        // wrapper
+                                        const BufferWrapper *indexBuf =
+                                            buffers.get(
+                                                *((const Handle *)
+                                                      drawItem->indexBuffer));
+
+                                        if (indexBuf != nullptr) {
+                                            // Make indexed draw call
+                                            DrawCallIndexed dc =
+                                                drawItem->drawCall.indexed;
+                                            [encoder
+                                                drawIndexedPrimitives:
+                                                    pipeline->primitiveType
+                                                           indexCount:
+                                                               dc.indexCount
+                                                            indexType:
+                                                                indexBuf
+                                                                    ->mtlIndexType
+                                                          indexBuffer:
+                                                              indexBuf
+                                                                  ->mtlBuffer
+                                                    indexBufferOffset:
+                                                        indexBuf->offset
+                                                        instanceCount:
+                                                            dc.instanceCount
+                                                           baseVertex:
+                                                               dc.vertexOffset
+                                                         baseInstance:
+                                                             dc.firstInstance];
+                                        }
+                                    } else {
+                                        // Make non-indexed draw call
+                                        DrawCallNonIndexed dc =
+                                            drawItem->drawCall.nonIndexed;
+                                        [encoder
+                                            drawPrimitives:pipeline
+                                                               ->primitiveType
+                                               vertexStart:dc.firstVertex
+                                               vertexCount:dc.vertexCount
+                                             instanceCount:dc.instanceCount
+                                              baseInstance:dc.firstInstance];
+                                    }
+                                }
+                            }
                         }
                     }
+
+                    // End encoding
+                    [encoder endEncoding];
                 }
 
                 [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> cb) {
@@ -1009,6 +1114,22 @@ void MetalWrapper::cmdBindGraphicsPipeline(
         return;
     }
 
+    // Find first draw item not yet finished or create one if no draw items not
+    // finished or no draw items at all
+    DrawItem *drawItem = nullptr;
+    for (size_t i = 0; i < commandBufferWrapper->drawItems.size(); ++i) {
+        if (commandBufferWrapper->drawItems[i].finished == false) {
+            drawItem = &commandBufferWrapper->drawItems[i];
+        }
+    }
+
+    if (drawItem == nullptr) {
+        commandBufferWrapper->drawItems.push_back(DrawItem());
+        drawItem =
+            &(commandBufferWrapper
+                  ->drawItems[commandBufferWrapper->drawItems.size() - 1]);
+    }
+
     // Fill out render pass color and depthStencil attachment information
     for (uint32_t i = 0; i < pipelineWrapper->colorAttachments.size(); ++i) {
         uint32_t attachmentIndex =
@@ -1054,7 +1175,7 @@ void MetalWrapper::cmdBindGraphicsPipeline(
     }
 
     // Associate graphics pipeline with command buffer
-    commandBufferWrapper->graphicsPipeline = graphicsPipeline;
+    drawItem->graphicsPipeline = graphicsPipeline;
 }
 
 void MetalWrapper::cmdBindVertexBuffers(FvCommandBuffer commandBuffer,
@@ -1074,6 +1195,22 @@ void MetalWrapper::cmdBindVertexBuffers(FvCommandBuffer commandBuffer,
     if (commandBufferWrapper == nullptr || buffers == nullptr ||
         offsets == nullptr) {
         return;
+    }
+
+    // Find first draw item not yet finished or create one if no draw items not
+    // finished or no draw items at all
+    DrawItem *drawItem = nullptr;
+    for (size_t i = 0; i < commandBufferWrapper->drawItems.size(); ++i) {
+        if (commandBufferWrapper->drawItems[i].finished == false) {
+            drawItem = &commandBufferWrapper->drawItems[i];
+        }
+    }
+
+    if (drawItem == nullptr) {
+        commandBufferWrapper->drawItems.push_back(DrawItem());
+        drawItem =
+            &(commandBufferWrapper
+                  ->drawItems[commandBufferWrapper->drawItems.size() - 1]);
     }
 
     // Loop thru each buffer to bind
@@ -1096,8 +1233,7 @@ void MetalWrapper::cmdBindVertexBuffers(FvCommandBuffer commandBuffer,
             bufferWrapper->offset       = offset;
 
             // Attach vertex buffer to command buffer
-            commandBufferWrapper->vertexBuffers.push_back(
-                (FvBuffer)bufferHandle);
+            drawItem->vertexBuffers.push_back((FvBuffer)bufferHandle);
         }
     }
 }
@@ -1116,12 +1252,28 @@ void MetalWrapper::cmdBindIndexBuffer(FvCommandBuffer commandBuffer,
         return;
     }
 
+    // Find first draw item not yet finished or create one if no draw items not
+    // finished or no draw items at all
+    DrawItem *drawItem = nullptr;
+    for (size_t i = 0; i < commandBufferWrapper->drawItems.size(); ++i) {
+        if (commandBufferWrapper->drawItems[i].finished == false) {
+            drawItem = &commandBufferWrapper->drawItems[i];
+        }
+    }
+
+    if (drawItem == nullptr) {
+        commandBufferWrapper->drawItems.push_back(DrawItem());
+        drawItem =
+            &(commandBufferWrapper
+                  ->drawItems[commandBufferWrapper->drawItems.size() - 1]);
+    }
+
     // Setup index buffer
     indexBufferWrapper->mtlIndexType = toMtlIndexType(indexType);
     indexBufferWrapper->offset       = offset;
 
     // Bind index buffer to command buffer
-    commandBufferWrapper->indexBuffer = buffer;
+    drawItem->indexBuffer = buffer;
 }
 
 void MetalWrapper::cmdBindDescriptorSets(
@@ -1135,9 +1287,25 @@ void MetalWrapper::cmdBindDescriptorSets(
         return;
     }
 
+    // Find first draw item not yet finished or create one if no draw items not
+    // finished or no draw items at all
+    DrawItem *drawItem = nullptr;
+    for (size_t i = 0; i < commandBufferWrapper->drawItems.size(); ++i) {
+        if (commandBufferWrapper->drawItems[i].finished == false) {
+            drawItem = &commandBufferWrapper->drawItems[i];
+        }
+    }
+
+    if (drawItem == nullptr) {
+        commandBufferWrapper->drawItems.push_back(DrawItem());
+        drawItem =
+            &(commandBufferWrapper
+                  ->drawItems[commandBufferWrapper->drawItems.size() - 1]);
+    }
+
     // Add each descriptor set to command buffer
     for (uint32_t i = 0; i < descriptorSetCount; ++i) {
-        commandBufferWrapper->descriptorSets.push_back(descriptorSets[i]);
+        drawItem->descriptorSets.push_back(descriptorSets[i]);
     }
 }
 
@@ -1154,12 +1322,31 @@ void MetalWrapper::cmdDraw(FvCommandBuffer commandBuffer, uint32_t vertexCount,
         commandBufferWrapper = commandBuffers.get(*handle);
     }
 
+    // Find first draw item not yet finished or create one if no draw items not
+    // finished or no draw items at all
+    DrawItem *drawItem = nullptr;
+    for (size_t i = 0; i < commandBufferWrapper->drawItems.size(); ++i) {
+        if (commandBufferWrapper->drawItems[i].finished == false) {
+            drawItem = &commandBufferWrapper->drawItems[i];
+        }
+    }
+
+    if (drawItem == nullptr) {
+        commandBufferWrapper->drawItems.push_back(DrawItem());
+        drawItem =
+            &(commandBufferWrapper
+                  ->drawItems[commandBufferWrapper->drawItems.size() - 1]);
+    }
+
+    // Draw call made, draw item is finished
+    drawItem->finished = true;
+
     if (commandBufferWrapper != nullptr) {
-        commandBufferWrapper->drawCall.type = DRAW_CALL_TYPE_NON_INDEXED;
-        commandBufferWrapper->drawCall.nonIndexed.vertexCount   = vertexCount;
-        commandBufferWrapper->drawCall.nonIndexed.instanceCount = instanceCount;
-        commandBufferWrapper->drawCall.nonIndexed.firstVertex   = firstVertex;
-        commandBufferWrapper->drawCall.nonIndexed.firstInstance = firstInstance;
+        drawItem->drawCall.type                   = DRAW_CALL_TYPE_NON_INDEXED;
+        drawItem->drawCall.nonIndexed.vertexCount = vertexCount;
+        drawItem->drawCall.nonIndexed.instanceCount = instanceCount;
+        drawItem->drawCall.nonIndexed.firstVertex   = firstVertex;
+        drawItem->drawCall.nonIndexed.firstInstance = firstInstance;
     }
 }
 
@@ -1172,13 +1359,32 @@ void MetalWrapper::cmdDrawIndexed(FvCommandBuffer commandBuffer,
     CommandBufferWrapper *commandBufferWrapper =
         commandBuffers.get(*((const Handle *)commandBuffer));
 
+    // Find first draw item not yet finished or create one if no draw items not
+    // finished or no draw items at all
+    DrawItem *drawItem = nullptr;
+    for (size_t i = 0; i < commandBufferWrapper->drawItems.size(); ++i) {
+        if (commandBufferWrapper->drawItems[i].finished == false) {
+            drawItem = &commandBufferWrapper->drawItems[i];
+        }
+    }
+
+    if (drawItem == nullptr) {
+        commandBufferWrapper->drawItems.push_back(DrawItem());
+        drawItem =
+            &(commandBufferWrapper
+                  ->drawItems[commandBufferWrapper->drawItems.size() - 1]);
+    }
+
+    // Draw call made, draw item is finished
+    drawItem->finished = true;
+
     if (commandBufferWrapper != nullptr) {
-        commandBufferWrapper->drawCall.type = DRAW_CALL_TYPE_INDEXED;
-        commandBufferWrapper->drawCall.indexed.indexCount    = indexCount;
-        commandBufferWrapper->drawCall.indexed.instanceCount = instanceCount;
-        commandBufferWrapper->drawCall.indexed.firstIndex    = firstIndex;
-        commandBufferWrapper->drawCall.indexed.vertexOffset  = vertexOffset;
-        commandBufferWrapper->drawCall.indexed.firstInstance = firstInstance;
+        drawItem->drawCall.type                  = DRAW_CALL_TYPE_INDEXED;
+        drawItem->drawCall.indexed.indexCount    = indexCount;
+        drawItem->drawCall.indexed.instanceCount = instanceCount;
+        drawItem->drawCall.indexed.firstIndex    = firstIndex;
+        drawItem->drawCall.indexed.vertexOffset  = vertexOffset;
+        drawItem->drawCall.indexed.firstInstance = firstInstance;
     }
 }
 

@@ -16,8 +16,9 @@
 #pragma once
 
 typedef enum FvBufferUsage {
-    FV_BUFFER_USAGE_VERTEX_BUFFER = 1 << 0,
-    FV_BUFFER_USAGE_INDEX_BUFFER  = 1 << 1,
+    FV_BUFFER_USAGE_VERTEX_BUFFER  = 1 << 0,
+    FV_BUFFER_USAGE_INDEX_BUFFER   = 1 << 1,
+    FV_BUFFER_USAGE_UNIFORM_BUFFER = 1 << 2,
 } FvBufferUsage;
 
 typedef enum FvPrimitiveType {
@@ -61,15 +62,15 @@ typedef enum FvImageUsage {
     FV_IMAGE_USAGE_IMAGE_VIEW    = 1 << 3,
 } FvImageUsage;
 
-typedef enum FvImageViewType {
-    FV_IMAGE_VIEW_TYPE_1D,
-    FV_IMAGE_VIEW_TYPE_2D,
-    FV_IMAGE_VIEW_TYPE_3D,
-    FV_IMAGE_VIEW_TYPE_CUBE,
-    FV_IMAGE_VIEW_TYPE_1D_ARRAY,
-    FV_IMAGE_VIEW_TYPE_2D_ARRAY,
-    FV_IMAGE_VIEW_TYPE_CUBE_ARRAY
-} FvImageViewType;
+/* typedef enum FvImageViewType { */
+/*     FV_IMAGE_VIEW_TYPE_1D, */
+/*     FV_IMAGE_VIEW_TYPE_2D, */
+/*     FV_IMAGE_VIEW_TYPE_3D, */
+/*     FV_IMAGE_VIEW_TYPE_CUBE, */
+/*     FV_IMAGE_VIEW_TYPE_1D_ARRAY, */
+/*     FV_IMAGE_VIEW_TYPE_2D_ARRAY, */
+/*     FV_IMAGE_VIEW_TYPE_CUBE_ARRAY */
+/* } FvImageViewType; */
 
 typedef enum FvCompareFunc {
     /** Newer value always passes */

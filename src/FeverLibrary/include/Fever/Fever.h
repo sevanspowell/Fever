@@ -184,6 +184,7 @@ extern FvResult fvImageCreate(FvImage *image,
  * only applicable for FV_IMAGE_TYPE_3D images (\p bytesPerRow must be 0 in
  * cases where it is not applicable).
  */
+/** TODO: Take struct instead of list of params */
 extern void fvImageReplaceRegion(FvImage image, FvRect3D region,
                                  uint32_t mipLevel, uint32_t layer, void *data,
                                  size_t bytesPerRow, size_t bytesPerImage);

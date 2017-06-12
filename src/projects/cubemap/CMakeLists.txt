@@ -11,6 +11,7 @@ target_link_libraries(${PROJECT_NAME}
   PRIVATE sdl2
   PRIVATE glm
   PRIVATE stb
+  PRIVATE tinyobj
   )
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)

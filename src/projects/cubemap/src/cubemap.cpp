@@ -13,6 +13,7 @@
  *===----------------------------------------------------------------------===*/
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -31,6 +32,10 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
+
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
 
 #include <Fever/Fever.h>
 #include <Fever/FeverPlatform.h>
@@ -72,14 +77,50 @@ struct Vertex {
 
         return attributeDescriptions;
     }
+
+    bool operator==(const Vertex &other) const {
+        return pos == other.pos && normal == other.normal &&
+               texCoord == other.texCoord;
+    }
 };
+
+struct SkyboxVertex {
+    static std::array<FvVertexInputAttributeDescription, 1>
+    getAttributeDescriptions() {
+        std::array<FvVertexInputAttributeDescription, 1> attributeDescriptions =
+            {};
+
+        attributeDescriptions[0].binding  = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format   = FV_VERTEX_FORMAT_FLOAT3;
+        attributeDescriptions[0].offset   = offsetof(Vertex, pos);
+
+        return attributeDescriptions;
+    }
+};
+
+namespace std {
+template <> struct hash<Vertex> {
+    size_t operator()(Vertex const &vertex) const {
+        return ((hash<glm::vec3>()(vertex.pos) ^
+                 (hash<glm::vec3>()(vertex.normal) << 1)) >>
+                1) ^
+               (hash<glm::vec2>()(vertex.texCoord) << 1);
+    }
+};
+}
 
 struct UniformBufferObject {
     glm::mat4 model;
     glm::mat4 view;
     glm::mat4 proj;
     glm::mat4 invTransposeModel;
-    glm::vec4 lightPos;
+};
+
+struct SkyboxUniformBufferObject {
+    glm::mat4 proj;
+    glm::mat4 view;
+    glm::mat4 model;
 };
 
 /// For automatically freeing Fever resources
@@ -154,19 +195,31 @@ class HelloTriangleApplication {
     void initFever() {
         createSwapchain();
         createRenderPass();
-        createDescriptorSet();
-        createGraphicsPipeline();
+
         createCommandPool();
         createDepthResources();
         createFramebuffer();
+
+        createDescriptorSet();
+        createGraphicsPipeline();
         createTextureImage();
         createTextureSampler();
-        prepareVertices();
-        prepareIndices();
+        loadModel(MODEL_PATH, modelVertices, modelIndices);
         createVertexBuffer();
         createIndexBuffer();
         createUniformBuffer();
         writeDescriptorSet();
+
+        createSkyboxDescriptorSet();
+        createSkyboxGraphicsPipeline();
+        createSkyboxTextureImage();
+        createSkyboxTextureSampler();
+        loadModel(SKYBOX_MODEL_PATH, skyboxVertices, skyboxIndices);
+        createSkyboxVertexBuffer();
+        createSkyboxIndexBuffer();
+        createSkyboxUniformBuffer();
+        writeSkyboxDescriptorSet();
+
         createCommandBuffer();
         createSemaphores();
     }
@@ -257,20 +310,50 @@ class HelloTriangleApplication {
         createCommandBuffer();
     }
 
-    void prepareVertices() {
-        vertices = {{{-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}},
-                    {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-                    {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
-                    {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}}};
-    }
+    void loadModel(const std::string &modelPath, std::vector<Vertex> &vertices,
+                   std::vector<uint32_t> &indices) {
+        tinyobj::attrib_t attrib;
+        std::vector<tinyobj::shape_t> shapes;
+        std::vector<tinyobj::material_t> materials;
+        std::string err;
 
-    void prepareIndices() { indices = {0, 2, 1, 1, 3, 0}; }
+        if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &err,
+                              modelPath.c_str())) {
+            throw std::runtime_error(err);
+        }
+
+        std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
+
+        for (const auto &shape : shapes) {
+            for (const auto &index : shape.mesh.indices) {
+                Vertex vertex = {};
+
+                vertex.pos = {attrib.vertices[3 * index.vertex_index + 0],
+                              attrib.vertices[3 * index.vertex_index + 1],
+                              attrib.vertices[3 * index.vertex_index + 2]};
+
+                vertex.texCoord = {
+                    attrib.texcoords[2 * index.texcoord_index + 0],
+                    1.0f - attrib.texcoords[2 * index.texcoord_index + 1]};
+
+                vertex.normal = {1.0f, 1.0f, 1.0f};
+
+                if (uniqueVertices.count(vertex) == 0) {
+                    uniqueVertices[vertex] =
+                        static_cast<uint32_t>(vertices.size());
+                    vertices.push_back(vertex);
+                }
+
+                indices.push_back(uniqueVertices[vertex]);
+            }
+        }
+    }
 
     void createVertexBuffer() {
         FvBufferCreateInfo bufferInfo = {};
-        bufferInfo.size               = sizeof(vertices[0]) * vertices.size();
-        bufferInfo.usage              = FV_BUFFER_USAGE_VERTEX_BUFFER;
-        bufferInfo.data               = vertices.data();
+        bufferInfo.size  = sizeof(modelVertices[0]) * modelVertices.size();
+        bufferInfo.usage = FV_BUFFER_USAGE_VERTEX_BUFFER;
+        bufferInfo.data  = modelVertices.data();
 
         if (fvBufferCreate(vertexBuffer.replace(), &bufferInfo) !=
             FV_RESULT_SUCCESS) {
@@ -278,13 +361,37 @@ class HelloTriangleApplication {
         }
     }
 
+    void createSkyboxVertexBuffer() {
+        FvBufferCreateInfo bufferInfo = {};
+        bufferInfo.size  = sizeof(skyboxVertices[0]) * skyboxVertices.size();
+        bufferInfo.usage = FV_BUFFER_USAGE_VERTEX_BUFFER;
+        bufferInfo.data  = skyboxVertices.data();
+
+        if (fvBufferCreate(skyboxVertexBuffer.replace(), &bufferInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create vertex buffer!");
+        }
+    }
+
     void createIndexBuffer() {
         FvBufferCreateInfo bufferInfo = {};
-        bufferInfo.size               = sizeof(indices[0]) * indices.size();
-        bufferInfo.usage              = FV_BUFFER_USAGE_INDEX_BUFFER;
-        bufferInfo.data               = indices.data();
+        bufferInfo.size  = sizeof(modelIndices[0]) * modelIndices.size();
+        bufferInfo.usage = FV_BUFFER_USAGE_INDEX_BUFFER;
+        bufferInfo.data  = modelIndices.data();
 
         if (fvBufferCreate(indexBuffer.replace(), &bufferInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create vertex buffer!");
+        }
+    }
+
+    void createSkyboxIndexBuffer() {
+        FvBufferCreateInfo bufferInfo = {};
+        bufferInfo.size  = sizeof(skyboxIndices[0]) * skyboxIndices.size();
+        bufferInfo.usage = FV_BUFFER_USAGE_INDEX_BUFFER;
+        bufferInfo.data  = skyboxIndices.data();
+
+        if (fvBufferCreate(skyboxIndexBuffer.replace(), &bufferInfo) !=
             FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to create vertex buffer!");
         }
@@ -293,7 +400,7 @@ class HelloTriangleApplication {
     void createUniformBuffer() {
         FvBufferCreateInfo bufferInfo = {};
         bufferInfo.size               = sizeof(UniformBufferObject);
-        bufferInfo.usage              = FV_BUFFER_USAGE_INDEX_BUFFER;
+        bufferInfo.usage              = FV_BUFFER_USAGE_UNIFORM_BUFFER;
         bufferInfo.data = nullptr; // Add data in updateUniformBuffer
 
         if (fvBufferCreate(uniformBuffer.replace(), &bufferInfo) !=
@@ -359,6 +466,75 @@ class HelloTriangleApplication {
                                descriptorWrites.data());
     }
 
+    void createSkyboxUniformBuffer() {
+        FvBufferCreateInfo bufferInfo = {};
+        bufferInfo.size               = sizeof(SkyboxUniformBufferObject);
+        bufferInfo.usage              = FV_BUFFER_USAGE_UNIFORM_BUFFER;
+        bufferInfo.data = nullptr; // Add data in updateUniformBuffer
+
+        if (fvBufferCreate(skyboxUniformBuffer.replace(), &bufferInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create vertex buffer!");
+        }
+    }
+
+    void writeSkyboxDescriptorSet() {
+        FvDescriptorBufferInfo bufferInfo = {};
+        bufferInfo.buffer                 = skyboxUniformBuffer;
+        bufferInfo.offset                 = 0;
+        bufferInfo.range                  = sizeof(SkyboxUniformBufferObject);
+
+        FvDescriptorImageInfo imageInfo = {};
+        imageInfo.image                 = skyboxTextureImage;
+        imageInfo.sampler               = skyboxTextureSampler;
+
+        // Get shader reflection information
+        FvShaderReflectionRequest uniformBufferRequest;
+        uniformBufferRequest.bindingName  = "ubo";
+        uniformBufferRequest.shaderStage  = FV_SHADER_STAGE_VERTEX;
+        uniformBufferRequest.shaderModule = skyboxShaderModule;
+        uint32_t uniformBufferBindingPoint;
+
+        if (fvShaderModuleGetBindingPoint(&uniformBufferBindingPoint,
+                                          &uniformBufferRequest) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error(
+                "Failed to find uniform buffer binding point in shader!");
+        }
+
+        FvShaderReflectionRequest cubemapTextureRequest;
+        cubemapTextureRequest.bindingName  = "cubemapTexture";
+        cubemapTextureRequest.shaderStage  = FV_SHADER_STAGE_FRAGMENT;
+        cubemapTextureRequest.shaderModule = skyboxShaderModule;
+        uint32_t cubemapTextureBindingPoint;
+
+        if (fvShaderModuleGetBindingPoint(&cubemapTextureBindingPoint,
+                                          &cubemapTextureRequest) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error(
+                "Failed to find diffuse texture binding point in shader!");
+        }
+
+        std::array<FvWriteDescriptorSet, 2> descriptorWrites = {};
+        descriptorWrites[0].dstSet          = skyboxDescriptorSet;
+        descriptorWrites[0].dstBinding      = uniformBufferBindingPoint;
+        descriptorWrites[0].dstArrayElement = 0;
+        descriptorWrites[0].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].bufferInfo      = &bufferInfo;
+
+        descriptorWrites[1].dstSet          = skyboxDescriptorSet;
+        descriptorWrites[1].dstBinding      = cubemapTextureBindingPoint;
+        descriptorWrites[1].dstArrayElement = 0;
+        descriptorWrites[1].descriptorType =
+            FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].imageInfo       = &imageInfo;
+
+        fvUpdateDescriptorSets(descriptorWrites.size(),
+                               descriptorWrites.data());
+    }
+
     void updateUniformBuffer() {
         static auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -371,20 +547,23 @@ class HelloTriangleApplication {
         UniformBufferObject ubo = {};
         // ubo.model = glm::rotate(glm::mat4(), time * glm::radians(90.0f),
         //                         glm::vec3(0.0f, 1.0f, 0.0f));
-        ubo.model = glm::mat4();
-        ubo.view  = glm::lookAt(glm::vec3(-0.75f, 0.0f, 2.0f),
-                               glm::vec3(0.0f, 0.0f, 0.0f),
-                               glm::vec3(0.0f, 1.0f, 0.0f));
+        ubo.model = glm::scale(glm::mat4(), glm::vec3(0.1f, 0.1f, 0.1f));
+        ubo.view  = glm::lookAt(
+            glm::vec3(10.0f * cos(time), 0.0f, 10.0f * sin(time)),
+            glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         ubo.proj =
-            glm::perspective(glm::radians(45.0f),
-                             outputWidth / (float)outputHeight, 0.1f, 10.0f);
+            glm::perspective(glm::radians(60.0f),
+                             outputWidth / (float)outputHeight, 0.01f, 256.0f);
         ubo.invTransposeModel = glm::inverse(glm::transpose(ubo.model));
-        glm::mat4 lightRotation =
-            glm::rotate(glm::mat4(), time * glm::radians(90.0f),
-                        glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.lightPos = lightRotation * glm::vec4(0.3f, 0.0f, 0.2f, 1.0f);
 
         fvBufferReplaceData(uniformBuffer, &ubo, sizeof(ubo));
+
+        SkyboxUniformBufferObject skyboxUbo = {};
+        skyboxUbo.proj                      = ubo.proj;
+        skyboxUbo.view                      = ubo.view;
+        skyboxUbo.model = glm::scale(glm::mat4(), glm::vec3(5.0f, 5.0f, 5.0f));
+
+        fvBufferReplaceData(skyboxUniformBuffer, &skyboxUbo, sizeof(skyboxUbo));
     }
 
     void createFramebuffer() {
@@ -473,6 +652,96 @@ class HelloTriangleApplication {
         }
     }
 
+    void createSkyboxTextureImage() {
+        bool imageCreated = false;
+
+        // 0 - Positive X
+        // 1 - Negative X
+        // 2 - Positive Y
+        // 3 - Negative Y
+        // 4 - Positive Z
+        // 5 - Negative Z
+        for (unsigned int layer = 0; layer < 6; ++layer) {
+            // Fetch image data for cube face
+            std::stringstream skyboxFacePath;
+            skyboxFacePath << SKYBOX_TEXTURE_BASE_PATH << layer << ".png";
+
+            int faceWidth, faceHeight, faceChannels;
+            stbi_uc *pixels =
+                stbi_load(skyboxFacePath.str().c_str(), &faceWidth, &faceHeight,
+                          &faceChannels, STBI_rgb_alpha);
+
+            if (!pixels) {
+                std::stringstream err;
+                err << "Failed to load skybox face texture: "
+                    << skyboxFacePath.str();
+
+                throw std::runtime_error(err.str());
+            }
+
+            // Create image only once
+            if (imageCreated == false) {
+
+                // Create image
+                FvImageCreateInfo imageInfo = {};
+                imageInfo.imageType         = FV_IMAGE_TYPE_3D;
+                imageInfo.extent.width      = faceWidth;
+                imageInfo.extent.height     = faceHeight;
+                imageInfo.extent.depth      = 1;
+                imageInfo.mipLevels         = 1;
+                imageInfo.arrayLayers       = 1;
+                imageInfo.format            = FV_FORMAT_RGBA8UNORM;
+                imageInfo.usage             = FV_IMAGE_USAGE_SHADER_READ;
+                imageInfo.samples           = FV_SAMPLE_COUNT_1;
+
+                if (fvImageCreate(skyboxTextureImage.replace(), &imageInfo) !=
+                    FV_RESULT_SUCCESS) {
+                    throw std::runtime_error("Failed to create image!");
+                }
+
+                imageCreated = true;
+            }
+
+            FvSize bytesPerRow = faceWidth * 4; // We forced image to load with
+                                                // 4 channels using
+                                                // STBI_rgb_alpha flag
+            FvSize bytesPerImage = faceWidth * faceHeight *
+                                   4; // We forced image to load with 4 channels
+                                      // using STBI_rgb_alpha flag
+
+            // Upload image data to image object
+            FvRect3D region;
+            region.origin = {0, 0, 0};
+            region.extent = {(uint32_t)faceWidth, (uint32_t)faceHeight, 1};
+
+            fvImageReplaceRegion(skyboxTextureImage, region, 0, layer, pixels,
+                                 bytesPerRow, bytesPerImage);
+
+            stbi_image_free(pixels);
+        }
+    }
+
+    void createSkyboxTextureSampler() {
+        FvSamplerCreateInfo samplerInfo   = {};
+        samplerInfo.magFilter             = FV_MIN_MAG_FILTER_LINEAR;
+        samplerInfo.minFilter             = FV_MIN_MAG_FILTER_NEAREST;
+        samplerInfo.addressModeU          = FV_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeV          = FV_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeW          = FV_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.anisotropyEnable      = FV_TRUE;
+        samplerInfo.maxAnisotropy         = 16;
+        samplerInfo.borderColor           = FV_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.compareEnable         = FV_FALSE;
+        samplerInfo.compareFunc           = FV_COMPARE_FUNC_ALWAYS;
+        samplerInfo.mipmapMode            = FV_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.normalizedCoordinates = FV_TRUE;
+
+        if (fvSamplerCreate(skyboxTextureSampler.replace(), &samplerInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create texture sampler!");
+        }
+    }
+
     void createCommandBuffer() {
         // If a command buffer already exists, free it
         if (commandBuffer != FV_NULL_HANDLE) {
@@ -500,20 +769,37 @@ class HelloTriangleApplication {
         fvCmdBeginRenderPass(commandBuffer, &renderPassInfo);
 
         {
-            fvCmdBindGraphicsPipeline(commandBuffer, graphicsPipeline);
+            // Skybox //
+            fvCmdBindGraphicsPipeline(commandBuffer, skyboxGraphicsPipeline);
 
-            FvBuffer vertexBuffers[] = {vertexBuffer};
-            FvSize offsets[]         = {0};
-            fvCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+            FvBuffer skyboxVertexBuffers[] = {skyboxVertexBuffer};
+            FvSize skyboxOffsets[]         = {0};
+            fvCmdBindVertexBuffers(commandBuffer, 0, 1, skyboxVertexBuffers,
+                                   skyboxOffsets);
 
-            fvCmdBindIndexBuffer(commandBuffer, indexBuffer, 0,
+            fvCmdBindIndexBuffer(commandBuffer, skyboxIndexBuffer, 0,
                                  FV_INDEX_TYPE_UINT32);
 
-            fvCmdBindDescriptorSets(commandBuffer, pipelineLayout, 0, 1,
-                                    &descriptorSet);
+            fvCmdBindDescriptorSets(commandBuffer, skyboxPipelineLayout, 0, 1,
+                                    &skyboxDescriptorSet);
 
-            // fvCmdDraw(commandBuffer, vertices.size(), 1, 0, 0);
-            fvCmdDrawIndexed(commandBuffer, indices.size(), 1, 0, 0, 0);
+            fvCmdDrawIndexed(commandBuffer, skyboxIndices.size(), 1, 0, 0, 0);
+
+            // Model //
+            // fvCmdBindGraphicsPipeline(commandBuffer, graphicsPipeline);
+
+            // FvBuffer vertexBuffers[] = {vertexBuffer};
+            // FvSize offsets[]         = {0};
+            // fvCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers,
+            // offsets);
+
+            // fvCmdBindIndexBuffer(commandBuffer, indexBuffer, 0,
+            //                      FV_INDEX_TYPE_UINT32);
+
+            // fvCmdBindDescriptorSets(commandBuffer, pipelineLayout, 0, 1,
+            //                         &descriptorSet);
+
+            // fvCmdDrawIndexed(commandBuffer, modelIndices.size(), 1, 0, 0, 0);
         }
 
         fvCmdEndRenderPass(commandBuffer);
@@ -550,9 +836,36 @@ class HelloTriangleApplication {
         }
     }
 
+    void createSkyboxDescriptorSet() {
+        FvDescriptorInfo uboLayoutBinding = {};
+        uboLayoutBinding.binding          = 1;
+        uboLayoutBinding.descriptorType   = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboLayoutBinding.descriptorCount  = 1;
+        uboLayoutBinding.stageFlags       = FV_SHADER_STAGE_VERTEX;
+
+        FvDescriptorInfo samplerLayoutBinding = {};
+        samplerLayoutBinding.binding          = 0;
+        samplerLayoutBinding.descriptorCount  = 1;
+        samplerLayoutBinding.descriptorType =
+            FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        samplerLayoutBinding.stageFlags = FV_SHADER_STAGE_FRAGMENT;
+
+        std::array<FvDescriptorInfo, 2> descriptors = {uboLayoutBinding,
+                                                       samplerLayoutBinding};
+
+        FvDescriptorSetCreateInfo descriptorSetInfo = {};
+        descriptorSetInfo.descriptorCount           = descriptors.size();
+        descriptorSetInfo.descriptors               = descriptors.data();
+
+        if (fvDescriptorSetCreate(skyboxDescriptorSet.replace(),
+                                  &descriptorSetInfo) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create descriptor set");
+        }
+    }
+
     void createGraphicsPipeline() {
         std::vector<char> shaderCode =
-            readFile("src/projects/textureMapping/assets/texture.metal");
+            readFile("src/projects/cubemap/assets/cubemap.metal");
         shaderCode.push_back('\0');
 
         FvShaderModuleCreateInfo shaderModuleCreateInfo = {};
@@ -658,6 +971,119 @@ class HelloTriangleApplication {
         pipelineInfo.subpass                      = 0;
 
         if (fvGraphicsPipelineCreate(graphicsPipeline.replace(),
+                                     &pipelineInfo) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create graphics pipeline!");
+        }
+    }
+
+    void createSkyboxGraphicsPipeline() {
+        std::vector<char> shaderCode =
+            readFile("src/projects/cubemap/assets/skybox.metal");
+        shaderCode.push_back('\0');
+
+        FvShaderModuleCreateInfo shaderModuleCreateInfo = {};
+        shaderModuleCreateInfo.data = (void *)shaderCode.data();
+        shaderModuleCreateInfo.size = shaderCode.size();
+
+        if (fvShaderModuleCreate(skyboxShaderModule.replace(),
+                                 &shaderModuleCreateInfo) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create shader module!");
+        }
+
+        FvPipelineShaderStageDescription vertShaderStageInfo = {};
+        vertShaderStageInfo.stage             = FV_SHADER_STAGE_VERTEX;
+        vertShaderStageInfo.entryFunctionName = "vertFunc";
+        vertShaderStageInfo.shaderModule      = skyboxShaderModule;
+
+        FvPipelineShaderStageDescription fragShaderStageInfo = {};
+        fragShaderStageInfo.stage             = FV_SHADER_STAGE_FRAGMENT;
+        fragShaderStageInfo.entryFunctionName = "fragFunc";
+        fragShaderStageInfo.shaderModule      = skyboxShaderModule;
+
+        FvPipelineShaderStageDescription shaderStages[] = {vertShaderStageInfo,
+                                                           fragShaderStageInfo};
+
+        FvPipelineVertexInputDescription vertexInputInfo = {};
+
+        auto bindingDescription    = Vertex::getBindingDescription();
+        auto attributeDescriptions = SkyboxVertex::getAttributeDescriptions();
+
+        vertexInputInfo.vertexBindingDescriptionCount = 1;
+        vertexInputInfo.vertexBindingDescriptions     = &bindingDescription;
+        vertexInputInfo.vertexAttributeDescriptionCount =
+            attributeDescriptions.size();
+        vertexInputInfo.vertexAttributeDescriptions =
+            attributeDescriptions.data();
+
+        FvPipelineInputAssemblyDescription inputAssembly = {};
+        inputAssembly.primitiveType          = FV_PRIMITIVE_TYPE_TRIANGLE_LIST;
+        inputAssembly.primitiveRestartEnable = FV_TRUE;
+
+        FvViewport viewport = {};
+        viewport.x          = 0.0f;
+        viewport.y          = 0.0f;
+        viewport.width      = (float)outputWidth;
+        viewport.height     = (float)outputHeight;
+        viewport.minDepth   = 0.0f;
+        viewport.maxDepth   = 1.0f;
+
+        FvRect2D scissor      = {};
+        scissor.origin        = {0, 0};
+        scissor.extent.width  = (uint32_t)outputWidth;
+        scissor.extent.height = (uint32_t)outputHeight;
+
+        FvPipelineViewportDescription viewportState = {};
+        viewportState.viewport                      = viewport;
+        viewportState.scissor                       = scissor;
+
+        FvPipelineRasterizerDescription rasterizer = {};
+        rasterizer.depthClampEnable                = FV_FALSE;
+        /* rasterizer.rasterizerDiscardEnable         = FV_FALSE; */
+        rasterizer.cullMode    = FV_CULL_MODE_FRONT;
+        rasterizer.frontFacing = FV_WINDING_ORDER_COUNTER_CLOCKWISE;
+
+        FvPipelineDepthStencilStateDescription depthStencil = {};
+        depthStencil.depthWriteEnable                       = FV_TRUE;
+        depthStencil.depthCompareFunc  = FV_COMPARE_FUNC_LESS;
+        depthStencil.stencilTestEnable = FV_FALSE;
+
+        FvColorBlendAttachmentState colorBlendAttachment = {};
+        colorBlendAttachment.blendEnable                 = FV_FALSE;
+        colorBlendAttachment.colorWriteMask = (FvColorComponentFlags)(
+            FV_COLOR_COMPONENT_R | FV_COLOR_COMPONENT_G | FV_COLOR_COMPONENT_B |
+            FV_COLOR_COMPONENT_A);
+
+        FvPipelineColorBlendStateDescription colorBlending = {};
+        colorBlending.attachmentCount                      = 1;
+        colorBlending.attachments = &colorBlendAttachment;
+
+        FvDescriptorSet descriptorSets[]              = {skyboxDescriptorSet};
+        FvPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+        pipelineLayoutInfo.descriptorSetCount         = 1;
+        pipelineLayoutInfo.descriptorSets             = descriptorSets;
+        pipelineLayoutInfo.pushConstantRangeCount     = 0;
+        pipelineLayoutInfo.pushConstantRanges         = nullptr;
+
+        if (fvPipelineLayoutCreate(skyboxPipelineLayout.replace(),
+                                   &pipelineLayoutInfo) != FV_RESULT_SUCCESS) {
+            throw std::runtime_error("Failed to create pipeline layout!");
+        }
+
+        FvGraphicsPipelineCreateInfo pipelineInfo = {};
+        pipelineInfo.stageCount                   = 2;
+        pipelineInfo.stages                       = shaderStages;
+        pipelineInfo.vertexInputDescription       = &vertexInputInfo;
+        pipelineInfo.inputAssemblyDescription     = &inputAssembly;
+        pipelineInfo.viewportDescription          = &viewportState;
+        pipelineInfo.rasterizerDescription        = &rasterizer;
+        pipelineInfo.colorBlendStateDescription   = &colorBlending;
+        pipelineInfo.depthStencilDescription      = &depthStencil;
+        pipelineInfo.layout                       = pipelineLayout;
+        pipelineInfo.renderPass                   = renderPass;
+        pipelineInfo.subpass                      = 0;
+
+        if (fvGraphicsPipelineCreate(skyboxGraphicsPipeline.replace(),
                                      &pipelineInfo) != FV_RESULT_SUCCESS) {
             throw std::runtime_error("Failed to create graphics pipeline!");
         }
@@ -783,13 +1209,16 @@ class HelloTriangleApplication {
 
     const std::string TEXTURE_PATH =
         "src/projects/textureMapping/assets/metalplate01_rgba.jpg";
+    const std::string SKYBOX_TEXTURE_BASE_PATH =
+        "src/projects/cubemap/assets/cubemap_yokohama_";
+    const std::string MODEL_PATH = "src/projects/cubemap/assets/sphere.obj";
+    const std::string SKYBOX_MODEL_PATH =
+        "src/projects/cubemap/assets/cube.obj";
 
     SDL_Window *window;
     int outputWidth, outputHeight;
 
-    FDeleter<FvPipelineLayout> pipelineLayout{fvPipelineLayoutDestroy};
     FDeleter<FvRenderPass> renderPass{fvRenderPassDestroy};
-    FDeleter<FvGraphicsPipeline> graphicsPipeline{fvGraphicsPipelineDestroy};
     FDeleter<FvFramebuffer> framebuffer{fvFramebufferDestroy};
     FDeleter<FvCommandPool> commandPool{fvCommandPoolDestroy};
     // Resources of command buffer automatically freed
@@ -799,18 +1228,32 @@ class HelloTriangleApplication {
     FDeleter<FvSemaphore> imageAvailableSemaphore{fvSemaphoreDestroy};
     FDeleter<FvSemaphore> renderFinishedSemaphore{fvSemaphoreDestroy};
 
-    std::vector<Vertex> vertices;
-    std::vector<uint32_t> indices;
+    std::vector<Vertex> modelVertices;
+    std::vector<uint32_t> modelIndices;
     FDeleter<FvBuffer> vertexBuffer{fvBufferDestroy};
     FDeleter<FvBuffer> indexBuffer{fvBufferDestroy};
-
-    FDeleter<FvBuffer> uniformBuffer{fvBufferDestroy};
-    FDeleter<FvDescriptorSet> descriptorSet{fvDescriptorSetDestroy};
+    FDeleter<FvPipelineLayout> pipelineLayout{fvPipelineLayoutDestroy};
+    FDeleter<FvGraphicsPipeline> graphicsPipeline{fvGraphicsPipelineDestroy};
     FDeleter<FvImage> textureImage{fvImageDestroy};
     FDeleter<FvSampler> textureSampler{fvSamplerDestroy};
-    FDeleter<FvImage> depthImage{fvImageDestroy};
-
+    FDeleter<FvBuffer> uniformBuffer{fvBufferDestroy};
     FDeleter<FvShaderModule> shaderModule{fvShaderModuleDestroy};
+    FDeleter<FvDescriptorSet> descriptorSet{fvDescriptorSetDestroy};
+
+    std::vector<Vertex> skyboxVertices;
+    std::vector<uint32_t> skyboxIndices;
+    FDeleter<FvBuffer> skyboxVertexBuffer{fvBufferDestroy};
+    FDeleter<FvBuffer> skyboxIndexBuffer{fvBufferDestroy};
+    FDeleter<FvPipelineLayout> skyboxPipelineLayout{fvPipelineLayoutDestroy};
+    FDeleter<FvGraphicsPipeline> skyboxGraphicsPipeline{
+        fvGraphicsPipelineDestroy};
+    FDeleter<FvImage> skyboxTextureImage{fvImageDestroy};
+    FDeleter<FvSampler> skyboxTextureSampler{fvSamplerDestroy};
+    FDeleter<FvBuffer> skyboxUniformBuffer{fvBufferDestroy};
+    FDeleter<FvShaderModule> skyboxShaderModule{fvShaderModuleDestroy};
+    FDeleter<FvDescriptorSet> skyboxDescriptorSet{fvDescriptorSetDestroy};
+
+    FDeleter<FvImage> depthImage{fvImageDestroy};
 };
 
 int main(void) {

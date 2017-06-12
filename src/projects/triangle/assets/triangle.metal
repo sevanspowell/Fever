@@ -30,5 +30,5 @@ vertex VertexOut vertFunc(VertexIn vert [[stage_in]],
 }
 
 fragment float4 fragFunc(VertexOut inFrag [[stage_in]]) {
-    return float4(inFrag.color, 1.0f);
+    return pow(float4(inFrag.color, 1.0f), (1.0f/2.2f));
 }

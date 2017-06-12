@@ -48,7 +48,7 @@ vertex VertexOut vertFunc(VertexIn vert [[stage_in]],
 
 fragment float4 fragFunc(VertexOut inFrag [[stage_in]], texture2d<float>
 diffuseTexture [[texture(0)]], sampler samplr [[sampler(0)]]) {
-    float4 color = diffuseTexture.sample(samplr, inFrag.texCoord);
+    float4 color = pow(diffuseTexture.sample(samplr, inFrag.texCoord), 2.2);
 
     float3 N = normalize(inFrag.normal);
     float3 L = normalize(inFrag.lightVec);
@@ -57,6 +57,6 @@ diffuseTexture [[texture(0)]], sampler samplr [[sampler(0)]]) {
     float3 diffuse = max(dot(N, L), 0.0) * float3(1.0);
     float specular = pow(max(dot(R, V), 0.0), 16.0) * color.a;
 
-    return float4(diffuse * color.rgb + specular, 1.0);
+    return pow(float4(diffuse * color.rgb + specular, 1.0), 1.0/2.2);
     // return float4(diffuse * color.rgb, 1.0);
 }

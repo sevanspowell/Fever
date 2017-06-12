@@ -115,6 +115,8 @@ struct UniformBufferObject {
     glm::mat4 view;
     glm::mat4 proj;
     glm::mat4 invTransposeModel;
+    glm::mat4 invModelView;
+    glm::vec3 worldCameraPosition;
 };
 
 struct SkyboxUniformBufferObject {
@@ -200,10 +202,11 @@ class HelloTriangleApplication {
         createDepthResources();
         createFramebuffer();
 
+        createSkyboxTextureImage();
+        createSkyboxTextureSampler();
+
         createDescriptorSet();
         createGraphicsPipeline();
-        createTextureImage();
-        createTextureSampler();
         loadModel(MODEL_PATH, modelVertices, modelIndices);
         createVertexBuffer();
         createIndexBuffer();
@@ -212,8 +215,6 @@ class HelloTriangleApplication {
 
         createSkyboxDescriptorSet();
         createSkyboxGraphicsPipeline();
-        createSkyboxTextureImage();
-        createSkyboxTextureSampler();
         loadModel(SKYBOX_MODEL_PATH, skyboxVertices, skyboxIndices);
         createSkyboxVertexBuffer();
         createSkyboxIndexBuffer();
@@ -306,6 +307,7 @@ class HelloTriangleApplication {
         createDepthResources();
         createRenderPass();
         createGraphicsPipeline();
+        createSkyboxGraphicsPipeline();
         createFramebuffer();
         createCommandBuffer();
     }
@@ -322,7 +324,7 @@ class HelloTriangleApplication {
             throw std::runtime_error(err);
         }
 
-        std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
+        // std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
 
         for (const auto &shape : shapes) {
             for (const auto &index : shape.mesh.indices) {
@@ -336,15 +338,20 @@ class HelloTriangleApplication {
                     attrib.texcoords[2 * index.texcoord_index + 0],
                     1.0f - attrib.texcoords[2 * index.texcoord_index + 1]};
 
-                vertex.normal = {1.0f, 1.0f, 1.0f};
+                vertex.normal = {attrib.normals[3 * index.normal_index + 0],
+                                 attrib.normals[3 * index.normal_index + 1],
+                                 attrib.normals[3 * index.normal_index + 2]};
 
-                if (uniqueVertices.count(vertex) == 0) {
-                    uniqueVertices[vertex] =
-                        static_cast<uint32_t>(vertices.size());
-                    vertices.push_back(vertex);
-                }
+                vertices.push_back(vertex);
+                indices.push_back(indices.size());
 
-                indices.push_back(uniqueVertices[vertex]);
+                // if (uniqueVertices.count(vertex) == 0) {
+                //     uniqueVertices[vertex] =
+                //         static_cast<uint32_t>(vertices.size());
+                //     vertices.push_back(vertex);
+                // }
+
+                // indices.push_back(uniqueVertices[vertex]);
             }
         }
     }
@@ -416,8 +423,8 @@ class HelloTriangleApplication {
         bufferInfo.range                  = sizeof(UniformBufferObject);
 
         FvDescriptorImageInfo imageInfo = {};
-        imageInfo.image                 = textureImage;
-        imageInfo.sampler               = textureSampler;
+        imageInfo.image                 = skyboxTextureImage;
+        imageInfo.sampler               = skyboxTextureSampler;
 
         // Get shader reflection information
         FvShaderReflectionRequest uniformBufferRequest;
@@ -433,8 +440,20 @@ class HelloTriangleApplication {
                 "Failed to find uniform buffer binding point in shader!");
         }
 
+        uniformBufferRequest.bindingName  = "ubo";
+        uniformBufferRequest.shaderStage  = FV_SHADER_STAGE_FRAGMENT;
+        uniformBufferRequest.shaderModule = shaderModule;
+        uint32_t uniformBufferBindingPointFragment;
+
+        if (fvShaderModuleGetBindingPoint(&uniformBufferBindingPointFragment,
+                                          &uniformBufferRequest) !=
+            FV_RESULT_SUCCESS) {
+            throw std::runtime_error(
+                "Failed to find uniform buffer binding point in shader!");
+        }
+
         FvShaderReflectionRequest diffuseTextureRequest;
-        diffuseTextureRequest.bindingName  = "diffuseTexture";
+        diffuseTextureRequest.bindingName  = "cubemapTexture";
         diffuseTextureRequest.shaderStage  = FV_SHADER_STAGE_FRAGMENT;
         diffuseTextureRequest.shaderModule = shaderModule;
         uint32_t diffuseTextureBindingPoint;
@@ -446,7 +465,7 @@ class HelloTriangleApplication {
                 "Failed to find diffuse texture binding point in shader!");
         }
 
-        std::array<FvWriteDescriptorSet, 2> descriptorWrites = {};
+        std::array<FvWriteDescriptorSet, 3> descriptorWrites = {};
         descriptorWrites[0].dstSet          = descriptorSet;
         descriptorWrites[0].dstBinding      = uniformBufferBindingPoint;
         descriptorWrites[0].dstArrayElement = 0;
@@ -461,6 +480,13 @@ class HelloTriangleApplication {
             FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         descriptorWrites[1].descriptorCount = 1;
         descriptorWrites[1].imageInfo       = &imageInfo;
+
+        descriptorWrites[2].dstSet          = descriptorSet;
+        descriptorWrites[2].dstBinding      = uniformBufferBindingPointFragment;
+        descriptorWrites[2].dstArrayElement = 0;
+        descriptorWrites[2].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[2].descriptorCount = 1;
+        descriptorWrites[2].bufferInfo      = &bufferInfo;
 
         fvUpdateDescriptorSets(descriptorWrites.size(),
                                descriptorWrites.data());
@@ -547,14 +573,20 @@ class HelloTriangleApplication {
         UniformBufferObject ubo = {};
         // ubo.model = glm::rotate(glm::mat4(), time * glm::radians(90.0f),
         //                         glm::vec3(0.0f, 1.0f, 0.0f));
-        ubo.model = glm::scale(glm::mat4(), glm::vec3(0.1f, 0.1f, 0.1f));
+        ubo.model = glm::scale(glm::mat4(), glm::vec3(0.15f, 0.15f, 0.15f));
         ubo.view  = glm::lookAt(
-            glm::vec3(10.0f * cos(time), 0.0f, 10.0f * sin(time)),
+            glm::vec3(10.0f * cos(0.2f * time), 0.0f, 10.0f * sin(0.2f * time)),
             glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        // ubo.view = glm::lookAt(glm::vec3(6.0f, 5.0f, 10.0f),
+        //                        glm::vec3(6.0f, 5.0f, 0.0f),
+        //                        glm::vec3(0.0f, 1.0f, 0.0f));
         ubo.proj =
             glm::perspective(glm::radians(60.0f),
                              outputWidth / (float)outputHeight, 0.01f, 256.0f);
         ubo.invTransposeModel = glm::inverse(glm::transpose(ubo.model));
+        ubo.invModelView      = glm::inverse(ubo.view * ubo.model);
+        ubo.worldCameraPosition =
+            glm::vec3(-ubo.view[3].x, -ubo.view[3].y, -ubo.view[3].z);
 
         fvBufferReplaceData(uniformBuffer, &ubo, sizeof(ubo));
 
@@ -786,20 +818,19 @@ class HelloTriangleApplication {
             fvCmdDrawIndexed(commandBuffer, skyboxIndices.size(), 1, 0, 0, 0);
 
             // Model //
-            // fvCmdBindGraphicsPipeline(commandBuffer, graphicsPipeline);
+            fvCmdBindGraphicsPipeline(commandBuffer, graphicsPipeline);
 
-            // FvBuffer vertexBuffers[] = {vertexBuffer};
-            // FvSize offsets[]         = {0};
-            // fvCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers,
-            // offsets);
+            FvBuffer vertexBuffers[] = {vertexBuffer};
+            FvSize offsets[]         = {0};
+            fvCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
-            // fvCmdBindIndexBuffer(commandBuffer, indexBuffer, 0,
-            //                      FV_INDEX_TYPE_UINT32);
+            fvCmdBindIndexBuffer(commandBuffer, indexBuffer, 0,
+                                 FV_INDEX_TYPE_UINT32);
 
-            // fvCmdBindDescriptorSets(commandBuffer, pipelineLayout, 0, 1,
-            //                         &descriptorSet);
+            fvCmdBindDescriptorSets(commandBuffer, pipelineLayout, 0, 1,
+                                    &descriptorSet);
 
-            // fvCmdDrawIndexed(commandBuffer, modelIndices.size(), 1, 0, 0, 0);
+            fvCmdDrawIndexed(commandBuffer, modelIndices.size(), 1, 0, 0, 0);
         }
 
         fvCmdEndRenderPass(commandBuffer);
@@ -816,6 +847,13 @@ class HelloTriangleApplication {
         uboLayoutBinding.descriptorCount  = 1;
         uboLayoutBinding.stageFlags       = FV_SHADER_STAGE_VERTEX;
 
+        FvDescriptorInfo uboLayoutBindingFragment = {};
+        uboLayoutBindingFragment.binding          = 2;
+        uboLayoutBindingFragment.descriptorType =
+            FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboLayoutBindingFragment.descriptorCount = 1;
+        uboLayoutBindingFragment.stageFlags      = FV_SHADER_STAGE_FRAGMENT;
+
         FvDescriptorInfo samplerLayoutBinding = {};
         samplerLayoutBinding.binding          = 0;
         samplerLayoutBinding.descriptorCount  = 1;
@@ -823,8 +861,8 @@ class HelloTriangleApplication {
             FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         samplerLayoutBinding.stageFlags = FV_SHADER_STAGE_FRAGMENT;
 
-        std::array<FvDescriptorInfo, 2> descriptors = {uboLayoutBinding,
-                                                       samplerLayoutBinding};
+        std::array<FvDescriptorInfo, 3> descriptors = {
+            uboLayoutBinding, uboLayoutBindingFragment, samplerLayoutBinding};
 
         FvDescriptorSetCreateInfo descriptorSetInfo = {};
         descriptorSetInfo.descriptorCount           = descriptors.size();
@@ -1265,7 +1303,7 @@ int main(void) {
 
     // Create window
     SDL_Window *window =
-        SDL_CreateWindow("Texture Mapping", SDL_WINDOWPOS_CENTERED,
+        SDL_CreateWindow("Cubemap", SDL_WINDOWPOS_CENTERED,
                          SDL_WINDOWPOS_CENTERED, 800, 600, flags);
 
     try {

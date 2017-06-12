@@ -32,7 +32,7 @@ vertex SkyboxVertexOut vertFunc(SkyboxVertexIn vert [[stage_in]],
 
 fragment float4 fragFunc(SkyboxVertexOut inFrag [[stage_in]], texturecube<float>
 cubemapTexture [[texture(0)]], sampler cubemapSampler [[sampler(0)]]) {
-    float4 color = cubemapTexture.sample(cubemapSampler, inFrag.uvw);
+    float4 color = pow(cubemapTexture.sample(cubemapSampler, inFrag.uvw), 2.2);
 
-    return float4(color);
+    return pow(color, 1.0/2.2);
 }

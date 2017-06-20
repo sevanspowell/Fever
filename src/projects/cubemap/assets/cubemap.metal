@@ -15,6 +15,8 @@ struct VertexOut {
     float3 viewVec;
     float3 lightVec;
     float3 texCoords;
+    float3 posEye;
+    float3 nEye;
 };
 
 struct UniformBufferObject {
@@ -22,7 +24,6 @@ struct UniformBufferObject {
     float4x4 view;
     float4x4 proj;
     float4x4 invModelView;
-    float4x4 invTransposeModel;
     float3 worldCameraPosition;
 };
 
@@ -46,12 +47,15 @@ vertex VertexOut vertFunc(VertexIn vert [[stage_in]],
     out.lightVec = lightPos.xyz - out.pos.xyz;
     out.viewVec = -out.pos.xyz;
 
+    out.posEye = (ubo.view * ubo.model * float4(vert.position, 1.0)).xyz;
+    out.nEye = (ubo.view * ubo.model * float4(vert.position, 0.0)).xyz;
+
     return out;
 }
 
 fragment float4 fragFunc(VertexOut inFrag [[stage_in]], texturecube<float>
 cubemapTexture [[texture(0)]], sampler cubemapSampler [[sampler(0)]],
-const device UniformBufferObject &ubo [[buffer(2)]]) {
+const device UniformBufferObject &ubo [[buffer(1)]]) {
 
     // float3 cI = normalize(inFrag.pos);
     // float3 cR = reflect(cI, normalize(inFrag.normal));
@@ -61,8 +65,18 @@ const device UniformBufferObject &ubo [[buffer(2)]]) {
     // cR.y *= -1.0;
     // cR.x *= -1.0;
 
+    /* reflect ray around normal from eye to surface */
+    float3 incident_eye = normalize(inFrag.posEye);
+    float3 normal = normalize(inFrag.nEye);
+
+    float3 reflected = reflect(incident_eye, normal);
+    // convert from eye to world space
+    reflected = float3(ubo.invModelView * float4(reflected, 0.0));
+    return float4(ubo.invModelView[3].x, ubo.invModelView[3].y, ubo.invModelView[3].z, 1.0);
+
     inFrag.normal.y *= -1.0;
-    float4 color = pow(cubemapTexture.sample(cubemapSampler, inFrag.normal), 2.2);
+    // float4 color = pow(cubemapTexture.sample(cubemapSampler, inFrag.normal), 2.2);
+    float4 color = pow(cubemapTexture.sample(cubemapSampler, reflected), 2.2);
 
     // float3 N = normalize(inFrag.normal);
     // float3 L = normalize(inFrag.lightVec);

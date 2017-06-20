@@ -114,7 +114,6 @@ struct UniformBufferObject {
     glm::mat4 model;
     glm::mat4 view;
     glm::mat4 proj;
-    glm::mat4 invTransposeModel;
     glm::mat4 invModelView;
     glm::vec3 worldCameraPosition;
 };
@@ -482,7 +481,7 @@ class HelloTriangleApplication {
         descriptorWrites[1].imageInfo       = &imageInfo;
 
         descriptorWrites[2].dstSet          = descriptorSet;
-        descriptorWrites[2].dstBinding      = uniformBufferBindingPointFragment;
+        descriptorWrites[2].dstBinding      = 1;
         descriptorWrites[2].dstArrayElement = 0;
         descriptorWrites[2].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptorWrites[2].descriptorCount = 1;
@@ -583,8 +582,7 @@ class HelloTriangleApplication {
         ubo.proj =
             glm::perspective(glm::radians(60.0f),
                              outputWidth / (float)outputHeight, 0.01f, 256.0f);
-        ubo.invTransposeModel = glm::inverse(glm::transpose(ubo.model));
-        ubo.invModelView      = glm::inverse(ubo.view * ubo.model);
+        ubo.invModelView = glm::inverse(ubo.view);
         ubo.worldCameraPosition =
             glm::vec3(-ubo.view[3].x, -ubo.view[3].y, -ubo.view[3].z);
 
@@ -848,7 +846,7 @@ class HelloTriangleApplication {
         uboLayoutBinding.stageFlags       = FV_SHADER_STAGE_VERTEX;
 
         FvDescriptorInfo uboLayoutBindingFragment = {};
-        uboLayoutBindingFragment.binding          = 2;
+        uboLayoutBindingFragment.binding          = 1;
         uboLayoutBindingFragment.descriptorType =
             FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         uboLayoutBindingFragment.descriptorCount = 1;

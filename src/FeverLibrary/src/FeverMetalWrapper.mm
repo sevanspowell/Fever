@@ -1091,6 +1091,7 @@ void MetalWrapper::cmdBindGraphicsPipeline(
     // Get graphics pipeline wrapper
     GraphicsPipelineWrapper *pipelineWrapper = nullptr;
 
+
     const Handle *handle = (const Handle *)graphicsPipeline;
 
     if (handle != nullptr) {

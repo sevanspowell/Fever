@@ -119,25 +119,6 @@ fvShaderModuleCreate(FvShaderModule *shaderModule,
 
 extern void fvShaderModuleDestroy(FvShaderModule shaderModule);
 
-/** Used to get the binding point of a named shader binding. */
-typedef struct FvShaderReflectionRequest {
-    /** Name of shader binding to get binding point of. */
-    const char *bindingName;
-    /** Stage of the shader pipeline this binding exists in. */
-    FvShaderStage shaderStage;
-    /** Shader module containing shader code to get reflection info. for. */
-    FvShaderModule shaderModule;
-} FvShaderReflectionRequest;
-
-/**
- * A shader reflection request may only be made after a graphics pipeline using
- * that shader has been created successfully with 'fvGraphicsPipelineCreate'.
- * The method will fail if this condition is not satisfied.
- */
-extern FvResult
-fvShaderModuleGetBindingPoint(uint32_t *bindingPoint,
-                              const FvShaderReflectionRequest *request);
-
 /** Opaque handle to image object. */
 FV_DEFINE_HANDLE(FvImage);
 

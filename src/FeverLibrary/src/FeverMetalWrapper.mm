@@ -2417,55 +2417,6 @@ MetalWrapper::shaderModuleCreate(FvShaderModule *shaderModule,
     return result;
 }
 
-FvResult MetalWrapper::shaderModuleGetBindingPoint(
-    uint32_t *bindingPoint, const FvShaderReflectionRequest *request) {
-    if (bindingPoint == nullptr || request == nullptr) {
-        return FV_RESULT_FAILURE;
-    }
-
-    Handle *shaderModuleHandle = (Handle *)request->shaderModule;
-
-    if (shaderModuleHandle == nullptr) {
-        return FV_RESULT_FAILURE;
-    }
-
-    const ShaderModuleWrapper *shaderModuleWrapper =
-        libraries.get(*shaderModuleHandle);
-
-    if (shaderModuleWrapper == nullptr) {
-        return FV_RESULT_FAILURE;
-    }
-
-    bool foundArgument = false;
-    if (request->shaderStage == FV_SHADER_STAGE_VERTEX) {
-        for (uint32_t i = 0;
-             i < shaderModuleWrapper->vertexArgumentReflection.size(); ++i) {
-            if (shaderModuleWrapper->vertexArgumentReflection[i].name ==
-                request->bindingName) {
-                *bindingPoint =
-                    shaderModuleWrapper->vertexArgumentReflection[i].index;
-                foundArgument = true;
-            }
-        }
-    } else if (request->shaderStage == FV_SHADER_STAGE_FRAGMENT) {
-        for (uint32_t i = 0;
-             i < shaderModuleWrapper->fragmentArgumentReflection.size(); ++i) {
-            if (shaderModuleWrapper->fragmentArgumentReflection[i].name ==
-                request->bindingName) {
-                *bindingPoint =
-                    shaderModuleWrapper->fragmentArgumentReflection[i].index;
-                foundArgument = true;
-            }
-        }
-    }
-
-    if (foundArgument == false) {
-        return FV_RESULT_FAILURE;
-    }
-
-    return FV_RESULT_SUCCESS;
-}
-
 void MetalWrapper::shaderModuleDestroy(FvShaderModule shaderModule) {
     const Handle *handle = (const Handle *)shaderModule;
 

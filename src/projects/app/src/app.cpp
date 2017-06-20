@@ -358,44 +358,14 @@ class HelloTriangleApplication {
         imageInfo.image                 = textureImage;
         imageInfo.sampler               = textureSampler;
 
-        // Get shader reflection information
-        FvShaderReflectionRequest uniformBufferRequest;
-        uniformBufferRequest.bindingName  = "ubo";
-        uniformBufferRequest.shaderStage  = FV_SHADER_STAGE_VERTEX;
-        uniformBufferRequest.shaderModule = shaderModule;
-        uint32_t uniformBufferBindingPoint;
-
-        if (fvShaderModuleGetBindingPoint(&uniformBufferBindingPoint,
-                                          &uniformBufferRequest) !=
-            FV_RESULT_SUCCESS) {
-            throw std::runtime_error(
-                "Failed to find uniform buffer binding point in shader!");
-        }
-
-        FvShaderReflectionRequest diffuseTextureRequest;
-        diffuseTextureRequest.bindingName  = "diffuseTexture";
-        diffuseTextureRequest.shaderStage  = FV_SHADER_STAGE_FRAGMENT;
-        diffuseTextureRequest.shaderModule = shaderModule;
-        uint32_t diffuseTextureBindingPoint;
-
-        if (fvShaderModuleGetBindingPoint(&diffuseTextureBindingPoint,
-                                          &diffuseTextureRequest) !=
-            FV_RESULT_SUCCESS) {
-            throw std::runtime_error(
-                "Failed to find diffuse texture binding point in shader!");
-        }
-
-        std::cout << uniformBufferBindingPoint << " "
-                  << diffuseTextureBindingPoint << std::endl;
-
         std::array<FvWriteDescriptorSet, 2> descriptorWrites = {};
         descriptorWrites[0].dstSet          = descriptorSet;
-        descriptorWrites[0].dstBinding      = uniformBufferBindingPoint;
+        descriptorWrites[0].dstBinding      = 1;
         descriptorWrites[0].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptorWrites[0].bufferInfo      = &bufferInfo;
 
         descriptorWrites[1].dstSet          = descriptorSet;
-        descriptorWrites[1].dstBinding      = diffuseTextureBindingPoint;
+        descriptorWrites[1].dstBinding      = 0;
         descriptorWrites[1].descriptorType =
             FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         descriptorWrites[1].imageInfo       = &imageInfo;

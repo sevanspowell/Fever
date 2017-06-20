@@ -294,23 +294,9 @@ class HelloTriangleApplication {
         bufferInfo.offset                 = 0;
         bufferInfo.range                  = sizeof(UniformBufferObject);
 
-        // Get shader reflection information
-        FvShaderReflectionRequest uniformBufferRequest;
-        uniformBufferRequest.bindingName  = "ubo";
-        uniformBufferRequest.shaderStage  = FV_SHADER_STAGE_VERTEX;
-        uniformBufferRequest.shaderModule = shaderModule;
-        uint32_t uniformBufferBindingPoint;
-
-        if (fvShaderModuleGetBindingPoint(&uniformBufferBindingPoint,
-                                          &uniformBufferRequest) !=
-            FV_RESULT_SUCCESS) {
-            throw std::runtime_error(
-                "Failed to find uniform buffer binding point in shader!");
-        }
-
         std::array<FvWriteDescriptorSet, 1> descriptorWrites = {};
         descriptorWrites[0].dstSet          = descriptorSet;
-        descriptorWrites[0].dstBinding      = uniformBufferBindingPoint;
+        descriptorWrites[0].dstBinding      = 1;
         descriptorWrites[0].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptorWrites[0].bufferInfo      = &bufferInfo;
 

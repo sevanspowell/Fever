@@ -385,10 +385,6 @@ class MetalWrapper {
     FvResult shaderModuleCreate(FvShaderModule *shaderModule,
                                 const FvShaderModuleCreateInfo *createInfo);
 
-    FvResult
-    shaderModuleGetBindingPoint(uint32_t *bindingPoint,
-                                const FvShaderReflectionRequest *request);
-
     void shaderModuleDestroy(FvShaderModule shaderModule);
 
   private:

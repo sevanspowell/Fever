@@ -319,16 +319,6 @@ void fvShaderModuleDestroy(FvShaderModule shaderModule) {
     }
 }
 
-FvResult
-fvShaderModuleGetBindingPoint(uint32_t *bindingPoint,
-                              const FvShaderReflectionRequest *request) {
-    if (metalWrapper != nullptr) {
-        return metalWrapper->shaderModuleGetBindingPoint(bindingPoint, request);
-    } else {
-        return FV_RESULT_FAILURE;
-    }
-}
-
 FvResult fvCreateMacOSSurface(FvSurface *surface,
                               const FvMacOSSurfaceCreateInfo *createInfo) {
     CAMetalLayer *metalLayer = NULL;

@@ -342,17 +342,13 @@ class HelloTriangleApplication {
         std::array<FvWriteDescriptorSet, 2> descriptorWrites = {};
         descriptorWrites[0].dstSet          = descriptorSet;
         descriptorWrites[0].dstBinding      = uniformBufferBindingPoint;
-        descriptorWrites[0].dstArrayElement = 0;
         descriptorWrites[0].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[0].descriptorCount = 1;
         descriptorWrites[0].bufferInfo      = &bufferInfo;
 
         descriptorWrites[1].dstSet          = descriptorSet;
         descriptorWrites[1].dstBinding      = diffuseTextureBindingPoint;
-        descriptorWrites[1].dstArrayElement = 0;
         descriptorWrites[1].descriptorType =
             FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        descriptorWrites[1].descriptorCount = 1;
         descriptorWrites[1].imageInfo       = &imageInfo;
 
         fvUpdateDescriptorSets(descriptorWrites.size(),

@@ -311,9 +311,7 @@ class HelloTriangleApplication {
         std::array<FvWriteDescriptorSet, 1> descriptorWrites = {};
         descriptorWrites[0].dstSet          = descriptorSet;
         descriptorWrites[0].dstBinding      = uniformBufferBindingPoint;
-        descriptorWrites[0].dstArrayElement = 0;
         descriptorWrites[0].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[0].descriptorCount = 1;
         descriptorWrites[0].bufferInfo      = &bufferInfo;
 
         fvUpdateDescriptorSets(descriptorWrites.size(),

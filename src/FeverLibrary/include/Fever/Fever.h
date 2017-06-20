@@ -511,14 +511,9 @@ typedef struct FvWriteDescriptorSet {
     FvDescriptorSet dstSet;
     /** Descriptor binding within destination descriptor set to write to. */
     uint32_t dstBinding;
-    /** If descriptor binding is an array, this is the element in the array to
-     * write to. */
-    uint32_t dstArrayElement;
     /** Type of the descriptor to update. Must be same as descriptor type in
      * FvDescriptorSetLayoutBinding struct. */
     FvDescriptorType descriptorType;
-    /** Number of descriptors to update. */
-    uint32_t descriptorCount;
     /** An array of FvDescriptorBufferInfo structures that will be used as the
      * data source in the write(if descriptor type is
      * FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER). */

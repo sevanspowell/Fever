@@ -467,24 +467,18 @@ class HelloTriangleApplication {
         std::array<FvWriteDescriptorSet, 3> descriptorWrites = {};
         descriptorWrites[0].dstSet          = descriptorSet;
         descriptorWrites[0].dstBinding      = uniformBufferBindingPoint;
-        descriptorWrites[0].dstArrayElement = 0;
         descriptorWrites[0].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[0].descriptorCount = 1;
         descriptorWrites[0].bufferInfo      = &bufferInfo;
 
         descriptorWrites[1].dstSet          = descriptorSet;
         descriptorWrites[1].dstBinding      = diffuseTextureBindingPoint;
-        descriptorWrites[1].dstArrayElement = 0;
         descriptorWrites[1].descriptorType =
             FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        descriptorWrites[1].descriptorCount = 1;
         descriptorWrites[1].imageInfo       = &imageInfo;
 
         descriptorWrites[2].dstSet          = descriptorSet;
         descriptorWrites[2].dstBinding      = 1;
-        descriptorWrites[2].dstArrayElement = 0;
         descriptorWrites[2].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[2].descriptorCount = 1;
         descriptorWrites[2].bufferInfo      = &bufferInfo;
 
         fvUpdateDescriptorSets(descriptorWrites.size(),
@@ -543,17 +537,13 @@ class HelloTriangleApplication {
         std::array<FvWriteDescriptorSet, 2> descriptorWrites = {};
         descriptorWrites[0].dstSet          = skyboxDescriptorSet;
         descriptorWrites[0].dstBinding      = uniformBufferBindingPoint;
-        descriptorWrites[0].dstArrayElement = 0;
         descriptorWrites[0].descriptorType  = FV_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[0].descriptorCount = 1;
         descriptorWrites[0].bufferInfo      = &bufferInfo;
 
         descriptorWrites[1].dstSet          = skyboxDescriptorSet;
         descriptorWrites[1].dstBinding      = cubemapTextureBindingPoint;
-        descriptorWrites[1].dstArrayElement = 0;
         descriptorWrites[1].descriptorType =
             FV_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        descriptorWrites[1].descriptorCount = 1;
         descriptorWrites[1].imageInfo       = &imageInfo;
 
         fvUpdateDescriptorSets(descriptorWrites.size(),
